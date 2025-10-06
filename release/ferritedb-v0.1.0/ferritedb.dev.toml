@@ -1,0 +1,64 @@
+# FerriteDB Development Configuration
+
+[server]
+host = "0.0.0.0"
+port = 8090
+cors_origins = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080"]
+request_timeout = 30
+max_request_size = 10485760  # 10MB
+
+[server.rate_limit]
+requests_per_minute = 1000
+burst_size = 100
+
+[database]
+url = "sqlite:data/ferritedb.db"
+auto_migrate = true
+max_connections = 10
+connection_timeout = 30
+
+[auth]
+jwt_secret = "dev-secret-change-in-production-this-is-not-secure"
+token_ttl = 3600  # 1 hour for development
+refresh_ttl = 86400  # 1 day
+password_min_length = 1
+argon2_memory = 65536  # 64MB
+argon2_iterations = 3
+argon2_parallelism = 4
+
+[storage]
+backend = "Local"
+
+[storage.local]
+base_path = "data/storage"
+max_file_size = 52428800  # 50MB
+
+# Uncomment for S3/MinIO development
+# [storage.s3]
+# endpoint = "http://localhost:9000"
+# bucket = "ferritedb-dev"
+# region = "us-east-1"
+# access_key = "minioadmin"
+# secret_key = "minioadmin"
+
+[features]
+oauth2 = false
+s3_storage = false
+image_transforms = false
+multi_tenant = false
+full_text_search = false
+metrics = true
+
+[logging]
+level = "debug"
+format = "pretty"
+
+[admin]
+enabled = true
+default_theme = "dark"
+
+# Development-specific settings
+[dev]
+auto_reload = true
+debug_mode = true
+seed_data = true
