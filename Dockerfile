@@ -1,4 +1,4 @@
-# Multi-stage build for RustBase
+# Multi-stage build for FerriteDB
 FROM rust:1.75-slim as builder
 
 # Install build dependencies
@@ -38,7 +38,7 @@ RUN useradd --create-home --shell /bin/bash --uid 1000 app
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/target/release/rustbase /usr/local/bin/rustbase
+COPY --from=builder /app/target/release/ferritedb /usr/local/bin/ferritedb
 
 # Create data directories
 RUN mkdir -p /app/data/storage && \
@@ -51,13 +51,13 @@ COPY --chown=app:app crates/server/admin/ /app/admin/
 USER app
 
 # Create default configuration
-RUN cat > /app/rustbase.toml << 'EOF'
+RUN cat > /app/ferritedb.toml << 'EOF'
 [server]
 host = "0.0.0.0"
 port = 8090
 
 [database]
-url = "sqlite:data/rustbase.db"
+url = "sqlite:data/ferritedb.db"
 auto_migrate = true
 
 [auth]
@@ -85,8 +85,8 @@ EXPOSE 8090
 
 # Set environment variables
 ENV RUST_LOG=info
-ENV RUSTBASE_SERVER_HOST=0.0.0.0
-ENV RUSTBASE_SERVER_PORT=8090
+ENV FERRITEDB_SERVER_HOST=0.0.0.0
+ENV FERRITEDB_SERVER_PORT=8090
 
 # Start command
-CMD ["rustbase", "serve"]
+CMD ["ferritedb", "serve"]

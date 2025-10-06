@@ -1,11 +1,11 @@
 [package]
-name = "rustbase-sdk"
+name = "ferritedb-sdk"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "RustBase Rust client SDK"
+description = "FerriteDB Rust client SDK"
 
 [dependencies]
 # HTTP client

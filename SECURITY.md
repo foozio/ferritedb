@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-We actively support the following versions of RustBase with security updates:
+We actively support the following versions of FerriteDB with security updates:
 
 | Version | Supported          |
 | ------- | ------------------ |
@@ -11,7 +11,7 @@ We actively support the following versions of RustBase with security updates:
 
 ## Reporting a Vulnerability
 
-We take security vulnerabilities seriously. If you discover a security vulnerability in RustBase, please report it responsibly.
+We take security vulnerabilities seriously. If you discover a security vulnerability in FerriteDB, please report it responsibly.
 
 ### How to Report
 
@@ -19,7 +19,7 @@ We take security vulnerabilities seriously. If you discover a security vulnerabi
 
 Instead, please:
 
-1. **Email**: Send details to security@rustbase.dev (if available) or create a private security advisory on GitHub
+1. **Email**: Send details to security@ferritedb.dev (if available) or create a private security advisory on GitHub
 2. **GitHub Security Advisory**: Use GitHub's private vulnerability reporting feature
 3. **Encrypted Communication**: For sensitive issues, use our PGP key (available on request)
 
@@ -75,7 +75,7 @@ Please provide as much information as possible:
    openssl rand -base64 64
    
    # Set in environment or config
-   export RUSTBASE_AUTH_JWT_SECRET="your-secure-secret"
+   export FERRITEDB_AUTH_JWT_SECRET="your-secure-secret"
    ```
 
 2. **Use HTTPS**
@@ -86,10 +86,10 @@ Please provide as much information as possible:
 3. **Database Security**
    ```bash
    # Secure file permissions
-   chmod 600 data/rustbase.db
+   chmod 600 data/ferritedb.db
    
    # Regular backups
-   sqlite3 data/rustbase.db ".backup backup.db"
+   sqlite3 data/ferritedb.db ".backup backup.db"
    ```
 
 4. **Network Security**
@@ -100,16 +100,16 @@ Please provide as much information as possible:
 5. **Regular Updates**
    ```bash
    # Check for updates
-   rustbase --version
+   ferritedb --version
    
    # Update to latest version
-   cargo install rustbase --force
+   cargo install ferritedb --force
    ```
 
 #### Configuration Security
 
 ```toml
-# rustbase.toml - Production configuration
+# ferritedb.toml - Production configuration
 [server]
 host = "127.0.0.1"  # Bind to localhost only
 port = 8090
@@ -148,7 +148,7 @@ metrics = false              # Disable if not needed
    ```bash
    # Secure directory permissions
    chmod 750 data/storage
-   chown rustbase:rustbase data/storage
+   chown ferritedb:ferritedb data/storage
    ```
 
 2. **S3/Cloud Storage**
@@ -282,7 +282,7 @@ metrics = false              # Disable if not needed
 
 ### Audit Logging
 
-RustBase logs security-relevant events:
+FerriteDB logs security-relevant events:
 
 ```rust
 // Example audit log entry
@@ -373,4 +373,4 @@ Monitor these logs for:
 
 ---
 
-Security is a shared responsibility. By following these guidelines and reporting vulnerabilities responsibly, we can keep RustBase secure for everyone.
+Security is a shared responsibility. By following these guidelines and reporting vulnerabilities responsibly, we can keep FerriteDB secure for everyone.

@@ -1,10 +1,10 @@
-# RustBase Roadmap
+# FerriteDB Roadmap
 
-This document outlines the planned development roadmap for RustBase. The roadmap is subject to change based on community feedback, priorities, and contributions.
+This document outlines the planned development roadmap for FerriteDB. The roadmap is subject to change based on community feedback, priorities, and contributions.
 
 ## Current Status
 
-RustBase is currently in **active development** with the core features implemented and production-ready. We're focusing on stability, performance, and expanding the ecosystem.
+FerriteDB is currently in **active development** with the core features implemented and production-ready. We're focusing on stability, performance, and expanding the ecosystem.
 
 ## Version Strategy
 
@@ -30,7 +30,7 @@ We follow [Semantic Versioning](https://semver.org/):
 - 🔄 Security hardening
 - 🔄 Community feedback integration
 
-### 🚀 Near Term (Q2 2024)
+### 🚀 Near Term (Q2 2026)
 
 **Version 1.1 - Enhanced Features**
 - [ ] **Multi-tenancy Support**
@@ -56,7 +56,7 @@ We follow [Semantic Versioning](https://semver.org/):
   - Connection pooling enhancements
   - Background job processing
 
-### 🌟 Medium Term (Q3-Q4 2024)
+### 🌟 Medium Term (Q3-Q4 2026)
 
 **Version 1.2 - Ecosystem Expansion**
 - [ ] **Database Support**
@@ -102,7 +102,7 @@ We follow [Semantic Versioning](https://semver.org/):
   - Bulk operations
   - Data import/export tools
 
-### 🔮 Long Term (2025+)
+### 🔮 Long Term (2027+)
 
 **Version 2.0 - Next Generation**
 - [ ] **Distributed Architecture**
@@ -181,11 +181,11 @@ We aim for predictable releases:
 
 | Version | Target Date | Focus |
 |---------|-------------|-------|
-| 1.0.1   | Q1 2024     | Bug fixes, performance |
-| 1.1.0   | Q2 2024     | Multi-tenancy, OAuth2 |
-| 1.2.0   | Q3 2024     | Database options, GraphQL |
-| 1.3.0   | Q4 2024     | SDKs, developer tools |
-| 2.0.0   | Q2 2025     | Distributed architecture |
+| 1.0.1   | Q1 2026     | Bug fixes, performance |
+| 1.1.0   | Q2 2026     | Multi-tenancy, OAuth2 |
+| 1.2.0   | Q3 2026     | Database options, GraphQL |
+| 1.3.0   | Q4 2026     | SDKs, developer tools |
+| 2.0.0   | Q2 2027     | Distributed architecture |
 
 ## Platform Support
 
@@ -312,11 +312,11 @@ This roadmap is a living document updated quarterly based on:
 - **GitHub Releases**: Subscribe to release notifications
 - **Discussions**: Follow roadmap discussions
 - **Blog**: Read development updates
-- **Social Media**: Follow @rustbase for announcements
+- **Social Media**: Follow @ferritedb for announcements
 
 ---
 
-**Last Updated**: January 2024  
-**Next Review**: April 2024
+**Last Updated**: October 2025  
+**Next Review**: January 2026
 
-Have questions or suggestions about the roadmap? [Start a discussion](https://github.com/rustbase/rustbase/discussions) or [create an issue](https://github.com/rustbase/rustbase/issues/new/choose)!
+Have questions or suggestions about the roadmap? [Start a discussion](https://github.com/ferritedb/ferritedb/discussions) or [create an issue](https://github.com/ferritedb/ferritedb/issues/new/choose)!

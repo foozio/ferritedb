@@ -1,6 +1,6 @@
-# Contributing to RustBase
+# Contributing to FerriteDB
 
-Thank you for your interest in contributing to RustBase! This document provides guidelines and information for contributors.
+Thank you for your interest in contributing to FerriteDB! This document provides guidelines and information for contributors.
 
 ## Table of Contents
 
@@ -30,7 +30,7 @@ This project adheres to a code of conduct that we expect all contributors to fol
 ### Quick Start
 
 1. Fork the repository
-2. Clone your fork: `git clone https://github.com/yourusername/rustbase.git`
+2. Clone your fork: `git clone https://github.com/yourusername/ferritedb.git`
 3. Set up the development environment (see below)
 4. Create a feature branch: `git checkout -b feature/your-feature-name`
 5. Make your changes and test them
@@ -42,8 +42,8 @@ This project adheres to a code of conduct that we expect all contributors to fol
 
 ```bash
 # Clone the repository
-git clone https://github.com/rustbase/rustbase.git
-cd rustbase
+git clone https://github.com/ferritedb/ferritedb.git
+cd ferritedb
 
 # Install dependencies and build
 cargo build
@@ -71,7 +71,7 @@ docker-compose -f docker-compose.dev.yml up
 docker-compose -f docker-compose.dev.yml --profile with-postgres --profile with-redis up
 
 # Build and test in container
-docker-compose -f docker-compose.dev.yml exec rustbase-dev cargo test
+docker-compose -f docker-compose.dev.yml exec ferritedb-dev cargo test
 ```
 
 ### Environment Configuration
@@ -80,14 +80,14 @@ Create a `.env` file for local development:
 
 ```bash
 # Database
-RUSTBASE_DATABASE_URL=sqlite:data/rustbase.db
+FERRITEDB_DATABASE_URL=sqlite:data/ferritedb.db
 
 # Authentication
-RUSTBASE_AUTH_JWT_SECRET=your-development-secret
+FERRITEDB_AUTH_JWT_SECRET=your-development-secret
 
 # Storage
-RUSTBASE_STORAGE_BACKEND=local
-RUSTBASE_STORAGE_LOCAL_BASE_PATH=data/storage
+FERRITEDB_STORAGE_BACKEND=local
+FERRITEDB_STORAGE_LOCAL_BASE_PATH=data/storage
 
 # Logging
 RUST_LOG=debug
@@ -96,7 +96,7 @@ RUST_LOG=debug
 ## Project Structure
 
 ```
-rustbase/
+ferritedb/
 ├── crates/
 │   ├── server/          # Web server, routes, middleware
 │   ├── core/            # Business logic, collections, auth
@@ -133,7 +133,7 @@ rustbase/
 
 ```rust
 // Good: Clear, documented function
-/// Validates a collection name according to RustBase naming rules.
+/// Validates a collection name according to FerriteDB naming rules.
 /// 
 /// # Arguments
 /// * `name` - The collection name to validate
@@ -310,7 +310,7 @@ Examples:
 
 ### Versioning
 
-RustBase follows [Semantic Versioning](https://semver.org/):
+FerriteDB follows [Semantic Versioning](https://semver.org/):
 - **MAJOR**: Breaking changes
 - **MINOR**: New features (backward compatible)
 - **PATCH**: Bug fixes (backward compatible)
@@ -342,7 +342,7 @@ RustBase follows [Semantic Versioning](https://semver.org/):
 
 When reporting bugs, please include:
 
-- RustBase version
+- FerriteDB version
 - Operating system and version
 - Rust version
 - Steps to reproduce
@@ -386,11 +386,11 @@ For feature requests:
 RUST_LOG=debug cargo run -- serve
 
 # Use rust-gdb for debugging
-rust-gdb target/debug/rustbase
+rust-gdb target/debug/ferritedb
 
 # Profile with perf (Linux)
 cargo build --release
-perf record target/release/rustbase serve
+perf record target/release/ferritedb serve
 perf report
 ```
 
@@ -404,8 +404,8 @@ perf report
 
 ## License
 
-By contributing to RustBase, you agree that your contributions will be licensed under the same license as the project (MIT License).
+By contributing to FerriteDB, you agree that your contributions will be licensed under the same license as the project (MIT License).
 
 ---
 
-Thank you for contributing to RustBase! Your efforts help make this project better for everyone.
+Thank you for contributing to FerriteDB! Your efforts help make this project better for everyone.

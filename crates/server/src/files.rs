@@ -5,8 +5,8 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use rustbase_core::models::{Collection, Record};
-use rustbase_storage::{StorageBackend, StorageConfig};
+use ferritedb_core::models::{Collection, Record};
+use ferritedb_storage::{StorageBackend, StorageConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -207,7 +207,7 @@ pub async fn serve_file(
         .retrieve(&file_metadata.path)
         .await
         .map_err(|e| match e {
-            rustbase_storage::StorageError::NotFound(_) => {
+            ferritedb_storage::StorageError::NotFound(_) => {
                 ServerError::NotFound("File not found".to_string())
             }
             _ => ServerError::Internal(format!("Failed to retrieve file: {}", e)),
@@ -322,7 +322,7 @@ fn validate_file_field(collection: &Collection, field_name: &str) -> ServerResul
 
     // Check if field is of type File
     match &field.field_type {
-        rustbase_core::models::FieldType::File { .. } => Ok(()),
+        ferritedb_core::models::FieldType::File { .. } => Ok(()),
         _ => Err(ServerError::BadRequest(format!(
             "Field '{}' is not a file field (type: {})",
             field_name, field.field_type
@@ -333,7 +333,7 @@ fn validate_file_field(collection: &Collection, field_name: &str) -> ServerResul
 /// Validate file against storage configuration and field constraints
 fn validate_file(
     config: &StorageConfig,
-    field: &rustbase_core::models::Field,
+    field: &ferritedb_core::models::Field,
     filename: &str,
     size: usize,
     content_type: &Option<String>,
@@ -354,7 +354,7 @@ fn validate_file(
     }
 
     // Check field-specific constraints
-    if let rustbase_core::models::FieldType::File { max_size, allowed_types } = &field.field_type {
+    if let ferritedb_core::models::FieldType::File { max_size, allowed_types } = &field.field_type {
         // Check field-specific size limit
         if let Some(field_max_size) = max_size {
             if size as u64 > *field_max_size {

@@ -6,12 +6,12 @@ mod tests {
         extract::multipart::Field,
         http::{Request, StatusCode},
     };
-    use rustbase_core::{
+    use ferritedb_core::{
         auth::{AuthService, AuthConfig},
         models::{Collection, CollectionSchema, CollectionType, Field as CoreField, FieldType, User, UserRole, Record},
         CollectionService, RecordService,
     };
-    use rustbase_storage::{LocalStorage, StorageConfig, StorageType};
+    use ferritedb_storage::{LocalStorage, StorageConfig, StorageType};
     use serde_json::json;
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -37,7 +37,7 @@ mod tests {
             collections.insert(collection.name.clone(), collection);
         }
 
-        async fn get_collection(&self, name: &str) -> rustbase_core::CoreResult<Option<Collection>> {
+        async fn get_collection(&self, name: &str) -> ferritedb_core::CoreResult<Option<Collection>> {
             let collections = self.collections.lock().unwrap();
             Ok(collections.get(name).cloned())
         }
@@ -59,12 +59,12 @@ mod tests {
             records.insert((collection_name.to_string(), record.id), record);
         }
 
-        async fn get_record(&self, collection_name: &str, record_id: Uuid) -> rustbase_core::CoreResult<Option<Record>> {
+        async fn get_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>> {
             let records = self.records.lock().unwrap();
             Ok(records.get(&(collection_name.to_string(), record_id)).cloned())
         }
 
-        async fn update_record(&self, collection_name: &str, record_id: Uuid, data: serde_json::Value) -> rustbase_core::CoreResult<Record> {
+        async fn update_record(&self, collection_name: &str, record_id: Uuid, data: serde_json::Value) -> ferritedb_core::CoreResult<Record> {
             let mut records = self.records.lock().unwrap();
             if let Some(record) = records.get_mut(&(collection_name.to_string(), record_id)) {
                 if let Some(data_obj) = data.as_object() {
@@ -75,7 +75,7 @@ mod tests {
                 record.updated_at = chrono::Utc::now();
                 Ok(record.clone())
             } else {
-                Err(rustbase_core::CoreError::RecordNotFound(record_id.to_string()))
+                Err(ferritedb_core::CoreError::RecordNotFound(record_id.to_string()))
             }
         }
     }

@@ -1,11 +1,11 @@
 [package]
-name = "rustbase-core"
+name = "ferritedb-core"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "RustBase core business logic and domain models"
+description = "FerriteDB core business logic and domain models"
 
 [dependencies]
 # Database

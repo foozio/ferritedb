@@ -1,17 +1,17 @@
 [package]
-name = "rustbase-server"
+name = "ferritedb-server"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "RustBase web server and HTTP API layer"
+description = "FerriteDB web server and HTTP API layer"
 
 [dependencies]
 # Workspace dependencies
-rustbase-core = { path = "../core" }
-rustbase-storage = { path = "../storage" }
-rustbase-rules = { path = "../rules" }
+ferritedb-core = { path = "../core" }
+ferritedb-storage = { path = "../storage" }
+ferritedb-rules = { path = "../rules" }
 
 # Web framework
 axum.workspace = true
@@ -46,7 +46,7 @@ sqlx = { workspace = true, features = ["runtime-tokio-rustls", "sqlite"] }
 
 [features]
 default = []
-oauth2 = ["rustbase-core/oauth2"]
-s3-storage = ["rustbase-storage/s3"]
-image-transforms = ["rustbase-storage/image-transforms"]
+oauth2 = ["ferritedb-core/oauth2"]
+s3-storage = ["ferritedb-storage/s3"]
+image-transforms = ["ferritedb-storage/image-transforms"]
 metrics = []

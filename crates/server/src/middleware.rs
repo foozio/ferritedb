@@ -4,7 +4,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use rustbase_core::{
+use ferritedb_core::{
     auth::{AuthService, Claims},
     models::{User, UserRole},
 };

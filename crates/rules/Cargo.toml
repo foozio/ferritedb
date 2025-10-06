@@ -1,11 +1,11 @@
 [package]
-name = "rustbase-rules"
+name = "ferritedb-rules"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "RustBase rule evaluation engine for access control"
+description = "FerriteDB rule evaluation engine for access control"
 
 [dependencies]
 # Serialization

@@ -1,25 +1,25 @@
 [package]
-name = "rustbase"
+name = "ferritedb"
 version = "0.1.0"
 edition = "2021"
-authors = ["RustBase Contributors"]
+authors = ["FerriteDB Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/rustbase/rustbase"
-homepage = "https://rustbase.dev"
+repository = "https://github.com/ferritedb/ferritedb"
+homepage = "https://ferritedb.dev"
 description = "A production-ready, developer-friendly backend service in a single binary"
 keywords = ["backend", "database", "api", "realtime", "baas"]
 categories = ["web-programming", "database"]
 
 [[bin]]
-name = "rustbase"
+name = "ferritedb"
 path = "src/main.rs"
 
 [dependencies]
 # Local crates
-rustbase-server = { path = "crates/server" }
-rustbase-core = { path = "crates/core" }
-rustbase-storage = { path = "crates/storage" }
-rustbase-rules = { path = "crates/rules" }
+ferritedb-server = { path = "crates/server" }
+ferritedb-core = { path = "crates/core" }
+ferritedb-storage = { path = "crates/storage" }
+ferritedb-rules = { path = "crates/rules" }
 
 # CLI and configuration
 clap.workspace = true
@@ -48,10 +48,10 @@ tempfile.workspace = true
 
 [features]
 default = []
-oauth2 = ["rustbase-core/oauth2", "rustbase-server/oauth2"]
-s3-storage = ["rustbase-storage/s3", "rustbase-server/s3-storage"]
-image-transforms = ["rustbase-storage/image-transforms", "rustbase-server/image-transforms"]
-metrics = ["rustbase-server/metrics"]
+oauth2 = ["ferritedb-core/oauth2", "ferritedb-server/oauth2"]
+s3-storage = ["ferritedb-storage/s3", "ferritedb-server/s3-storage"]
+image-transforms = ["ferritedb-storage/image-transforms", "ferritedb-server/image-transforms"]
+metrics = ["ferritedb-server/metrics"]
 
 [workspace]
 members = [
@@ -66,10 +66,10 @@ resolver = "2"
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["RustBase Contributors"]
+authors = ["FerriteDB Contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/rustbase/rustbase"
-homepage = "https://rustbase.dev"
+repository = "https://github.com/ferritedb/ferritedb"
+homepage = "https://ferritedb.dev"
 description = "A production-ready, developer-friendly backend service in a single binary"
 keywords = ["backend", "database", "api", "realtime", "baas"]
 categories = ["web-programming", "database"]

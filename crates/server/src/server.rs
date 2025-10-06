@@ -3,12 +3,12 @@ use axum::{
     middleware,
     Router,
 };
-use rustbase_core::{
+use ferritedb_core::{
     auth::AuthService,
     config::{CoreConfig, ServerConfig},
     database::Database,
 };
-use rustbase_rules::RuleEngine;
+use ferritedb_rules::RuleEngine;
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::signal;
@@ -59,10 +59,10 @@ impl Server {
         let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
 
         // Convert core storage config to storage crate config
-        let storage_config = rustbase_storage::StorageConfig {
+        let storage_config = ferritedb_storage::StorageConfig {
             storage_type: match &config.storage.backend {
-                rustbase_core::config::StorageBackend::Local => {
-                    rustbase_storage::StorageType::Local {
+                ferritedb_core::config::StorageBackend::Local => {
+                    ferritedb_storage::StorageType::Local {
                         path: config.storage.local.base_path.clone(),
                     }
                 }

@@ -10,7 +10,7 @@ examples/
 # Development files
 .env
 .env.*
-rustbase.dev.toml
+ferritedb.dev.toml
 docker-compose.dev.yml
 
 # IDE and editor files
@@ -26,7 +26,6 @@ Thumbs.db
 
 # Rust build artifacts
 target/
-Cargo.lock
 
 # Test files
 tests/fixtures/

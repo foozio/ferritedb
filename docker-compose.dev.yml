@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  rustbase-dev:
+  ferritedb-dev:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: rustbase-dev
+    container_name: ferritedb-dev
     restart: unless-stopped
     ports:
       - "8090:8090"
@@ -13,16 +13,16 @@ services:
       # Mount source code for development
       - .:/app/src:ro
       # Mount data directory for persistence
-      - rustbase_dev_data:/app/data
+      - ferritedb_dev_data:/app/data
       # Mount config for easy editing
-      - ./rustbase.dev.toml:/app/rustbase.toml:ro
+      - ./ferritedb.dev.toml:/app/ferritedb.toml:ro
     environment:
-      - RUSTBASE_AUTH_JWT_SECRET=dev-secret-change-in-production
-      - RUSTBASE_DATABASE_URL=sqlite:data/rustbase.db
-      - RUSTBASE_STORAGE_BACKEND=local
+      - FERRITEDB_AUTH_JWT_SECRET=dev-secret-change-in-production
+      - FERRITEDB_DATABASE_URL=sqlite:data/ferritedb.db
+      - FERRITEDB_STORAGE_BACKEND=local
       - RUST_LOG=debug
-      - RUSTBASE_SERVER_HOST=0.0.0.0
-      - RUSTBASE_SERVER_PORT=8090
+      - FERRITEDB_SERVER_HOST=0.0.0.0
+      - FERRITEDB_SERVER_PORT=8090
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/healthz"]
       interval: 30s
@@ -30,31 +30,31 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - rustbase_dev_network
+      - ferritedb_dev_network
 
   # Development database with exposed port for inspection
   postgres-dev:
     image: postgres:15-alpine
-    container_name: rustbase-postgres-dev
+    container_name: ferritedb-postgres-dev
     restart: unless-stopped
     ports:
       - "5432:5432"
     environment:
-      - POSTGRES_DB=rustbase_dev
-      - POSTGRES_USER=rustbase
+      - POSTGRES_DB=ferritedb_dev
+      - POSTGRES_USER=ferritedb
       - POSTGRES_PASSWORD=dev_password
     volumes:
       - postgres_dev_data:/var/lib/postgresql/data
       - ./migrations:/docker-entrypoint-initdb.d:ro
     networks:
-      - rustbase_dev_network
+      - ferritedb_dev_network
     profiles:
       - with-postgres
 
   # Development Redis with exposed port
   redis-dev:
     image: redis:7-alpine
-    container_name: rustbase-redis-dev
+    container_name: ferritedb-redis-dev
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -62,14 +62,14 @@ services:
     volumes:
       - redis_dev_data:/data
     networks:
-      - rustbase_dev_network
+      - ferritedb_dev_network
     profiles:
       - with-redis
 
   # Development S3 compatible storage (MinIO)
   minio:
     image: minio/minio:latest
-    container_name: rustbase-minio-dev
+    container_name: ferritedb-minio-dev
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -81,25 +81,25 @@ services:
       - minio_dev_data:/data
     command: server /data --console-address ":9001"
     networks:
-      - rustbase_dev_network
+      - ferritedb_dev_network
     profiles:
       - with-s3
 
   # Development mail server for testing
   mailhog:
     image: mailhog/mailhog:latest
-    container_name: rustbase-mailhog-dev
+    container_name: ferritedb-mailhog-dev
     restart: unless-stopped
     ports:
       - "1025:1025"  # SMTP
       - "8025:8025"  # Web UI
     networks:
-      - rustbase_dev_network
+      - ferritedb_dev_network
     profiles:
       - with-mail
 
 volumes:
-  rustbase_dev_data:
+  ferritedb_dev_data:
     driver: local
   postgres_dev_data:
     driver: local
@@ -109,5 +109,5 @@ volumes:
     driver: local
 
 networks:
-  rustbase_dev_network:
+  ferritedb_dev_network:
     driver: bridge

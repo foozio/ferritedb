@@ -1,11 +1,11 @@
 [package]
-name = "rustbase-storage"
+name = "ferritedb-storage"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "RustBase file storage backends and utilities"
+description = "FerriteDB file storage backends and utilities"
 
 [dependencies]
 # Async runtime

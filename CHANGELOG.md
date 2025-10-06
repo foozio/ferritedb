@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to RustBase will be documented in this file.
+All notable changes to FerriteDB will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -114,10 +114,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Version 1.0.0 - Production Ready
 
-RustBase 1.0.0 marks the first production-ready release of our Rust-based backend-as-a-service solution. This release includes all core features needed to build modern applications with a single binary deployment.
+FerriteDB 1.0.0 marks the first production-ready release of our Rust-based backend-as-a-service solution. This release includes all core features needed to build modern applications with a single binary deployment.
 
 **Key Highlights:**
-- 🚀 **Single Binary Deployment**: Start a complete backend with `rustbase serve`
+- 🚀 **Single Binary Deployment**: Start a complete backend with `ferritedb serve`
 - 🔒 **Security First**: Built-in authentication, authorization, and security hardening
 - ⚡ **High Performance**: Async Rust with optimized SQLite operations
 - 🎯 **Developer Friendly**: Comprehensive API, admin UI, and documentation
@@ -127,7 +127,7 @@ RustBase 1.0.0 marks the first production-ready release of our Rust-based backen
 This is the first stable release. If you were using pre-release versions, please refer to the migration guide in the documentation.
 
 **Breaking Changes:**
-- Configuration format has been standardized (see rustbase.toml example)
+- Configuration format has been standardized (see ferritedb.toml example)
 - API endpoints have been finalized with consistent naming
 - Database schema has been optimized (automatic migration provided)
 
@@ -159,7 +159,7 @@ For future versions, we commit to:
 
 ## Contributing to Changelog
 
-When contributing to RustBase, please update this changelog:
+When contributing to FerriteDB, please update this changelog:
 
 1. **Add entries to [Unreleased]** section for new changes
 2. **Use the following categories**:

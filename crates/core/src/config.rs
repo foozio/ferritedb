@@ -71,7 +71,7 @@ pub struct DatabaseConfig {
 impl Default for DatabaseConfig {
     fn default() -> Self {
         Self {
-            url: "sqlite:data/rustbase.db".to_string(),
+            url: "sqlite:data/ferritedb.db".to_string(),
             max_connections: 10,
             connection_timeout: 30,
             auto_migrate: true,

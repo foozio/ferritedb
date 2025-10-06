@@ -486,7 +486,7 @@ impl SeedService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Database, auth::AuthConfig};
+    use crate::{Database, config::AuthConfig};
     use tempfile::tempdir;
 
     async fn setup_test_service() -> (Database, SeedService) {
@@ -502,6 +502,9 @@ mod tests {
             token_ttl: 3600,
             refresh_ttl: 86400,
             password_min_length: 8,
+            argon2_memory: 65536,
+            argon2_iterations: 3,
+            argon2_parallelism: 4,
         };
         let auth_service = AuthService::new(auth_config).unwrap();
 

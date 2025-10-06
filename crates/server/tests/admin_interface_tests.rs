@@ -2,13 +2,13 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use rustbase_core::{
+use ferritedb_core::{
     auth::AuthService,
     config::AuthConfig,
     models::{User, UserRole},
 };
-use rustbase_rules::RuleEngine;
-use rustbase_server::{
+use ferritedb_rules::RuleEngine;
+use ferritedb_server::{
     routes::{create_router, AppState, MockCollectionService, MockRecordService, MockUserRepository},
     realtime::RealtimeManager,
 };
@@ -90,7 +90,7 @@ async fn test_admin_index_page_accessible() {
     let body_str = String::from_utf8(body.to_vec()).unwrap();
     
     // Verify it's the admin interface
-    assert!(body_str.contains("RustBase Admin"));
+    assert!(body_str.contains("FerriteDB Admin"));
     assert!(body_str.contains("login-screen"));
     assert!(body_str.contains("admin-interface"));
 }
@@ -215,7 +215,7 @@ async fn test_admin_health_check_integration() {
     let health_response: serde_json::Value = serde_json::from_str(&body_str).unwrap();
     
     assert_eq!(health_response["status"], "ok");
-    assert!(health_response["service"].as_str().unwrap() == "rustbase");
+    assert!(health_response["service"].as_str().unwrap() == "ferritedb");
 }
 
 #[tokio::test]

@@ -1,4 +1,4 @@
-use rustbase_core::{
+use ferritedb_core::{
     auth::{AuthConfig, AuthService},
     models::{CreateUserRequest, UserRole},
     seed::SeedService,
@@ -28,7 +28,7 @@ async fn test_seed_service_initialization() {
     assert_eq!(users_collection.name, "users");
     assert_eq!(
         users_collection.collection_type,
-        rustbase_core::CollectionType::Auth
+        ferritedb_core::CollectionType::Auth
     );
 
     // Verify posts collection was created
@@ -43,7 +43,7 @@ async fn test_seed_service_initialization() {
     assert_eq!(posts_collection.name, "posts");
     assert_eq!(
         posts_collection.collection_type,
-        rustbase_core::CollectionType::Base
+        ferritedb_core::CollectionType::Base
     );
 
     db.close().await;
@@ -103,7 +103,7 @@ async fn test_users_collection_schema() {
         "Email field should be unique"
     );
     assert!(
-        matches!(email_field.field_type, rustbase_core::FieldType::Email),
+        matches!(email_field.field_type, ferritedb_core::FieldType::Email),
         "Email field should be email type"
     );
 
@@ -174,7 +174,7 @@ async fn test_posts_collection_schema() {
         .get_field("owner_id")
         .unwrap();
     assert!(owner_field.required, "Owner field should be required");
-    if let rustbase_core::FieldType::Relation {
+    if let ferritedb_core::FieldType::Relation {
         target_collection, ..
     } = &owner_field.field_type
     {
@@ -191,7 +191,7 @@ async fn test_posts_collection_schema() {
     assert!(
         matches!(
             image_field.field_type,
-            rustbase_core::FieldType::File { .. }
+            ferritedb_core::FieldType::File { .. }
         ),
         "Featured image should be file type"
     );
@@ -591,7 +591,7 @@ async fn test_file_field_configuration() {
         .get_field("avatar")
         .unwrap();
 
-    if let rustbase_core::FieldType::File {
+    if let ferritedb_core::FieldType::File {
         max_size,
         allowed_types,
     } = &avatar_field.field_type
@@ -626,7 +626,7 @@ async fn test_file_field_configuration() {
         .get_field("featured_image")
         .unwrap();
 
-    if let rustbase_core::FieldType::File {
+    if let ferritedb_core::FieldType::File {
         max_size,
         allowed_types,
     } = &image_field.field_type

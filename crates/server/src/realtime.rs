@@ -6,11 +6,11 @@ use axum::{
     http::StatusCode,
     response::Response,
 };
-use rustbase_core::{
+use ferritedb_core::{
     auth::{AuthService, Claims},
     models::{User, UserRole},
 };
-use rustbase_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
+use ferritedb_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -229,13 +229,13 @@ impl RealtimeManager {
         };
 
         // Create evaluation context
-        let user = rustbase_rules::evaluator::User {
+        let user = ferritedb_rules::evaluator::User {
             id: user_id,
             email: user_email.to_string(),
             role: match user_role {
-                UserRole::Admin => rustbase_rules::evaluator::UserRole::Admin,
-                UserRole::User => rustbase_rules::evaluator::UserRole::User,
-                UserRole::Service => rustbase_rules::evaluator::UserRole::Service,
+                UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+                UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+                UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
             },
             verified: true, // Assume verified for authenticated users
             created_at: chrono::Utc::now(), // We don't have this info in the context

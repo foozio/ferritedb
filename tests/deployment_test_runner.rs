@@ -116,7 +116,7 @@ fn test_deployment_configuration_files() {
         "docker-compose.yml",
         "docker-compose.dev.yml",
         ".dockerignore",
-        "rustbase.dev.toml",
+        "ferritedb.dev.toml",
     ];
 
     for file in &required_files {
@@ -166,7 +166,7 @@ fn test_github_actions_workflows() {
 #[test]
 fn test_project_documentation_completeness() {
     let required_docs = [
-        ("README.md", vec!["# RustBase", "## Installation", "## Usage"]),
+        ("README.md", vec!["# FerriteDB", "## Installation", "## Usage"]),
         ("CONTRIBUTING.md", vec!["# Contributing", "## Development Setup", "## Pull Request"]),
         ("SECURITY.md", vec!["# Security Policy", "## Reporting", "## Supported Versions"]),
         ("OPERATIONS.md", vec!["# Operations", "## Deployment", "## Monitoring"]),

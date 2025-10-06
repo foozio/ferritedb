@@ -6,7 +6,7 @@ use serde_json::json;
 
 /// Integration tests for Docker deployment
 /// 
-/// These tests verify that RustBase works correctly when deployed via Docker,
+/// These tests verify that FerriteDB works correctly when deployed via Docker,
 /// including container health checks, API functionality, and proper shutdown.
 /// 
 /// Prerequisites:
@@ -19,7 +19,7 @@ use serde_json::json;
 async fn test_docker_container_build_and_health() {
     // Build the Docker image
     let build_output = Command::new("docker")
-        .args(&["build", "-t", "rustbase:test", "."])
+        .args(&["build", "-t", "ferritedb:test", "."])
         .output()
         .expect("Failed to execute docker build");
 
@@ -34,10 +34,10 @@ async fn test_docker_container_build_and_health() {
         .args(&[
             "run",
             "-d",
-            "--name", "rustbase-test",
+            "--name", "ferritedb-test",
             "-p", "8090:8090",
-            "-e", "RUSTBASE_AUTH_JWT_SECRET=test-secret-for-integration-tests",
-            "rustbase:test"
+            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-for-integration-tests",
+            "ferritedb:test"
         ])
         .output()
         .expect("Failed to start Docker container");
@@ -94,11 +94,11 @@ async fn test_docker_container_api_functionality() {
         .args(&[
             "run",
             "-d",
-            "--name", "rustbase-api-test",
+            "--name", "ferritedb-api-test",
             "-p", "8091:8090",
-            "-e", "RUSTBASE_AUTH_JWT_SECRET=test-secret-for-api-tests",
-            "-e", "RUSTBASE_SERVER_PORT=8090",
-            "rustbase:test"
+            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-for-api-tests",
+            "-e", "FERRITEDB_SERVER_PORT=8090",
+            "ferritedb:test"
         ])
         .output()
         .expect("Failed to start Docker container");
@@ -202,7 +202,7 @@ async fn test_docker_container_api_functionality() {
 async fn test_docker_compose_development_setup() {
     // Test docker-compose development setup
     let compose_up = Command::new("docker-compose")
-        .args(&["-f", "docker-compose.dev.yml", "up", "-d", "rustbase-dev"])
+        .args(&["-f", "docker-compose.dev.yml", "up", "-d", "ferritedb-dev"])
         .output()
         .expect("Failed to run docker-compose up");
 
@@ -252,10 +252,10 @@ async fn test_docker_container_graceful_shutdown() {
         .args(&[
             "run",
             "-d",
-            "--name", "rustbase-shutdown-test",
+            "--name", "ferritedb-shutdown-test",
             "-p", "8092:8090",
-            "-e", "RUSTBASE_AUTH_JWT_SECRET=test-secret-shutdown",
-            "rustbase:test"
+            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-shutdown",
+            "ferritedb:test"
         ])
         .output()
         .expect("Failed to start container");
@@ -303,7 +303,7 @@ async fn test_docker_container_graceful_shutdown() {
 async fn test_docker_volume_persistence() {
     // Create a named volume
     let volume_create = Command::new("docker")
-        .args(&["volume", "create", "rustbase-test-data"])
+        .args(&["volume", "create", "ferritedb-test-data"])
         .output()
         .expect("Failed to create volume");
 
@@ -314,11 +314,11 @@ async fn test_docker_volume_persistence() {
         .args(&[
             "run",
             "-d",
-            "--name", "rustbase-persistence-test",
+            "--name", "ferritedb-persistence-test",
             "-p", "8093:8090",
-            "-v", "rustbase-test-data:/app/data",
-            "-e", "RUSTBASE_AUTH_JWT_SECRET=test-secret-persistence",
-            "rustbase:test"
+            "-v", "ferritedb-test-data:/app/data",
+            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-persistence",
+            "ferritedb:test"
         ])
         .output()
         .expect("Failed to start container");
@@ -358,11 +358,11 @@ async fn test_docker_volume_persistence() {
         .args(&[
             "run",
             "-d",
-            "--name", "rustbase-persistence-test-2",
+            "--name", "ferritedb-persistence-test-2",
             "-p", "8093:8090",
-            "-v", "rustbase-test-data:/app/data",
-            "-e", "RUSTBASE_AUTH_JWT_SECRET=test-secret-persistence",
-            "rustbase:test"
+            "-v", "ferritedb-test-data:/app/data",
+            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-persistence",
+            "ferritedb:test"
         ])
         .output()
         .expect("Failed to start second container");
@@ -396,7 +396,7 @@ async fn test_docker_volume_persistence() {
         .output();
 
     let _ = Command::new("docker")
-        .args(&["volume", "rm", "rustbase-test-data"])
+        .args(&["volume", "rm", "ferritedb-test-data"])
         .output();
 }
 
@@ -433,10 +433,10 @@ async fn test_docker_security_configuration() {
         .args(&[
             "run",
             "-d",
-            "--name", "rustbase-security-test",
+            "--name", "ferritedb-security-test",
             "-p", "8094:8090",
-            "-e", "RUSTBASE_AUTH_JWT_SECRET=test-secret-security",
-            "rustbase:test"
+            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-security",
+            "ferritedb:test"
         ])
         .output()
         .expect("Failed to start container");
@@ -479,7 +479,7 @@ mod test_helpers {
     pub async fn setup_test_environment() {
         // Ensure test image is built
         let build_output = Command::new("docker")
-            .args(&["build", "-t", "rustbase:test", "."])
+            .args(&["build", "-t", "ferritedb:test", "."])
             .output()
             .expect("Failed to build test image");
 
@@ -490,7 +490,7 @@ mod test_helpers {
     pub async fn cleanup_test_environment() {
         // Remove any leftover test containers
         let _ = Command::new("docker")
-            .args(&["ps", "-aq", "--filter", "name=rustbase-*-test"])
+            .args(&["ps", "-aq", "--filter", "name=ferritedb-*-test"])
             .output()
             .and_then(|output| {
                 let container_ids = String::from_utf8_lossy(&output.stdout);
@@ -506,7 +506,7 @@ mod test_helpers {
 
         // Remove test volumes
         let _ = Command::new("docker")
-            .args(&["volume", "ls", "-q", "--filter", "name=rustbase-test-*"])
+            .args(&["volume", "ls", "-q", "--filter", "name=ferritedb-test-*"])
             .output()
             .and_then(|output| {
                 let volume_names = String::from_utf8_lossy(&output.stdout);
