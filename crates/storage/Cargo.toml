@@ -1,0 +1,38 @@
+[package]
+name = "rustbase-storage"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RustBase file storage backends and utilities"
+
+[dependencies]
+# Async runtime
+tokio.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+
+# Optional S3 support
+aws-sdk-s3 = { workspace = true, optional = true }
+
+# Optional image processing
+image = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = []
+s3 = ["dep:aws-sdk-s3"]
+image-transforms = ["dep:image"]

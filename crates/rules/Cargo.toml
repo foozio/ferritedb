@@ -1,0 +1,27 @@
+[package]
+name = "rustbase-rules"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RustBase rule evaluation engine for access control"
+
+[dependencies]
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Expression evaluation
+pest.workspace = true
+pest_derive.workspace = true
+
+[features]
+default = []

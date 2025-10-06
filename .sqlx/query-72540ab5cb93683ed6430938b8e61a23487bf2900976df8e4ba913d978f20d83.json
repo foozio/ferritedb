@@ -1,0 +1,80 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT id, name, type, schema_json, list_rule, view_rule, create_rule, update_rule, delete_rule, created_at, updated_at\n            FROM collections ORDER BY created_at DESC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Text"
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text"
+      },
+      {
+        "name": "type",
+        "ordinal": 2,
+        "type_info": "Text"
+      },
+      {
+        "name": "schema_json",
+        "ordinal": 3,
+        "type_info": "Text"
+      },
+      {
+        "name": "list_rule",
+        "ordinal": 4,
+        "type_info": "Text"
+      },
+      {
+        "name": "view_rule",
+        "ordinal": 5,
+        "type_info": "Text"
+      },
+      {
+        "name": "create_rule",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "update_rule",
+        "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "delete_rule",
+        "ordinal": 8,
+        "type_info": "Text"
+      },
+      {
+        "name": "created_at",
+        "ordinal": 9,
+        "type_info": "Datetime"
+      },
+      {
+        "name": "updated_at",
+        "ordinal": 10,
+        "type_info": "Datetime"
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "72540ab5cb93683ed6430938b8e61a23487bf2900976df8e4ba913d978f20d83"
+}

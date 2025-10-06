@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                INSERT INTO collection_fields (id, collection_id, name, type, required, unique_constraint, options_json, created_at)\n                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 8
+    },
+    "nullable": []
+  },
+  "hash": "36f883195f4b976408ae3348316509b76b598ead0f0affe2c0217022d4cc148b"
+}

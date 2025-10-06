@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  rustbase-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rustbase-dev
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    volumes:
+      # Mount source code for development
+      - .:/app/src:ro
+      # Mount data directory for persistence
+      - rustbase_dev_data:/app/data
+      # Mount config for easy editing
+      - ./rustbase.dev.toml:/app/rustbase.toml:ro
+    environment:
+      - RUSTBASE_AUTH_JWT_SECRET=dev-secret-change-in-production
+      - RUSTBASE_DATABASE_URL=sqlite:data/rustbase.db
+      - RUSTBASE_STORAGE_BACKEND=local
+      - RUST_LOG=debug
+      - RUSTBASE_SERVER_HOST=0.0.0.0
+      - RUSTBASE_SERVER_PORT=8090
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - rustbase_dev_network
+
+  # Development database with exposed port for inspection
+  postgres-dev:
+    image: postgres:15-alpine
+    container_name: rustbase-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=rustbase_dev
+      - POSTGRES_USER=rustbase
+      - POSTGRES_PASSWORD=dev_password
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - rustbase_dev_network
+    profiles:
+      - with-postgres
+
+  # Development Redis with exposed port
+  redis-dev:
+    image: redis:7-alpine
+    container_name: rustbase-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - rustbase_dev_network
+    profiles:
+      - with-redis
+
+  # Development S3 compatible storage (MinIO)
+  minio:
+    image: minio/minio:latest
+    container_name: rustbase-minio-dev
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_dev_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - rustbase_dev_network
+    profiles:
+      - with-s3
+
+  # Development mail server for testing
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: rustbase-mailhog-dev
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # Web UI
+    networks:
+      - rustbase_dev_network
+    profiles:
+      - with-mail
+
+volumes:
+  rustbase_dev_data:
+    driver: local
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  minio_dev_data:
+    driver: local
+
+networks:
+  rustbase_dev_network:
+    driver: bridge

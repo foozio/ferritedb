@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM audit_log WHERE created_at < datetime('now', '-' || ?1 || ' days')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "dfd9ece348cfbcef828024616731cbcea0fb4ea18ea32251e867446cf17bbdef"
+}

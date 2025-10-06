@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            INSERT INTO collections (id, name, type, schema_json, list_rule, view_rule, create_rule, update_rule, delete_rule, created_at, updated_at)\n            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "6b5c3e8d6ec82f1a193dc92fb25a41cfa98293be1d4e37542b4c7b16c52709d3"
+}

@@ -1,0 +1,147 @@
+[package]
+name = "rustbase"
+version = "0.1.0"
+edition = "2021"
+authors = ["RustBase Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rustbase/rustbase"
+homepage = "https://rustbase.dev"
+description = "A production-ready, developer-friendly backend service in a single binary"
+keywords = ["backend", "database", "api", "realtime", "baas"]
+categories = ["web-programming", "database"]
+
+[[bin]]
+name = "rustbase"
+path = "src/main.rs"
+
+[dependencies]
+# Local crates
+rustbase-server = { path = "crates/server" }
+rustbase-core = { path = "crates/core" }
+rustbase-storage = { path = "crates/storage" }
+rustbase-rules = { path = "crates/rules" }
+
+# CLI and configuration
+clap.workspace = true
+figment.workspace = true
+
+# Async runtime
+tokio.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Error handling
+thiserror.workspace = true
+anyhow.workspace = true
+
+# Data import/export
+csv.workspace = true
+uuid.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+chrono.workspace = true
+
+# Testing
+tempfile.workspace = true
+
+[features]
+default = []
+oauth2 = ["rustbase-core/oauth2", "rustbase-server/oauth2"]
+s3-storage = ["rustbase-storage/s3", "rustbase-server/s3-storage"]
+image-transforms = ["rustbase-storage/image-transforms", "rustbase-server/image-transforms"]
+metrics = ["rustbase-server/metrics"]
+
+[workspace]
+members = [
+    "crates/server",
+    "crates/core", 
+    "crates/storage",
+    "crates/rules",
+    "crates/sdk-rs"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["RustBase Contributors"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/rustbase/rustbase"
+homepage = "https://rustbase.dev"
+description = "A production-ready, developer-friendly backend service in a single binary"
+keywords = ["backend", "database", "api", "realtime", "baas"]
+categories = ["web-programming", "database"]
+
+[workspace.dependencies]
+# Async runtime and web framework
+tokio = { version = "1.35", features = ["full"] }
+axum = { version = "0.7", features = ["ws", "multipart", "tracing", "macros"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "fs", "compression-br", "compression-gzip", "timeout"] }
+# axum-governor = "1.0.2"  # Temporarily disabled due to axum version conflict
+futures-util = "0.3"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "uuid", "chrono", "json"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+schemars = { version = "0.8", features = ["uuid1", "chrono"] }
+
+# Authentication and security
+argon2 = "0.5"
+jsonwebtoken = "9.2"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+# Configuration and CLI
+clap = { version = "4.4", features = ["derive", "env"] }
+figment = { version = "0.10", features = ["env", "toml", "json"] }
+
+# Date and time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging and tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# File storage (optional features)
+aws-sdk-s3 = "1.0"
+image = "0.24"
+
+# OAuth2 (optional feature)
+oauth2 = "4.4"
+reqwest = { version = "0.11", features = ["json"] }
+
+# Expression evaluation
+pest = "2.7"
+pest_derive = "2.7"
+
+# WebSocket client
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+url = "2.5"
+
+# Async trait support
+async-trait = "0.1"
+
+# Development and testing
+tempfile = "3.8"
+
+# Data import/export
+csv = "1.3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[profile.dev]
+debug = 1

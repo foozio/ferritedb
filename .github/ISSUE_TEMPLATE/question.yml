@@ -1,0 +1,94 @@
+name: Question
+description: Ask a question about RustBase usage or configuration
+title: "[Question]: "
+labels: ["question", "triage"]
+assignees: []
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have a question about RustBase? We're here to help! Please provide as much context as possible.
+        
+        **Note**: For general discussions, consider using [GitHub Discussions](https://github.com/rustbase/rustbase/discussions) instead.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Question Category
+      description: What type of question is this?
+      options:
+        - Installation and Setup
+        - Configuration
+        - API Usage
+        - Authentication and Authorization
+        - Collections and Schema
+        - File Storage
+        - Realtime/WebSockets
+        - Performance and Scaling
+        - Security
+        - Deployment
+        - Troubleshooting
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What would you like to know?
+      placeholder: "How do I..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Provide any relevant context about your setup, use case, or what you've already tried.
+      placeholder: |
+        I'm trying to...
+        I've already tried...
+        My setup is...
+
+  - type: input
+    id: version
+    attributes:
+      label: RustBase Version
+      description: What version of RustBase are you using?
+      placeholder: "e.g., v1.0.0"
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration (if relevant)
+      description: Your RustBase configuration (remove any secrets)
+      render: toml
+      placeholder: |
+        [server]
+        host = "0.0.0.0"
+        port = 8090
+        # ... (remove any secrets)
+
+  - type: textarea
+    id: code
+    attributes:
+      label: Code Examples (if relevant)
+      description: Any code you're working with
+      render: shell
+      placeholder: |
+        # Your code here
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: Please confirm the following
+      options:
+        - label: I have searched existing issues and discussions
+          required: true
+        - label: I have checked the documentation
+          required: true
+        - label: I have removed any sensitive information
+          required: true

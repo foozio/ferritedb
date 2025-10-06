@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://rustbase.dev/docs
+    about: Check our comprehensive documentation for guides and API reference
+  - name: 💬 GitHub Discussions
+    url: https://github.com/rustbase/rustbase/discussions
+    about: Ask questions and discuss RustBase with the community
+  - name: 🔒 Security Vulnerability
+    url: https://github.com/rustbase/rustbase/security/advisories/new
+    about: Report security vulnerabilities privately
+  - name: 💼 Commercial Support
+    url: https://rustbase.dev/support
+    about: Get professional support and consulting services

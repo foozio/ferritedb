@@ -1,0 +1,24 @@
+pub mod audit;
+pub mod auth;
+pub mod collections;
+pub mod config;
+pub mod database;
+pub mod error;
+pub mod models;
+pub mod pii;
+pub mod records;
+pub mod repository;
+pub mod schema_manager;
+pub mod seed;
+
+pub use audit::{AuditAction, AuditContext, AuditLogEntry, AuditLogger};
+pub use collections::CollectionService;
+pub use config::CoreConfig;
+pub use database::{Database, DatabasePool};
+pub use error::{CoreError, CoreResult};
+pub use models::*;
+pub use pii::{PiiRedactionConfig, PiiRedactor, PiiUtils, redact_log_message, redact_request_data};
+pub use records::RecordService;
+pub use repository::{AuditLogRepository, CollectionRepository, UserRepository};
+pub use schema_manager::SchemaManager;
+pub use seed::SeedService;

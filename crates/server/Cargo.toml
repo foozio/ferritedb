@@ -1,0 +1,52 @@
+[package]
+name = "rustbase-server"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RustBase web server and HTTP API layer"
+
+[dependencies]
+# Workspace dependencies
+rustbase-core = { path = "../core" }
+rustbase-storage = { path = "../storage" }
+rustbase-rules = { path = "../rules" }
+
+# Web framework
+axum.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+# axum-governor.workspace = true  # Temporarily disabled
+tokio.workspace = true
+
+# Serialization and validation
+serde.workspace = true
+serde_json.workspace = true
+
+# Authentication
+jsonwebtoken.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+futures-util.workspace = true
+regex = "1.10"
+base64 = "0.21"
+rand_core.workspace = true
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile.workspace = true
+tower = { workspace = true, features = ["util"] }
+sqlx = { workspace = true, features = ["runtime-tokio-rustls", "sqlite"] }
+
+[features]
+default = []
+oauth2 = ["rustbase-core/oauth2"]
+s3-storage = ["rustbase-storage/s3"]
+image-transforms = ["rustbase-storage/image-transforms"]
+metrics = []

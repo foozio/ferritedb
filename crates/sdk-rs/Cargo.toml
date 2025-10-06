@@ -1,0 +1,30 @@
+[package]
+name = "rustbase-sdk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RustBase Rust client SDK"
+
+[dependencies]
+# HTTP client
+reqwest = { version = "0.11", features = ["json", "multipart"] }
+tokio = { workspace = true, features = ["macros"] }
+
+# WebSocket client
+tokio-tungstenite.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+url.workspace = true
+
+[features]
+default = []

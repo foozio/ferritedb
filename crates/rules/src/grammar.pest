@@ -1,0 +1,79 @@
+// CEL-like expression grammar for RustBase rules
+WHITESPACE = _{ " " | "\t" | "\n" | "\r" }
+
+// Main rule expression
+expression = { SOI ~ or_expr ~ EOI }
+
+// Logical operators (lowest precedence)
+or_expr = { and_expr ~ (or_op ~ and_expr)* }
+and_expr = { in_expr ~ (and_op ~ in_expr)* }
+
+// In operator
+in_expr = { equality_expr ~ (in_op ~ equality_expr)? }
+
+// Comparison operators
+equality_expr = { relational_expr ~ (eq_op ~ relational_expr)* }
+relational_expr = { additive_expr ~ (rel_op ~ additive_expr)* }
+
+// Arithmetic operators
+additive_expr = { multiplicative_expr ~ (add_op ~ multiplicative_expr)* }
+multiplicative_expr = { unary_expr ~ (mul_op ~ unary_expr)* }
+
+// Unary operators
+unary_expr = { unary_op ~ unary_expr | primary_expr }
+
+// Primary expressions
+primary_expr = {
+    "(" ~ or_expr ~ ")" |
+    member_access |
+    function_call |
+    array_literal |
+    literal |
+    identifier
+}
+
+// Member access (e.g., record.field, user.role)
+member_access = { (identifier | request_context) ~ ("." ~ identifier)+ }
+
+// Request context
+request_context = { "@request" }
+
+// Function calls (e.g., size(array), contains(string, substring))
+function_call = { identifier ~ "(" ~ (or_expr ~ ("," ~ or_expr)*)? ~ ")" }
+
+// Array literals for 'in' operations
+array_literal = { "[" ~ (or_expr ~ ("," ~ or_expr)*)? ~ "]" }
+
+// Literals
+literal = {
+    string_literal |
+    number_literal |
+    boolean_literal |
+    null_literal
+}
+
+string_literal = { "\"" ~ string_inner ~ "\"" | "'" ~ string_inner_single ~ "'" }
+string_inner = @{ char* }
+string_inner_single = @{ char_single* }
+char = { !("\"" | "\\") ~ ANY | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | "u" ~ ASCII_HEX_DIGIT{4}) }
+char_single = { !("'" | "\\") ~ ANY | "\\" ~ ("'" | "\\" | "/" | "b" | "f" | "n" | "r" | "t" | "u" ~ ASCII_HEX_DIGIT{4}) }
+
+number_literal = @{
+    "-"? ~ ("0" | ASCII_NONZERO_DIGIT ~ ASCII_DIGIT*) ~ ("." ~ ASCII_DIGIT+)? ~ (("e" | "E") ~ ("+" | "-")? ~ ASCII_DIGIT+)?
+}
+
+boolean_literal = { "true" | "false" }
+null_literal = { "null" }
+
+// Identifiers
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
+
+// Operators
+or_op = { "||" }
+and_op = { "&&" }
+in_op = { "in" }
+eq_op = { "==" | "!=" }
+rel_op = { "<=" | ">=" | "<" | ">" }
+add_op = { "+" | "-" }
+mul_op = { "*" | "/" | "%" }
+unary_op = { "!" | "-" }

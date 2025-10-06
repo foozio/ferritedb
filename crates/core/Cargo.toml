@@ -1,0 +1,49 @@
+[package]
+name = "rustbase-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "RustBase core business logic and domain models"
+
+[dependencies]
+# Database
+sqlx.workspace = true
+
+# Serialization and validation
+serde.workspace = true
+serde_json.workspace = true
+schemars.workspace = true
+
+# Authentication and security
+argon2.workspace = true
+jsonwebtoken.workspace = true
+rand_core.workspace = true
+
+# Utilities
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+anyhow.workspace = true
+regex = "1.10"
+
+# Configuration
+figment.workspace = true
+
+# Optional OAuth2 support
+oauth2 = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+
+# Test dependencies
+tokio = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio.workspace = true
+tempfile.workspace = true
+
+[features]
+default = []
+oauth2 = ["dep:oauth2", "dep:reqwest"]

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE collections \n                SET list_rule = ?1, view_rule = ?2, create_rule = ?3, update_rule = ?4, delete_rule = ?5, updated_at = ?6\n                WHERE id = ?7\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 7
+    },
+    "nullable": []
+  },
+  "hash": "5d77e02ac00f2fb1e559fb9d582dfabc73c8b22417665368e421a9627081cf8d"
+}

@@ -1,0 +1,71 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+examples/
+
+# Development files
+.env
+.env.*
+rustbase.dev.toml
+docker-compose.dev.yml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Rust build artifacts
+target/
+Cargo.lock
+
+# Test files
+tests/fixtures/
+test.db
+*.test
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+
+# Node.js (if any frontend build tools)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Coverage reports
+coverage/
+*.lcov
+
+# Backup files
+*.bak
+*.backup
+
+# Local data
+data/
+*.db
+*.sqlite
+
+# CI/CD files (not needed in container)
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Security files
+*.pem
+*.key
+*.crt
+ssl/
