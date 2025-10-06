@@ -47,3 +47,4 @@ tempfile.workspace = true
 [features]
 default = []
 oauth2 = ["dep:oauth2", "dep:reqwest"]
+server = []

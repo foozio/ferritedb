@@ -361,10 +361,10 @@ impl AuditLogger {
     pub async fn cleanup_old_entries(&self, retention_days: i64) -> CoreResult<u64> {
         let cutoff_date = Utc::now() - chrono::Duration::days(retention_days);
         
-        let result = sqlx::query!(
-            "DELETE FROM audit_log WHERE created_at < ?",
-            cutoff_date
+        let result = sqlx::query(
+            "DELETE FROM audit_log WHERE created_at < ?"
         )
+        .bind(cutoff_date)
         .execute(&self.pool)
         .await?;
 
@@ -465,7 +465,7 @@ mod tests {
         let pool = sqlx::SqlitePool::connect(&database_url).await.unwrap();
         
         // Create audit_log table with request_id column
-        sqlx::query!(
+        sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS audit_log (
                 id TEXT PRIMARY KEY,

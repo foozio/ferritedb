@@ -617,3 +617,187 @@ impl AuditLogRepository {
         Ok(result.rows_affected())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{CreateUserRequest, UserRole};
+    use sqlx::SqlitePool;
+
+    #[tokio::test]
+    async fn test_create_user() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let repo = UserRepository::new(pool);
+
+        let request = CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "password123".to_string(),
+            role: Some(UserRole::Admin),
+            verified: false,
+        };
+        let password_hash = "hashed_password".to_string();
+
+        let user = repo.create(request, password_hash).await.unwrap();
+
+        assert_eq!(user.email, "test@example.com");
+        assert_eq!(user.role, UserRole::Admin);
+        assert!(!user.verified);
+    }
+
+    #[tokio::test]
+    async fn test_find_user_by_email() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let repo = UserRepository::new(pool);
+
+        let request = CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "password123".to_string(),
+            role: Some(UserRole::Admin),
+            verified: false,
+        };
+        let password_hash = "hashed_password".to_string();
+
+        repo.create(request, password_hash).await.unwrap();
+
+        let user = repo.find_by_email("test@example.com").await.unwrap().unwrap();
+
+        assert_eq!(user.email, "test@example.com");
+        assert_eq!(user.role, UserRole::Admin);
+        assert!(!user.verified);
+    }
+
+    #[tokio::test]
+    async fn test_find_user_by_id() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let repo = UserRepository::new(pool);
+
+        let request = CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "password123".to_string(),
+            role: Some(UserRole::Admin),
+            verified: false,
+        };
+        let password_hash = "hashed_password".to_string();
+
+        let user = repo.create(request, password_hash).await.unwrap();
+
+        let found_user = repo.find_by_id(user.id).await.unwrap().unwrap();
+
+        assert_eq!(found_user.email, "test@example.com");
+        assert_eq!(found_user.role, UserRole::Admin);
+        assert!(!found_user.verified);
+    }
+
+    #[tokio::test]
+    async fn test_update_user_verification() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let repo = UserRepository::new(pool);
+
+        let request = CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "password123".to_string(),
+            role: Some(UserRole::Admin),
+            verified: false,
+        };
+        let password_hash = "hashed_password".to_string();
+
+        let user = repo.create(request, password_hash).await.unwrap();
+
+        repo.update_verification(user.id, true).await.unwrap();
+
+        let updated_user = repo.find_by_id(user.id).await.unwrap().unwrap();
+
+        assert!(updated_user.verified);
+    }
+
+    #[tokio::test]
+    async fn test_update_user_role() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let repo = UserRepository::new(pool);
+
+        let request = CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "password123".to_string(),
+            role: Some(UserRole::Admin),
+            verified: false,
+        };
+        let password_hash = "hashed_password".to_string();
+
+        let user = repo.create(request, password_hash).await.unwrap();
+
+        repo.update_role(user.id, UserRole::User).await.unwrap();
+
+        let updated_user = repo.find_by_id(user.id).await.unwrap().unwrap();
+
+        assert_eq!(updated_user.role, UserRole::User);
+    }
+
+    #[tokio::test]
+    async fn test_list_users() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let repo = UserRepository::new(pool);
+
+        let request = CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "password123".to_string(),
+            role: Some(UserRole::Admin),
+            verified: false,
+        };
+        let password_hash = "hashed_password".to_string();
+
+        repo.create(request, password_hash).await.unwrap();
+
+        let users = repo.list(10, 0).await.unwrap();
+
+        assert_eq!(users.len(), 1);
+        assert_eq!(users[0].email, "test@example.com");
+        assert_eq!(users[0].role, UserRole::Admin);
+        assert!(!users[0].verified);
+    }
+
+    #[tokio::test]
+    async fn test_delete_user() {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let repo = UserRepository::new(pool);
+
+        let request = CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "password123".to_string(),
+            role: Some(UserRole::Admin),
+            verified: false,
+        };
+        let password_hash = "hashed_password".to_string();
+
+        let user = repo.create(request, password_hash).await.unwrap();
+
+        let deleted = repo.delete(user.id).await.unwrap();
+
+        assert!(deleted);
+        assert!(repo.find_by_id(user.id).await.unwrap().is_none());
+    }
+}
+
+// Implement the server trait for UserRepository
+#[cfg(feature = "server")]
+#[axum::async_trait]
+impl crate::server::routes::UserRepository for UserRepository {
+    async fn find_by_email(&self, email: &str) -> Result<Option<crate::models::User>, Box<dyn std::error::Error + Send + Sync>> {
+        match self.find_by_email(email).await {
+            Ok(user) => Ok(user),
+            Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+        }
+    }
+    
+    async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<crate::models::User>, Box<dyn std::error::Error + Send + Sync>> {
+        match self.find_by_id(id).await {
+            Ok(user) => Ok(user),
+            Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
+        }
+    }
+    
+    async fn create(&self, user: &crate::models::User) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        // For now, we'll implement a simplified version that just returns Ok
+        // In a real implementation, you would save the user to the database
+        Ok(())
+    }
+}

@@ -48,12 +48,15 @@ impl Server {
         .await
         .map_err(|e| ServerError::Internal(format!("Database initialization failed: {}", e)))?;
 
+        // Initialize database connection (already done above)
+        let db_pool = database.pool().clone();
+        
         // Initialize services
         let auth_service = Arc::new(
             AuthService::new(config.auth.clone())
                 .map_err(|e| ServerError::Internal(format!("Auth service initialization failed: {}", e)))?
         );
-        let user_repository = Arc::new(MockUserRepository) as Arc<dyn crate::routes::UserRepository>;
+        let user_repository = Arc::new(ferritedb_core::UserRepository::new(db_pool.clone()));
         let collection_service = Arc::new(MockCollectionService);
         let record_service = Arc::new(MockRecordService);
         let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));

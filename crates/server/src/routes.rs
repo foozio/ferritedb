@@ -193,7 +193,7 @@ where
 #[derive(Clone)]
 pub struct AppState {
     pub auth_service: Arc<AuthService>,
-    pub user_repository: Arc<dyn UserRepository>,
+    pub user_repository: Arc<ferritedb_core::UserRepository>,
     pub collection_service: Arc<MockCollectionService>,
     pub record_service: Arc<MockRecordService>,
     pub rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
@@ -322,7 +322,7 @@ async fn login(
         .user_repository
         .find_by_email(&request.email)
         .await
-        .map_err(|_| ServerError::Unauthorized("Invalid credentials".to_string()))?
+        .map_err(|e| ServerError::Unauthorized(format!("Invalid credentials: {}", e)))?
         .ok_or_else(|| ServerError::Unauthorized("Invalid credentials".to_string()))?;
 
     // Verify password
@@ -368,13 +368,18 @@ async fn register(
         .hash_password(&request.password)
         .map_err(|e| ServerError::BadRequest(format!("Password validation failed: {}", e)))?;
 
-    // Create user
-    let user = User::new(request.email, password_hash, UserRole::User);
+    // Create user request
+    let create_request = ferritedb_core::models::CreateUserRequest {
+        email: request.email.clone(),
+        password: request.password.clone(),
+        role: Some(UserRole::User),
+        verified: false,
+    };
 
     // Save user to database
-    state
+    let user = state
         .user_repository
-        .create(&user)
+        .create(create_request, password_hash)
         .await
         .map_err(|e| ServerError::Internal(format!("User creation failed: {}", e)))?;
 
