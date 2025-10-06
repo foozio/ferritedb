@@ -22,7 +22,16 @@
 
 ### Installation
 
-Download the latest release for your platform:
+#### Homebrew (macOS / Linux)
+
+```bash
+brew tap ferritedb/tap
+brew install ferritedb
+```
+
+#### Direct Download
+
+Grab the latest release for your platform:
 
 ```bash
 # macOS (Apple Silicon)
@@ -41,7 +50,7 @@ chmod +x ferritedb
 # Download ferritedb-windows-x64.exe from releases page
 ```
 
-Or build from source:
+#### Build from Source
 
 ```bash
 git clone https://github.com/ferritedb/ferritedb.git

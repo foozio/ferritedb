@@ -156,6 +156,43 @@ spec:
   type: LoadBalancer
 ```
 
+### Distribution via Homebrew
+
+FerriteDB ships a Homebrew formula so macOS and Linux operators can install the binary with `brew install ferritedb/tap/ferritedb`. The formula lives in the [`packaging/homebrew/ferritedb.rb`](packaging/homebrew/ferritedb.rb) template; releases are published from a dedicated tap repository (`ferritedb/homebrew-tap`).
+
+#### Maintaining the Tap
+
+1. **Create/update the tap repo**: ensure `https://github.com/ferritedb/homebrew-tap` exists with a `Formula/` directory. On a new tap run:
+   ```bash
+   git clone git@github.com:ferritedb/homebrew-tap.git
+   cd homebrew-tap
+   mkdir -p Formula
+   ```
+2. **Refresh the template locally**:
+   ```bash
+   cd /path/to/ferritedb
+   curl -sL -o /tmp/ferritedb-vX.Y.Z.tar.gz \
+     https://github.com/ferritedb/ferritedb/archive/refs/tags/vX.Y.Z.tar.gz
+   shasum -a 256 /tmp/ferritedb-vX.Y.Z.tar.gz
+   ```
+   Update the version, URL, and `sha256` in `packaging/homebrew/ferritedb.rb`.
+3. **Publish to the tap**:
+   ```bash
+   cd /path/to/homebrew-tap
+   cp ../ferritedb/packaging/homebrew/ferritedb.rb Formula/
+   git add Formula/ferritedb.rb
+   git commit -m "Update ferritedb to vX.Y.Z"
+   git push origin main
+   ```
+4. **Validate** the formula before announcing:
+   ```bash
+   brew install --build-from-source ferritedb/tap/ferritedb
+   brew test ferritedb/tap/ferritedb
+   brew audit --new-formula --strict Formula/ferritedb.rb
+   ```
+
+Keep the template committed in-repo so it is easy to diff and update alongside code changes. Once the tap is updated, users can install or upgrade through Homebrew immediately.
+
 ### Load Balancing
 
 #### Nginx Configuration
