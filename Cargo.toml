@@ -93,7 +93,7 @@ schemars = { version = "0.8", features = ["uuid1", "chrono"] }
 
 # Authentication and security
 argon2 = "0.5"
-jsonwebtoken = "9.2"
+jsonwebtoken = "10.0"
 uuid = { version = "1.6", features = ["v4", "serde"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 
