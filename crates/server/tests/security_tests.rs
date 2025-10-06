@@ -7,11 +7,11 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use rustbase_core::{
+use ferritedb_core::{
     audit::{AuditAction, AuditLogger},
     pii::{PiiRedactionConfig, PiiRedactor},
 };
-use rustbase_server::{
+use ferritedb_server::{
     csrf::{CsrfConfig, CsrfTokenStore, csrf_protection_middleware},
     security::{SecurityConfig, security_headers_middleware, request_size_limit_middleware},
     validation::{ValidationConfig, input_validation_middleware},
@@ -407,7 +407,7 @@ async fn test_audit_logging() {
 
 #[tokio::test]
 async fn test_cookie_security() {
-    use rustbase_server::security::{CookieSecurityConfig, CookieSecurityUtils};
+    use ferritedb_server::security::{CookieSecurityConfig, CookieSecurityUtils};
     
     let config = CookieSecurityConfig::default();
     
@@ -431,7 +431,7 @@ async fn test_cookie_security() {
 
 #[tokio::test]
 async fn test_request_sanitization() {
-    use rustbase_server::validation::RequestSanitizer;
+    use ferritedb_server::validation::RequestSanitizer;
     
     // Test string sanitization
     let malicious_input = "Hello <script>alert('xss')</script> World!";
@@ -460,7 +460,7 @@ async fn test_request_sanitization() {
 
 #[tokio::test]
 async fn test_ip_blocking() {
-    use rustbase_server::security::{IpSecurityConfig, is_ip_blocked};
+    use ferritedb_server::security::{IpSecurityConfig, is_ip_blocked};
     
     let mut config = IpSecurityConfig::default();
     config.blocked_ips.push("192.168.1.100".to_string());

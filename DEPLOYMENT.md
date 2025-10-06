@@ -1,6 +1,6 @@
-# RustBase Deployment Guide
+# FerriteDB Deployment Guide
 
-This guide covers various deployment options for RustBase, from simple single-server deployments to production-ready cloud configurations.
+This guide covers various deployment options for FerriteDB, from simple single-server deployments to production-ready cloud configurations.
 
 ## 📋 Table of Contents
 
@@ -41,24 +41,24 @@ This guide covers various deployment options for RustBase, from simple single-se
 
 ```bash
 # Create application directory
-sudo mkdir -p /opt/rustbase
-cd /opt/rustbase
+sudo mkdir -p /opt/ferritedb
+cd /opt/ferritedb
 
 # Download latest release
-curl -L https://github.com/rustbase/rustbase/releases/latest/download/rustbase-linux-x64 -o rustbase
-chmod +x rustbase
+curl -L https://github.com/ferritedb/ferritedb/releases/latest/download/ferritedb-linux-x64 -o ferritedb
+chmod +x ferritedb
 
 # Create data directory
 mkdir -p data/storage
 
 # Create configuration
-cat > rustbase.toml << EOF
+cat > ferritedb.toml << EOF
 [server]
 host = "0.0.0.0"
 port = 8090
 
 [database]
-url = "sqlite:data/rustbase.db"
+url = "sqlite:data/ferritedb.db"
 auto_migrate = true
 
 [auth]
@@ -76,30 +76,30 @@ EOF
 
 ```bash
 # Create systemd service
-sudo tee /etc/systemd/system/rustbase.service << EOF
+sudo tee /etc/systemd/system/ferritedb.service << EOF
 [Unit]
-Description=RustBase Backend Service
+Description=FerriteDB Backend Service
 After=network.target
 Wants=network.target
 
 [Service]
 Type=simple
-User=rustbase
-Group=rustbase
-WorkingDirectory=/opt/rustbase
-ExecStart=/opt/rustbase/rustbase serve
+User=ferritedb
+Group=ferritedb
+WorkingDirectory=/opt/ferritedb
+ExecStart=/opt/ferritedb/ferritedb serve
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=rustbase
+SyslogIdentifier=ferritedb
 
 # Security settings
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/rustbase/data
+ReadWritePaths=/opt/ferritedb/data
 
 # Resource limits
 LimitNOFILE=65536
@@ -110,16 +110,16 @@ WantedBy=multi-user.target
 EOF
 
 # Create user
-sudo useradd --system --home /opt/rustbase --shell /bin/false rustbase
-sudo chown -R rustbase:rustbase /opt/rustbase
+sudo useradd --system --home /opt/ferritedb --shell /bin/false ferritedb
+sudo chown -R ferritedb:ferritedb /opt/ferritedb
 
 # Enable and start service
 sudo systemctl daemon-reload
-sudo systemctl enable rustbase
-sudo systemctl start rustbase
+sudo systemctl enable ferritedb
+sudo systemctl start ferritedb
 
 # Check status
-sudo systemctl status rustbase
+sudo systemctl status ferritedb
 ```
 
 ### 3. Setup Reverse Proxy (Nginx)
@@ -130,7 +130,7 @@ sudo apt update
 sudo apt install nginx
 
 # Create site configuration
-sudo tee /etc/nginx/sites-available/rustbase << EOF
+sudo tee /etc/nginx/sites-available/ferritedb << EOF
 server {
     listen 80;
     server_name your-domain.com;
@@ -145,7 +145,7 @@ server {
     limit_req_zone \$binary_remote_addr zone=api:10m rate=10r/s;
     limit_req zone=api burst=20 nodelay;
 
-    # Proxy to RustBase
+    # Proxy to FerriteDB
     location / {
         proxy_pass http://127.0.0.1:8090;
         proxy_http_version 1.1;
@@ -181,7 +181,7 @@ server {
 EOF
 
 # Enable site
-sudo ln -s /etc/nginx/sites-available/rustbase /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/ferritedb /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
 ```
@@ -223,7 +223,7 @@ RUN apt-get update && apt-get install -y \
 RUN useradd --create-home --shell /bin/bash app
 
 # Copy binary
-COPY --from=builder /app/target/release/rustbase /usr/local/bin/rustbase
+COPY --from=builder /app/target/release/ferritedb /usr/local/bin/ferritedb
 
 # Create directories
 RUN mkdir -p /app/data/storage && chown -R app:app /app
@@ -237,7 +237,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 EXPOSE 8090
 
-CMD ["rustbase", "serve"]
+CMD ["ferritedb", "serve"]
 ```
 
 ### 2. Docker Compose
@@ -246,20 +246,20 @@ CMD ["rustbase", "serve"]
 version: '3.8'
 
 services:
-  rustbase:
+  ferritedb:
     build: .
     # Or use pre-built image:
-    # image: rustbase/rustbase:latest
-    container_name: rustbase
+    # image: ferritedb/ferritedb:latest
+    container_name: ferritedb
     restart: unless-stopped
     ports:
       - "8090:8090"
     volumes:
-      - rustbase_data:/app/data
-      - ./rustbase.toml:/app/rustbase.toml:ro
+      - ferritedb_data:/app/data
+      - ./ferritedb.toml:/app/ferritedb.toml:ro
     environment:
-      - RUSTBASE_AUTH_JWT_SECRET=${JWT_SECRET}
-      - RUSTBASE_DATABASE_URL=sqlite:data/rustbase.db
+      - FERRITEDB_AUTH_JWT_SECRET=${JWT_SECRET}
+      - FERRITEDB_DATABASE_URL=sqlite:data/ferritedb.db
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/healthz"]
       interval: 30s
@@ -267,12 +267,12 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - rustbase_network
+      - ferritedb_network
 
   # Reverse proxy
   nginx:
     image: nginx:alpine
-    container_name: rustbase_nginx
+    container_name: ferritedb_nginx
     restart: unless-stopped
     ports:
       - "80:80"
@@ -282,14 +282,14 @@ services:
       - ./ssl:/etc/nginx/ssl:ro
       - nginx_cache:/var/cache/nginx
     depends_on:
-      - rustbase
+      - ferritedb
     networks:
-      - rustbase_network
+      - ferritedb_network
 
   # Optional: Monitoring
   prometheus:
     image: prom/prometheus:latest
-    container_name: rustbase_prometheus
+    container_name: ferritedb_prometheus
     restart: unless-stopped
     ports:
       - "9090:9090"
@@ -302,15 +302,15 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
     networks:
-      - rustbase_network
+      - ferritedb_network
 
 volumes:
-  rustbase_data:
+  ferritedb_data:
   nginx_cache:
   prometheus_data:
 
 networks:
-  rustbase_network:
+  ferritedb_network:
     driver: bridge
 ```
 
@@ -320,21 +320,21 @@ networks:
 # Create .env file
 cat > .env << EOF
 JWT_SECRET=$(openssl rand -base64 32)
-RUSTBASE_SERVER_HOST=0.0.0.0
-RUSTBASE_SERVER_PORT=8090
-RUSTBASE_DATABASE_URL=sqlite:data/rustbase.db
-RUSTBASE_STORAGE_BACKEND=local
-RUSTBASE_STORAGE_LOCAL_BASE_PATH=data/storage
+FERRITEDB_SERVER_HOST=0.0.0.0
+FERRITEDB_SERVER_PORT=8090
+FERRITEDB_DATABASE_URL=sqlite:data/ferritedb.db
+FERRITEDB_STORAGE_BACKEND=local
+FERRITEDB_STORAGE_LOCAL_BASE_PATH=data/storage
 EOF
 
 # Start services
 docker-compose up -d
 
 # View logs
-docker-compose logs -f rustbase
+docker-compose logs -f ferritedb
 
 # Scale if needed
-docker-compose up -d --scale rustbase=3
+docker-compose up -d --scale ferritedb=3
 ```
 
 ## Cloud Platforms
@@ -344,17 +344,17 @@ docker-compose up -d --scale rustbase=3
 ```yaml
 # task-definition.json
 {
-  "family": "rustbase",
+  "family": "ferritedb",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "512",
   "memory": "1024",
   "executionRoleArn": "arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole",
-  "taskRoleArn": "arn:aws:iam::ACCOUNT:role/rustbaseTaskRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT:role/ferritedbTaskRole",
   "containerDefinitions": [
     {
-      "name": "rustbase",
-      "image": "rustbase/rustbase:latest",
+      "name": "ferritedb",
+      "image": "ferritedb/ferritedb:latest",
       "portMappings": [
         {
           "containerPort": 8090,
@@ -363,22 +363,22 @@ docker-compose up -d --scale rustbase=3
       ],
       "environment": [
         {
-          "name": "RUSTBASE_AUTH_JWT_SECRET",
+          "name": "FERRITEDB_AUTH_JWT_SECRET",
           "value": "your-secret-from-secrets-manager"
         },
         {
-          "name": "RUSTBASE_STORAGE_BACKEND",
+          "name": "FERRITEDB_STORAGE_BACKEND",
           "value": "s3"
         },
         {
-          "name": "RUSTBASE_STORAGE_S3_BUCKET",
-          "value": "your-rustbase-files"
+          "name": "FERRITEDB_STORAGE_S3_BUCKET",
+          "value": "your-ferritedb-files"
         }
       ],
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "/ecs/rustbase",
+          "awslogs-group": "/ecs/ferritedb",
           "awslogs-region": "us-east-1",
           "awslogs-stream-prefix": "ecs"
         }
@@ -402,7 +402,7 @@ docker-compose up -d --scale rustbase=3
 apiVersion: serving.knative.dev/v1
 kind: Service
 metadata:
-  name: rustbase
+  name: ferritedb
   annotations:
     run.googleapis.com/ingress: all
 spec:
@@ -416,17 +416,17 @@ spec:
       containerConcurrency: 100
       timeoutSeconds: 300
       containers:
-      - image: gcr.io/PROJECT_ID/rustbase:latest
+      - image: gcr.io/PROJECT_ID/ferritedb:latest
         ports:
         - containerPort: 8090
         env:
-        - name: RUSTBASE_AUTH_JWT_SECRET
+        - name: FERRITEDB_AUTH_JWT_SECRET
           valueFrom:
             secretKeyRef:
-              name: rustbase-secrets
+              name: ferritedb-secrets
               key: jwt-secret
-        - name: RUSTBASE_DATABASE_URL
-          value: "sqlite:data/rustbase.db"
+        - name: FERRITEDB_DATABASE_URL
+          value: "sqlite:data/ferritedb.db"
         resources:
           limits:
             cpu: "1"
@@ -437,7 +437,7 @@ spec:
       volumes:
       - name: data
         persistentVolumeClaim:
-          claimName: rustbase-data
+          claimName: ferritedb-data
 ```
 
 ### Railway
@@ -451,8 +451,8 @@ railway login
 railway init
 
 # Set environment variables
-railway variables set RUSTBASE_AUTH_JWT_SECRET=$(openssl rand -base64 32)
-railway variables set RUSTBASE_DATABASE_URL=sqlite:data/rustbase.db
+railway variables set FERRITEDB_AUTH_JWT_SECRET=$(openssl rand -base64 32)
+railway variables set FERRITEDB_DATABASE_URL=sqlite:data/ferritedb.db
 
 # Deploy
 railway up
@@ -462,15 +462,15 @@ railway up
 
 ```toml
 # fly.toml
-app = "rustbase-app"
+app = "ferritedb-app"
 primary_region = "ord"
 
 [build]
-  image = "rustbase/rustbase:latest"
+  image = "ferritedb/ferritedb:latest"
 
 [env]
-  RUSTBASE_SERVER_HOST = "0.0.0.0"
-  RUSTBASE_SERVER_PORT = "8080"
+  FERRITEDB_SERVER_HOST = "0.0.0.0"
+  FERRITEDB_SERVER_PORT = "8080"
 
 [[services]]
   http_checks = []
@@ -500,7 +500,7 @@ primary_region = "ord"
     timeout = "2s"
 
 [[mounts]]
-  source = "rustbase_data"
+  source = "ferritedb_data"
   destination = "/app/data"
 ```
 
@@ -509,7 +509,7 @@ primary_region = "ord"
 ### 1. Security Configuration
 
 ```toml
-# rustbase.toml - Production settings
+# ferritedb.toml - Production settings
 [server]
 host = "127.0.0.1"  # Bind to localhost only
 port = 8090
@@ -527,7 +527,7 @@ refresh_ttl = 86400  # 24 hours
 password_min_length = 12
 
 [database]
-url = "sqlite:data/rustbase.db?mode=rwc&cache=shared&_journal_mode=WAL"
+url = "sqlite:data/ferritedb.db?mode=rwc&cache=shared&_journal_mode=WAL"
 max_connections = 20
 connection_timeout = 30
 
@@ -601,24 +601,24 @@ server {
 
 ```bash
 # Logrotate configuration
-sudo tee /etc/logrotate.d/rustbase << EOF
-/var/log/rustbase/*.log {
+sudo tee /etc/logrotate.d/ferritedb << EOF
+/var/log/ferritedb/*.log {
     daily
     missingok
     rotate 30
     compress
     delaycompress
     notifempty
-    create 644 rustbase rustbase
+    create 644 ferritedb ferritedb
     postrotate
-        systemctl reload rustbase
+        systemctl reload ferritedb
     endscript
 }
 EOF
 
 # Rsyslog configuration for structured logging
-sudo tee /etc/rsyslog.d/30-rustbase.conf << EOF
-if \$programname == 'rustbase' then /var/log/rustbase/rustbase.log
+sudo tee /etc/rsyslog.d/30-ferritedb.conf << EOF
+if \$programname == 'ferritedb' then /var/log/ferritedb/ferritedb.log
 & stop
 EOF
 
@@ -638,10 +638,10 @@ ENDPOINT="http://localhost:8090/healthz"
 TIMEOUT=5
 
 if curl -f -s --max-time $TIMEOUT $ENDPOINT > /dev/null; then
-    echo "✅ RustBase is healthy"
+    echo "✅ FerriteDB is healthy"
     exit 0
 else
-    echo "❌ RustBase health check failed"
+    echo "❌ FerriteDB health check failed"
     exit 1
 fi
 ```
@@ -654,9 +654,9 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'rustbase'
+  - job_name: 'ferritedb'
     static_configs:
-      - targets: ['rustbase:8090']
+      - targets: ['ferritedb:8090']
     metrics_path: '/metrics'
     scrape_interval: 30s
 ```
@@ -666,7 +666,7 @@ scrape_configs:
 ```json
 {
   "dashboard": {
-    "title": "RustBase Monitoring",
+    "title": "FerriteDB Monitoring",
     "panels": [
       {
         "title": "Request Rate",
@@ -693,7 +693,7 @@ scrape_configs:
         "type": "singlestat",
         "targets": [
           {
-            "expr": "rustbase_db_connections_active"
+            "expr": "ferritedb_db_connections_active"
           }
         ]
       }
@@ -745,10 +745,10 @@ volumes:
 #!/bin/bash
 # backup-db.sh
 
-BACKUP_DIR="/opt/rustbase/backups"
-DB_PATH="/opt/rustbase/data/rustbase.db"
+BACKUP_DIR="/opt/ferritedb/backups"
+DB_PATH="/opt/ferritedb/data/ferritedb.db"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/rustbase_backup_$TIMESTAMP.db"
+BACKUP_FILE="$BACKUP_DIR/ferritedb_backup_$TIMESTAMP.db"
 
 # Create backup directory
 mkdir -p $BACKUP_DIR
@@ -760,7 +760,7 @@ sqlite3 $DB_PATH ".backup $BACKUP_FILE"
 gzip $BACKUP_FILE
 
 # Clean old backups (keep 30 days)
-find $BACKUP_DIR -name "rustbase_backup_*.db.gz" -mtime +30 -delete
+find $BACKUP_DIR -name "ferritedb_backup_*.db.gz" -mtime +30 -delete
 
 echo "Backup completed: $BACKUP_FILE.gz"
 ```
@@ -771,8 +771,8 @@ echo "Backup completed: $BACKUP_FILE.gz"
 #!/bin/bash
 # backup-files.sh
 
-STORAGE_DIR="/opt/rustbase/data/storage"
-BACKUP_DIR="/opt/rustbase/backups"
+STORAGE_DIR="/opt/ferritedb/data/storage"
+BACKUP_DIR="/opt/ferritedb/backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Create incremental backup using rsync
@@ -794,13 +794,13 @@ echo "File backup completed: $BACKUP_DIR/files_$TIMESTAMP"
 crontab -e
 
 # Database backup every 6 hours
-0 */6 * * * /opt/rustbase/scripts/backup-db.sh
+0 */6 * * * /opt/ferritedb/scripts/backup-db.sh
 
 # File backup daily at 2 AM
-0 2 * * * /opt/rustbase/scripts/backup-files.sh
+0 2 * * * /opt/ferritedb/scripts/backup-files.sh
 
 # Upload to S3 daily at 3 AM
-0 3 * * * aws s3 sync /opt/rustbase/backups/ s3://your-backup-bucket/rustbase/
+0 3 * * * aws s3 sync /opt/ferritedb/backups/ s3://your-backup-bucket/ferritedb/
 ```
 
 ### 4. Disaster Recovery
@@ -817,26 +817,26 @@ if [ -z "$BACKUP_FILE" ]; then
     exit 1
 fi
 
-# Stop RustBase
-sudo systemctl stop rustbase
+# Stop FerriteDB
+sudo systemctl stop ferritedb
 
 # Restore database
 if [ -f "$BACKUP_FILE" ]; then
     echo "Restoring database from $BACKUP_FILE"
-    cp "$BACKUP_FILE" /opt/rustbase/data/rustbase.db
-    chown rustbase:rustbase /opt/rustbase/data/rustbase.db
+    cp "$BACKUP_FILE" /opt/ferritedb/data/ferritedb.db
+    chown ferritedb:ferritedb /opt/ferritedb/data/ferritedb.db
 fi
 
 # Restore file storage
 if [ -n "$STORAGE_BACKUP" ] && [ -d "$STORAGE_BACKUP" ]; then
     echo "Restoring file storage from $STORAGE_BACKUP"
-    rm -rf /opt/rustbase/data/storage
-    cp -r "$STORAGE_BACKUP" /opt/rustbase/data/storage
-    chown -R rustbase:rustbase /opt/rustbase/data/storage
+    rm -rf /opt/ferritedb/data/storage
+    cp -r "$STORAGE_BACKUP" /opt/ferritedb/data/storage
+    chown -R ferritedb:ferritedb /opt/ferritedb/data/storage
 fi
 
-# Start RustBase
-sudo systemctl start rustbase
+# Start FerriteDB
+sudo systemctl start ferritedb
 
 echo "Restore completed"
 ```
@@ -845,28 +845,28 @@ echo "Restore completed"
 
 ### 1. Horizontal Scaling
 
-RustBase can be scaled horizontally with some considerations:
+FerriteDB can be scaled horizontally with some considerations:
 
 ```yaml
 # docker-compose-scaled.yml
 version: '3.8'
 
 services:
-  rustbase:
-    image: rustbase/rustbase:latest
+  ferritedb:
+    image: ferritedb/ferritedb:latest
     deploy:
       replicas: 3
     volumes:
       - shared_storage:/app/data/storage
     environment:
-      - RUSTBASE_DATABASE_URL=postgresql://user:pass@postgres:5432/rustbase
-      - RUSTBASE_STORAGE_BACKEND=s3
+      - FERRITEDB_DATABASE_URL=postgresql://user:pass@postgres:5432/ferritedb
+      - FERRITEDB_STORAGE_BACKEND=s3
 
   postgres:
     image: postgres:15
     environment:
-      - POSTGRES_DB=rustbase
-      - POSTGRES_USER=rustbase
+      - POSTGRES_DB=ferritedb
+      - POSTGRES_USER=ferritedb
       - POSTGRES_PASSWORD=secure_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -884,7 +884,7 @@ services:
     volumes:
       - ./nginx-lb.conf:/etc/nginx/nginx.conf
     depends_on:
-      - rustbase
+      - ferritedb
 
 volumes:
   shared_storage:
@@ -896,18 +896,18 @@ volumes:
 
 ```nginx
 # nginx-lb.conf
-upstream rustbase_backend {
+upstream ferritedb_backend {
     least_conn;
-    server rustbase_1:8090 max_fails=3 fail_timeout=30s;
-    server rustbase_2:8090 max_fails=3 fail_timeout=30s;
-    server rustbase_3:8090 max_fails=3 fail_timeout=30s;
+    server ferritedb_1:8090 max_fails=3 fail_timeout=30s;
+    server ferritedb_2:8090 max_fails=3 fail_timeout=30s;
+    server ferritedb_3:8090 max_fails=3 fail_timeout=30s;
 }
 
 server {
     listen 80;
     
     location / {
-        proxy_pass http://rustbase_backend;
+        proxy_pass http://ferritedb_backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -918,7 +918,7 @@ server {
     
     # Sticky sessions for WebSocket
     location /realtime {
-        proxy_pass http://rustbase_backend;
+        proxy_pass http://ferritedb_backend;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -932,7 +932,7 @@ server {
 ### 3. Performance Tuning
 
 ```toml
-# rustbase-production.toml
+# ferritedb-production.toml
 [server]
 host = "0.0.0.0"
 port = 8090
@@ -944,7 +944,7 @@ requests_per_minute = 300
 burst_size = 50
 
 [database]
-url = "sqlite:data/rustbase.db?cache=shared&_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000"
+url = "sqlite:data/ferritedb.db?cache=shared&_journal_mode=WAL&_synchronous=NORMAL&_cache_size=10000"
 max_connections = 50
 connection_timeout = 10
 
@@ -961,4 +961,4 @@ metrics = true
 
 ---
 
-This deployment guide covers the most common scenarios for deploying RustBase. For specific questions or advanced configurations, please refer to the [documentation](https://rustbase.dev/docs) or join our [community](https://discord.gg/rustbase).
+This deployment guide covers the most common scenarios for deploying FerriteDB. For specific questions or advanced configurations, please refer to the [documentation](https://ferritedb.dev/docs) or join our [community](https://discord.gg/ferritedb).

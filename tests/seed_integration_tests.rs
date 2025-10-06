@@ -1,4 +1,4 @@
-use rustbase_core::{
+use ferritedb_core::{
     auth::{AuthConfig, AuthService},
     seed::SeedService,
     Database, UserRepository,
@@ -17,19 +17,19 @@ async fn test_seed_command_integration() {
 
     // Build the binary first (in a real CI environment, this would be pre-built)
     let build_output = Command::new("cargo")
-        .args(&["build", "--bin", "rustbase"])
+        .args(&["build", "--bin", "ferritedb"])
         .output()
-        .expect("Failed to build rustbase binary");
+        .expect("Failed to build ferritedb binary");
 
     if !build_output.status.success() {
         panic!(
-            "Failed to build rustbase: {}",
+            "Failed to build ferritedb: {}",
             String::from_utf8_lossy(&build_output.stderr)
         );
     }
 
     // Run the seed command
-    let output = Command::new("target/debug/rustbase")
+    let output = Command::new("target/debug/ferritedb")
         .args(&[
             "seed",
             "--config",
@@ -72,7 +72,7 @@ jwt_secret = "test-secret-for-integration-test"
 
     // Verify admin user exists
     let admin_user = user_repo
-        .find_by_email("admin@rustbase.dev")
+        .find_by_email("admin@ferritedb.dev")
         .await
         .unwrap();
     assert!(admin_user.is_some(), "Admin user should be created");
@@ -107,10 +107,10 @@ jwt_secret = "test-secret-for-integration-test"
     );
 
     // Run seed command first time
-    let output1 = Command::new("target/debug/rustbase")
+    let output1 = Command::new("target/debug/ferritedb")
         .args(&["seed"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
         .expect("Failed to execute first seed command");
 
@@ -121,10 +121,10 @@ jwt_secret = "test-secret-for-integration-test"
     );
 
     // Run seed command second time
-    let output2 = Command::new("target/debug/rustbase")
+    let output2 = Command::new("target/debug/ferritedb")
         .args(&["seed"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
         .expect("Failed to execute second seed command");
 
@@ -149,10 +149,10 @@ async fn test_server_with_seeded_data() {
     let database_url = format!("sqlite:{}", db_path.display());
 
     // First, seed the data
-    let seed_output = Command::new("target/debug/rustbase")
+    let seed_output = Command::new("target/debug/ferritedb")
         .args(&["seed"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
         .expect("Failed to execute seed command");
 
@@ -163,10 +163,10 @@ async fn test_server_with_seeded_data() {
     );
 
     // Start the server in the background
-    let mut server_process = Command::new("target/debug/rustbase")
+    let mut server_process = Command::new("target/debug/ferritedb")
         .args(&["serve", "--port", "8093"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .spawn()
         .expect("Failed to start server");
 
@@ -190,7 +190,7 @@ async fn test_server_with_seeded_data() {
     let login_response = client
         .post("http://localhost:8093/api/auth/login")
         .json(&json!({
-            "email": "admin@rustbase.dev",
+            "email": "admin@ferritedb.dev",
             "password": "admin123"
         }))
         .send()
@@ -218,10 +218,10 @@ async fn test_collections_created_with_proper_schema() {
     let database_url = format!("sqlite:{}", db_path.display());
 
     // Run seed command
-    let output = Command::new("target/debug/rustbase")
+    let output = Command::new("target/debug/ferritedb")
         .args(&["seed"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
         .expect("Failed to execute seed command");
 
@@ -287,10 +287,10 @@ async fn test_admin_user_can_authenticate() {
     let database_url = format!("sqlite:{}", db_path.display());
 
     // Run seed command
-    let output = Command::new("target/debug/rustbase")
+    let output = Command::new("target/debug/ferritedb")
         .args(&["seed"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret-key")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret-key")
         .output()
         .expect("Failed to execute seed command");
 
@@ -317,7 +317,7 @@ async fn test_admin_user_can_authenticate() {
 
     // Get admin user
     let admin_user = user_repo
-        .find_by_email("admin@rustbase.dev")
+        .find_by_email("admin@ferritedb.dev")
         .await
         .unwrap()
         .unwrap();
@@ -338,8 +338,8 @@ async fn test_admin_user_can_authenticate() {
 
     // Validate token
     let claims = auth_service.validate_token(&tokens.access_token).unwrap();
-    assert_eq!(claims.email, "admin@rustbase.dev");
-    assert_eq!(claims.role, rustbase_core::UserRole::Admin);
+    assert_eq!(claims.email, "admin@ferritedb.dev");
+    assert_eq!(claims.role, ferritedb_core::UserRole::Admin);
 
     db.close().await;
 }
@@ -351,10 +351,10 @@ async fn test_demo_users_have_correct_passwords() {
     let database_url = format!("sqlite:{}", db_path.display());
 
     // Run seed command
-    let output = Command::new("target/debug/rustbase")
+    let output = Command::new("target/debug/ferritedb")
         .args(&["seed"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret-key")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret-key")
         .output()
         .expect("Failed to execute seed command");
 
@@ -390,7 +390,7 @@ async fn test_demo_users_have_correct_passwords() {
             email
         );
 
-        assert_eq!(user.role, rustbase_core::UserRole::User);
+        assert_eq!(user.role, ferritedb_core::UserRole::User);
         assert!(user.verified, "Demo user should be verified");
     }
 
@@ -404,10 +404,10 @@ async fn test_seed_with_force_flag() {
     let database_url = format!("sqlite:{}", db_path.display());
 
     // Run seed command with force flag
-    let output = Command::new("target/debug/rustbase")
+    let output = Command::new("target/debug/ferritedb")
         .args(&["seed", "--force"])
-        .env("RUSTBASE_DATABASE_URL", &database_url)
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret")
+        .env("FERRITEDB_DATABASE_URL", &database_url)
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
         .expect("Failed to execute seed command with force");
 
@@ -430,7 +430,7 @@ async fn test_seed_with_force_flag() {
 /// Test that verifies the CLI help shows the seed command
 #[test]
 fn test_seed_command_in_help() {
-    let output = Command::new("target/debug/rustbase")
+    let output = Command::new("target/debug/ferritedb")
         .args(&["--help"])
         .output()
         .expect("Failed to get help");
@@ -448,10 +448,10 @@ fn test_seed_command_in_help() {
 #[tokio::test]
 async fn test_seed_command_database_error() {
     // Try to seed with an invalid database path
-    let output = Command::new("target/debug/rustbase")
+    let output = Command::new("target/debug/ferritedb")
         .args(&["seed"])
-        .env("RUSTBASE_DATABASE_URL", "sqlite:/invalid/path/test.db")
-        .env("RUSTBASE_AUTH_JWT_SECRET", "test-secret")
+        .env("FERRITEDB_DATABASE_URL", "sqlite:/invalid/path/test.db")
+        .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
         .expect("Failed to execute seed command");
 
@@ -471,7 +471,7 @@ async fn test_seed_command_database_error() {
 
 /// Helper function to check if a binary exists and is executable
 fn binary_exists() -> bool {
-    Command::new("target/debug/rustbase")
+    Command::new("target/debug/ferritedb")
         .args(&["--version"])
         .output()
         .map(|output| output.status.success())
@@ -484,16 +484,16 @@ async fn test_binary_availability() {
     if !binary_exists() {
         // Try to build the binary
         let build_output = Command::new("cargo")
-            .args(&["build", "--bin", "rustbase"])
+            .args(&["build", "--bin", "ferritedb"])
             .output()
-            .expect("Failed to build rustbase binary");
+            .expect("Failed to build ferritedb binary");
 
         assert!(
             build_output.status.success(),
-            "Failed to build rustbase binary: {}",
+            "Failed to build ferritedb binary: {}",
             String::from_utf8_lossy(&build_output.stderr)
         );
     }
 
-    assert!(binary_exists(), "RustBase binary should be available for testing");
+    assert!(binary_exists(), "FerriteDB binary should be available for testing");
 }

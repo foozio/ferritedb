@@ -124,7 +124,7 @@ test_container_health() {
     CONTAINER_ID=$(docker run -d \
         --name "rustbase-deploy-test-health" \
         -p "8090:8090" \
-        -e "RUSTBASE_AUTH_JWT_SECRET=test-secret-$(date +%s)" \
+        -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-$(date +%s)" \
         "$TEST_IMAGE")
     
     log_info "Started container: $CONTAINER_ID"
@@ -250,7 +250,7 @@ test_container_security() {
     # Start container for security tests
     CONTAINER_ID=$(docker run -d \
         --name "rustbase-deploy-test-security" \
-        -e "RUSTBASE_AUTH_JWT_SECRET=test-secret-security" \
+        -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-security" \
         "$TEST_IMAGE")
     
     # Check that container runs as non-root
@@ -287,7 +287,7 @@ test_volume_persistence() {
         --name "rustbase-deploy-test-persist1" \
         -p "8091:8090" \
         -v "rustbase-deploy-test-volume:/app/data" \
-        -e "RUSTBASE_AUTH_JWT_SECRET=test-secret-persist" \
+        -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-persist" \
         "$TEST_IMAGE")
     
     # Wait for container to be ready
@@ -314,7 +314,7 @@ test_volume_persistence() {
         --name "rustbase-deploy-test-persist2" \
         -p "8091:8090" \
         -v "rustbase-deploy-test-volume:/app/data" \
-        -e "RUSTBASE_AUTH_JWT_SECRET=test-secret-persist" \
+        -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-persist" \
         "$TEST_IMAGE")
     
     # Wait for container to be ready
@@ -400,7 +400,7 @@ test_performance_baseline() {
     CONTAINER_ID=$(docker run -d \
         --name "rustbase-deploy-test-perf" \
         -p "8092:8090" \
-        -e "RUSTBASE_AUTH_JWT_SECRET=test-secret-perf" \
+        -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-perf" \
         "$TEST_IMAGE")
     
     # Wait for container to be ready

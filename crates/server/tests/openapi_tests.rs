@@ -1,8 +1,8 @@
-use rustbase_core::{
+use ferritedb_core::{
     models::{Collection, CollectionSchema, CollectionType, Field, FieldOptions, FieldType},
     AccessRules,
 };
-use rustbase_server::openapi::OpenApiGenerator;
+use ferritedb_server::openapi::OpenApiGenerator;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -18,7 +18,7 @@ fn test_openapi_spec_structure() {
     assert_eq!(spec["openapi"], "3.1.0");
 
     // Verify info section
-    assert_eq!(spec["info"]["title"], "RustBase API");
+    assert_eq!(spec["info"]["title"], "FerriteDB API");
     assert_eq!(spec["info"]["version"], "1.0.0");
     assert!(spec["info"]["description"].is_string());
 

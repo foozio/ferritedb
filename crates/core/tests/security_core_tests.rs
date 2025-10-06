@@ -1,4 +1,4 @@
-use rustbase_core::{
+use ferritedb_core::{
     audit::{AuditAction, AuditContext, AuditLogger},
     pii::{PiiRedactionConfig, PiiRedactor, PiiUtils},
 };

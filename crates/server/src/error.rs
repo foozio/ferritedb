@@ -11,10 +11,10 @@ pub type ServerResult<T> = Result<T, ServerError>;
 #[derive(Debug, Error)]
 pub enum ServerError {
     #[error("Core error: {0}")]
-    Core(#[from] rustbase_core::CoreError),
+    Core(#[from] ferritedb_core::CoreError),
     
     #[error("Authentication error: {0}")]
-    Auth(#[from] rustbase_core::auth::AuthError),
+    Auth(#[from] ferritedb_core::auth::AuthError),
     
     #[error("Bad request: {0}")]
     BadRequest(String),
@@ -49,16 +49,16 @@ impl IntoResponse for ServerError {
             ServerError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg),
             ServerError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
             ServerError::Auth(auth_err) => match auth_err {
-                rustbase_core::auth::AuthError::InvalidCredentials => {
+                ferritedb_core::auth::AuthError::InvalidCredentials => {
                     (StatusCode::UNAUTHORIZED, "Invalid credentials".to_string())
                 }
-                rustbase_core::auth::AuthError::TokenExpired => {
+                ferritedb_core::auth::AuthError::TokenExpired => {
                     (StatusCode::UNAUTHORIZED, "Token expired".to_string())
                 }
-                rustbase_core::auth::AuthError::InvalidToken => {
+                ferritedb_core::auth::AuthError::InvalidToken => {
                     (StatusCode::UNAUTHORIZED, "Invalid token".to_string())
                 }
-                rustbase_core::auth::AuthError::WeakPassword(msg) => {
+                ferritedb_core::auth::AuthError::WeakPassword(msg) => {
                     (StatusCode::BAD_REQUEST, format!("Weak password: {}", msg))
                 }
                 _ => (StatusCode::INTERNAL_SERVER_ERROR, "Authentication error".to_string()),

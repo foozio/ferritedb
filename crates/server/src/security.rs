@@ -45,7 +45,7 @@ impl Default for SecurityConfig {
         security_headers.insert("X-Permitted-Cross-Domain-Policies".to_string(), "none".to_string());
         
         // Remove server information
-        security_headers.insert("Server".to_string(), "RustBase".to_string());
+        security_headers.insert("Server".to_string(), "FerriteDB".to_string());
 
         Self {
             security_headers,

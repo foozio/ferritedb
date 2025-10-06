@@ -5,7 +5,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use rustbase_core::{Collection, Field, FieldType, UserRole};
+use ferritedb_core::{Collection, Field, FieldType, UserRole};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -20,7 +20,7 @@ pub struct OpenApiGenerator {
 impl OpenApiGenerator {
     pub fn new(server_url: String) -> Self {
         Self {
-            title: "RustBase API".to_string(),
+            title: "FerriteDB API".to_string(),
             version: "1.0.0".to_string(),
             description: "A production-ready, developer-friendly backend service that provides a complete backend-as-a-service solution.".to_string(),
             server_url,
@@ -36,8 +36,8 @@ impl OpenApiGenerator {
                 "version": self.version,
                 "description": self.description,
                 "contact": {
-                    "name": "RustBase",
-                    "url": "https://github.com/rustbase/rustbase"
+                    "name": "FerriteDB",
+                    "url": "https://github.com/ferritedb/ferritedb"
                 },
                 "license": {
                     "name": "MIT",
@@ -47,7 +47,7 @@ impl OpenApiGenerator {
             "servers": [
                 {
                     "url": self.server_url,
-                    "description": "RustBase Server"
+                    "description": "FerriteDB Server"
                 }
             ],
             "paths": self.generate_paths(collections),
@@ -1040,7 +1040,7 @@ pub fn create_docs_routes() -> Router<Vec<Collection>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rustbase_core::{CollectionSchema, CollectionType, Field, FieldOptions, FieldType};
+    use ferritedb_core::{CollectionSchema, CollectionType, Field, FieldOptions, FieldType};
     use uuid::Uuid;
 
     fn create_test_collection() -> Collection {
@@ -1089,7 +1089,7 @@ mod tests {
         
         // Verify basic structure
         assert_eq!(spec["openapi"], "3.1.0");
-        assert_eq!(spec["info"]["title"], "RustBase API");
+        assert_eq!(spec["info"]["title"], "FerriteDB API");
         assert_eq!(spec["info"]["version"], "1.0.0");
         
         // Verify server configuration

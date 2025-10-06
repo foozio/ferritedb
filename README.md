@@ -1,10 +1,10 @@
-# RustBase
+# FerriteDB
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
-[![Build Status](https://github.com/rustbase/rustbase/workflows/CI/badge.svg)](https://github.com/rustbase/rustbase/actions)
 
-**RustBase** is a production-ready, developer-friendly backend service that provides a complete backend-as-a-service solution in a single self-contained binary. Built with Rust for performance, security, and reliability.
+
+**FerriteDB** is a developer-friendly backend service that provides a complete backend-as-a-service solution in a single self-contained binary. Built with Rust for performance, security, and reliability.
 
 ## ✨ Features
 
@@ -27,26 +27,26 @@ Download the latest release for your platform:
 
 ```bash
 # macOS (Apple Silicon)
-curl -L https://github.com/rustbase/rustbase/releases/latest/download/rustbase-macos-arm64 -o rustbase
-chmod +x rustbase
+curl -L https://github.com/ferritedb/ferritedb/releases/latest/download/ferritedb-macos-arm64 -o ferritedb
+chmod +x ferritedb
 
 # macOS (Intel)
-curl -L https://github.com/rustbase/rustbase/releases/latest/download/rustbase-macos-x64 -o rustbase
-chmod +x rustbase
+curl -L https://github.com/ferritedb/ferritedb/releases/latest/download/ferritedb-macos-x64 -o ferritedb
+chmod +x ferritedb
 
 # Linux (x64)
-curl -L https://github.com/rustbase/rustbase/releases/latest/download/rustbase-linux-x64 -o rustbase
-chmod +x rustbase
+curl -L https://github.com/ferritedb/ferritedb/releases/latest/download/ferritedb-linux-x64 -o ferritedb
+chmod +x ferritedb
 
 # Windows
-# Download rustbase-windows-x64.exe from releases page
+# Download ferritedb-windows-x64.exe from releases page
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/rustbase/rustbase.git
-cd rustbase
+git clone https://github.com/ferritedb/ferritedb.git
+cd ferritedb
 cargo build --release
 ```
 
@@ -54,13 +54,13 @@ cargo build --release
 
 ```bash
 # Initialize example collections and seed data
-./rustbase seed
+./ferritedb seed
 
 # Start the server
-./rustbase serve
+./ferritedb serve
 ```
 
-That's it! RustBase is now running on `http://localhost:8090`
+That's it! FerriteDB is now running on `http://localhost:8090`
 
 ### Access Points
 
@@ -73,7 +73,7 @@ That's it! RustBase is now running on `http://localhost:8090`
 
 The seed command creates demo users:
 
-- **Admin**: `admin@rustbase.dev` / `admin123`
+- **Admin**: `admin@ferritedb.dev` / `admin123`
 - **Users**: `alice@example.com`, `bob@example.com`, `carol@example.com` / `password123`
 
 ## 📚 Documentation
@@ -84,7 +84,7 @@ Collections are dynamic schemas that define your data structure:
 
 ```bash
 # Using the CLI
-rustbase admin create-collection posts \
+ferritedb admin create-collection posts \
   --field title:text:required \
   --field content:text \
   --field published:boolean:default=false \
@@ -175,22 +175,22 @@ curl http://localhost:8090/api/files/posts/POST_ID/featured_image
 
 ## 🔧 Configuration
 
-RustBase can be configured via environment variables, config files, or CLI arguments:
+FerriteDB can be configured via environment variables, config files, or CLI arguments:
 
 ### Environment Variables
 
 ```bash
-export RUSTBASE_SERVER_HOST=0.0.0.0
-export RUSTBASE_SERVER_PORT=8090
-export RUSTBASE_DATABASE_URL=sqlite:data/rustbase.db
-export RUSTBASE_AUTH_JWT_SECRET=your-secret-key
-export RUSTBASE_STORAGE_BACKEND=local
-export RUSTBASE_STORAGE_LOCAL_BASE_PATH=data/storage
+export FERRITEDB_SERVER_HOST=0.0.0.0
+export FERRITEDB_SERVER_PORT=8090
+export FERRITEDB_DATABASE_URL=sqlite:data/ferritedb.db
+export FERRITEDB_AUTH_JWT_SECRET=your-secret-key
+export FERRITEDB_STORAGE_BACKEND=local
+export FERRITEDB_STORAGE_LOCAL_BASE_PATH=data/storage
 ```
 
 ### Configuration File
 
-Create `rustbase.toml`:
+Create `ferritedb.toml`:
 
 ```toml
 [server]
@@ -203,7 +203,7 @@ requests_per_minute = 60
 burst_size = 10
 
 [database]
-url = "sqlite:data/rustbase.db"
+url = "sqlite:data/ferritedb.db"
 max_connections = 10
 connection_timeout = 30
 auto_migrate = true
@@ -223,7 +223,7 @@ max_file_size = 52428800  # 50MB
 
 # Optional S3 configuration
 # [storage.s3]
-# bucket = "rustbase-files"
+# bucket = "ferritedb-files"
 # region = "us-east-1"
 # access_key_id = "your-access-key"
 # secret_access_key = "your-secret-key"
@@ -240,46 +240,46 @@ metrics = false
 
 ```bash
 # Start server
-rustbase serve --host 0.0.0.0 --port 8090
+ferritedb serve --host 0.0.0.0 --port 8090
 
 # Database migrations
-rustbase migrate run
-rustbase migrate status
+ferritedb migrate run
+ferritedb migrate status
 
 # Initialize examples
-rustbase seed
+ferritedb seed
 ```
 
 ### User Management
 
 ```bash
 # Create admin user
-rustbase admin create --email admin@example.com
+ferritedb admin create --email admin@example.com
 
 # List users
-rustbase admin list
+ferritedb admin list
 
 # Delete user
-rustbase admin delete user@example.com
+ferritedb admin delete user@example.com
 ```
 
 ### Data Management
 
 ```bash
 # Import data
-rustbase import posts data.json
-rustbase import users users.csv
+ferritedb import posts data.json
+ferritedb import users users.csv
 
 # Export data
-rustbase export posts --output posts_backup.json
+ferritedb export posts --output posts_backup.json
 
 # Generate JWT for testing
-rustbase gen-jwt alice@example.com --expires 3600
+ferritedb gen-jwt alice@example.com --expires 3600
 ```
 
 ## 🏗️ Architecture
 
-RustBase is built with a modular architecture:
+FerriteDB is built with a modular architecture:
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
@@ -318,7 +318,7 @@ RustBase is built with a modular architecture:
 
 ## 🔒 Security
 
-RustBase implements security best practices:
+FerriteDB implements security best practices:
 
 - **Password Hashing**: Argon2id with secure parameters
 - **JWT Tokens**: Short-lived access tokens with refresh rotation
@@ -335,10 +335,10 @@ RustBase implements security best practices:
 ### Docker
 
 ```dockerfile
-FROM rustbase/rustbase:latest
+FROM ferritedb/ferritedb:latest
 
 # Copy configuration
-COPY rustbase.toml /app/rustbase.toml
+COPY ferritedb.toml /app/ferritedb.toml
 
 # Expose port
 EXPOSE 8090
@@ -348,7 +348,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8090/healthz || exit 1
 
 # Start server
-CMD ["rustbase", "serve"]
+CMD ["ferritedb", "serve"]
 ```
 
 ### Docker Compose
@@ -357,15 +357,15 @@ CMD ["rustbase", "serve"]
 version: '3.8'
 
 services:
-  rustbase:
-    image: rustbase/rustbase:latest
+  ferritedb:
+    image: ferritedb/ferritedb:latest
     ports:
       - "8090:8090"
     volumes:
       - ./data:/app/data
-      - ./rustbase.toml:/app/rustbase.toml
+      - ./ferritedb.toml:/app/ferritedb.toml
     environment:
-      - RUSTBASE_AUTH_JWT_SECRET=your-production-secret
+      - FERRITEDB_AUTH_JWT_SECRET=your-production-secret
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/healthz"]
       interval: 30s
@@ -383,7 +383,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf
       - ./ssl:/etc/nginx/ssl
     depends_on:
-      - rustbase
+      - ferritedb
     restart: unless-stopped
 ```
 
@@ -415,19 +415,19 @@ fly deploy
 #### DigitalOcean App Platform
 
 ```yaml
-name: rustbase
+name: ferritedb
 services:
 - name: api
   source_dir: /
   github:
-    repo: your-username/your-rustbase-fork
+    repo: your-username/your-ferritedb-fork
     branch: main
-  run_command: rustbase serve
+  run_command: ferritedb serve
   environment_slug: rust
   instance_count: 1
   instance_size_slug: basic-xxs
   envs:
-  - key: RUSTBASE_AUTH_JWT_SECRET
+  - key: FERRITEDB_AUTH_JWT_SECRET
     value: your-production-secret
     type: SECRET
   http_port: 8090
@@ -446,8 +446,8 @@ services:
 
 ```bash
 # Clone repository
-git clone https://github.com/rustbase/rustbase.git
-cd rustbase
+git clone https://github.com/ferritedb/ferritedb.git
+cd ferritedb
 
 # Install dependencies
 cargo build
@@ -465,7 +465,7 @@ RUST_LOG=debug cargo run -- serve
 ### Project Structure
 
 ```
-rustbase/
+ferritedb/
 ├── crates/
 │   ├── core/           # Core business logic
 │   ├── server/         # HTTP server and routes
@@ -516,7 +516,7 @@ just docs
 
 ## 📊 Performance
 
-RustBase is designed for performance:
+FerriteDB is designed for performance:
 
 - **Memory Usage**: ~10MB base memory footprint
 - **Startup Time**: <100ms cold start
@@ -537,10 +537,10 @@ wrk -t12 -c400 -d30s http://localhost:8090/api/collections/posts/records
 
 ## 🤝 Community
 
-- **GitHub**: [github.com/rustbase/rustbase](https://github.com/rustbase/rustbase)
-- **Discord**: [discord.gg/rustbase](https://discord.gg/rustbase)
-- **Discussions**: [GitHub Discussions](https://github.com/rustbase/rustbase/discussions)
-- **Issues**: [GitHub Issues](https://github.com/rustbase/rustbase/issues)
+- **GitHub**: [github.com/ferritedb/ferritedb](https://github.com/ferritedb/ferritedb)
+- **Discord**: [discord.gg/ferritedb](https://discord.gg/ferritedb)
+- **Discussions**: [GitHub Discussions](https://github.com/ferritedb/ferritedb/discussions)
+- **Issues**: [GitHub Issues](https://github.com/ferritedb/ferritedb/issues)
 
 ## 📄 License
 
@@ -565,4 +565,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Built with ❤️ in Rust**
 
-For more information, visit our [documentation](https://rustbase.dev/docs) or join our [community](https://discord.gg/rustbase).
+For more information, visit our [documentation](https://ferritedb.dev/docs) or join our [community](https://discord.gg/ferritedb).

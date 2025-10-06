@@ -3,14 +3,14 @@ use std::process::Command;
 use tempfile::tempdir;
 use uuid::Uuid;
 
-/// Helper function to get the path to the rustbase binary
-fn rustbase_binary() -> PathBuf {
+/// Helper function to get the path to the ferritedb binary
+fn ferritedb_binary() -> PathBuf {
     let mut path = std::env::current_exe().unwrap();
     path.pop(); // Remove test binary name
     if path.ends_with("deps") {
         path.pop(); // Remove deps directory
     }
-    path.push("rustbase");
+    path.push("ferritedb");
     path
 }
 
@@ -55,10 +55,10 @@ fn test_migrate_run_command() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     // Run migration
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&["--config", config_path.to_str().unwrap(), "migrate", "run"])
         .output()
-        .expect("Failed to execute rustbase migrate run");
+        .expect("Failed to execute ferritedb migrate run");
     
     // Check that the command succeeded
     if !output.status.success() {
@@ -85,16 +85,16 @@ fn test_migrate_status_command() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     // First run migrations
-    let _output = Command::new(rustbase_binary())
+    let _output = Command::new(ferritedb_binary())
         .args(&["--config", config_path.to_str().unwrap(), "migrate", "run"])
         .output()
-        .expect("Failed to execute rustbase migrate run");
+        .expect("Failed to execute ferritedb migrate run");
     
     // Check migration status
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&["--config", config_path.to_str().unwrap(), "migrate", "status"])
         .output()
-        .expect("Failed to execute rustbase migrate status");
+        .expect("Failed to execute ferritedb migrate status");
     
     // Check that the command succeeded
     if !output.status.success() {
@@ -118,7 +118,7 @@ fn test_admin_create_command() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     // Create admin user with password provided via command line
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
@@ -126,7 +126,7 @@ fn test_admin_create_command() {
             "--password", "AdminPass123!"
         ])
         .output()
-        .expect("Failed to execute rustbase admin create");
+        .expect("Failed to execute ferritedb admin create");
     
     // Check that the command succeeded
     if !output.status.success() {
@@ -150,7 +150,7 @@ fn test_admin_list_command() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     // First create an admin user
-    let _create_output = Command::new(rustbase_binary())
+    let _create_output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
@@ -158,13 +158,13 @@ fn test_admin_list_command() {
             "--password", "AdminPass123!"
         ])
         .output()
-        .expect("Failed to execute rustbase admin create");
+        .expect("Failed to execute ferritedb admin create");
     
     // List users
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&["--config", config_path.to_str().unwrap(), "admin", "list"])
         .output()
-        .expect("Failed to execute rustbase admin list");
+        .expect("Failed to execute ferritedb admin list");
     
     // Check that the command succeeded
     if !output.status.success() {
@@ -188,7 +188,7 @@ fn test_gen_jwt_command() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     // First create an admin user
-    let _create_output = Command::new(rustbase_binary())
+    let _create_output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
@@ -196,10 +196,10 @@ fn test_gen_jwt_command() {
             "--password", "AdminPass123!"
         ])
         .output()
-        .expect("Failed to execute rustbase admin create");
+        .expect("Failed to execute ferritedb admin create");
     
     // Generate JWT for the user
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "gen-jwt",
@@ -207,7 +207,7 @@ fn test_gen_jwt_command() {
             "--expires", "3600"
         ])
         .output()
-        .expect("Failed to execute rustbase gen-jwt");
+        .expect("Failed to execute ferritedb gen-jwt");
     
     // Check that the command succeeded
     if !output.status.success() {
@@ -253,7 +253,7 @@ fn test_import_export_json_data() {
     // For now, we'll skip the import test since it requires a collection to exist
     // This test demonstrates the command structure
     
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "import",
@@ -261,7 +261,7 @@ fn test_import_export_json_data() {
             import_file.to_str().unwrap()
         ])
         .output()
-        .expect("Failed to execute rustbase import");
+        .expect("Failed to execute ferritedb import");
     
     // The command should fail because the collection doesn't exist
     // but it should fail gracefully with a proper error message
@@ -287,7 +287,7 @@ fn test_import_csv_data() {
     let csv_data = "title,content,published\nTest Post 1,This is test content 1,true\nTest Post 2,This is test content 2,false";
     std::fs::write(&import_file, csv_data).unwrap();
     
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "import",
@@ -295,7 +295,7 @@ fn test_import_csv_data() {
             import_file.to_str().unwrap()
         ])
         .output()
-        .expect("Failed to execute rustbase import");
+        .expect("Failed to execute ferritedb import");
     
     // The command should fail because the collection doesn't exist
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -315,14 +315,14 @@ fn test_export_nonexistent_collection() {
     // Create config file
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "export",
             "nonexistent_collection"
         ])
         .output()
-        .expect("Failed to execute rustbase export");
+        .expect("Failed to execute ferritedb export");
     
     // The command should fail because the collection doesn't exist
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -343,14 +343,14 @@ fn test_gen_jwt_nonexistent_user() {
     // Create config file
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "gen-jwt",
             "nonexistent@example.com"
         ])
         .output()
-        .expect("Failed to execute rustbase gen-jwt");
+        .expect("Failed to execute ferritedb gen-jwt");
     
     // The command should fail because the user doesn't exist
     let stderr = String::from_utf8_lossy(&output.stderr);
@@ -372,7 +372,7 @@ fn test_admin_create_duplicate_user() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     // Create first admin user
-    let _output1 = Command::new(rustbase_binary())
+    let _output1 = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
@@ -380,10 +380,10 @@ fn test_admin_create_duplicate_user() {
             "--password", "AdminPass123!"
         ])
         .output()
-        .expect("Failed to execute rustbase admin create");
+        .expect("Failed to execute ferritedb admin create");
     
     // Try to create the same user again
-    let output2 = Command::new(rustbase_binary())
+    let output2 = Command::new(ferritedb_binary())
         .args(&[
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
@@ -391,7 +391,7 @@ fn test_admin_create_duplicate_user() {
             "--password", "AdminPass123!"
         ])
         .output()
-        .expect("Failed to execute rustbase admin create");
+        .expect("Failed to execute ferritedb admin create");
     
     // The second command should fail
     assert!(!output2.status.success(), "Second admin create should fail");
@@ -414,16 +414,16 @@ fn test_migrate_revert_command() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     // First run migrations
-    let _output = Command::new(rustbase_binary())
+    let _output = Command::new(ferritedb_binary())
         .args(&["--config", config_path.to_str().unwrap(), "migrate", "run"])
         .output()
-        .expect("Failed to execute rustbase migrate run");
+        .expect("Failed to execute ferritedb migrate run");
     
     // Try to revert migration
-    let output = Command::new(rustbase_binary())
+    let output = Command::new(ferritedb_binary())
         .args(&["--config", config_path.to_str().unwrap(), "migrate", "revert"])
         .output()
-        .expect("Failed to execute rustbase migrate revert");
+        .expect("Failed to execute ferritedb migrate revert");
     
     // The command should fail with a message about not supporting automatic rollback
     let stderr = String::from_utf8_lossy(&output.stderr);

@@ -4,7 +4,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use rustbase_core::{
+use ferritedb_core::{
     audit::{AuditAction, AuditContext, AuditLogger},
     pii::{PiiRedactor, redact_log_message},
 };

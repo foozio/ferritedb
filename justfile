@@ -183,12 +183,12 @@ backup:
     #!/usr/bin/env bash
     timestamp=$(date +%Y%m%d_%H%M%S)
     mkdir -p backups
-    cp data/rustbase.db "backups/rustbase_backup_$timestamp.db"
-    echo "Backup created: backups/rustbase_backup_$timestamp.db"
+    cp data/ferritedb.db "backups/ferritedb_backup_$timestamp.db"
+    echo "Backup created: backups/ferritedb_backup_$timestamp.db"
 
 # Database restore
 restore backup_file:
-    cp {{backup_file}} data/rustbase.db
+    cp {{backup_file}} data/ferritedb.db
     @echo "Database restored from {{backup_file}}"
 
 # Generate OpenAPI spec

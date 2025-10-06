@@ -6,7 +6,7 @@ use axum::{
     routing::{delete, get, patch, post},
     Router,
 };
-use rustbase_core::{
+use ferritedb_core::{
     auth::{
         AuthService, AuthToken, LoginRequest, LoginResponse, RefreshTokenRequest, RegisterRequest,
         RegisterResponse, UserResponse,
@@ -14,7 +14,7 @@ use rustbase_core::{
     models::{User, UserRole, Record},
     CollectionService, RecordService,
 };
-use rustbase_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
+use ferritedb_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -101,14 +101,14 @@ impl UserRepository for MockUserRepository {
 
 // Mock CollectionService implementation
 impl MockCollectionService {
-    pub async fn get_collection(&self, _name: &str) -> rustbase_core::CoreResult<Option<rustbase_core::models::Collection>> {
+    pub async fn get_collection(&self, _name: &str) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>> {
         Ok(None)
     }
 }
 
 // Mock RecordService implementation  
 impl MockRecordService {
-    pub async fn list_records(&self, _collection_name: &str, _limit: i64, _offset: i64) -> rustbase_core::CoreResult<Vec<Record>> {
+    pub async fn list_records(&self, _collection_name: &str, _limit: i64, _offset: i64) -> ferritedb_core::CoreResult<Vec<Record>> {
         Ok(Vec::new())
     }
     
@@ -120,11 +120,11 @@ impl MockRecordService {
         _filter: Option<&str>,
         _sort: Option<&str>,
         _fields: Option<&[String]>,
-    ) -> rustbase_core::CoreResult<Vec<Record>> {
+    ) -> ferritedb_core::CoreResult<Vec<Record>> {
         Ok(Vec::new())
     }
     
-    pub async fn create_record(&self, _collection_name: &str, _data: serde_json::Value) -> rustbase_core::CoreResult<Record> {
+    pub async fn create_record(&self, _collection_name: &str, _data: serde_json::Value) -> ferritedb_core::CoreResult<Record> {
         use chrono::Utc;
         Ok(Record {
             id: Uuid::new_v4(),
@@ -135,11 +135,11 @@ impl MockRecordService {
         })
     }
     
-    pub async fn get_record(&self, _collection_name: &str, _record_id: Uuid) -> rustbase_core::CoreResult<Option<Record>> {
+    pub async fn get_record(&self, _collection_name: &str, _record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>> {
         Ok(None)
     }
     
-    pub async fn update_record(&self, _collection_name: &str, _record_id: Uuid, _data: serde_json::Value) -> rustbase_core::CoreResult<Record> {
+    pub async fn update_record(&self, _collection_name: &str, _record_id: Uuid, _data: serde_json::Value) -> ferritedb_core::CoreResult<Record> {
         use chrono::Utc;
         Ok(Record {
             id: _record_id,
@@ -150,15 +150,15 @@ impl MockRecordService {
         })
     }
     
-    pub async fn delete_record(&self, _collection_name: &str, _record_id: Uuid) -> rustbase_core::CoreResult<bool> {
+    pub async fn delete_record(&self, _collection_name: &str, _record_id: Uuid) -> ferritedb_core::CoreResult<bool> {
         Ok(true)
     }
     
-    pub async fn count_records(&self, _collection_name: &str) -> rustbase_core::CoreResult<i64> {
+    pub async fn count_records(&self, _collection_name: &str) -> ferritedb_core::CoreResult<i64> {
         Ok(0)
     }
     
-    pub async fn count_records_with_filter(&self, _collection_name: &str, _filter: Option<&str>) -> rustbase_core::CoreResult<i64> {
+    pub async fn count_records_with_filter(&self, _collection_name: &str, _filter: Option<&str>) -> ferritedb_core::CoreResult<i64> {
         Ok(0)
     }
 }
@@ -197,8 +197,8 @@ pub struct AppState {
     pub collection_service: Arc<MockCollectionService>,
     pub record_service: Arc<MockRecordService>,
     pub rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
-    pub storage_backend: Arc<dyn rustbase_storage::StorageBackend>,
-    pub storage_config: rustbase_storage::StorageConfig,
+    pub storage_backend: Arc<dyn ferritedb_storage::StorageBackend>,
+    pub storage_config: ferritedb_storage::StorageConfig,
     pub realtime_manager: RealtimeManager,
 }
 
@@ -254,7 +254,7 @@ async fn health_check() -> Json<Value> {
     Json(json!({
         "status": "ok",
         "timestamp": chrono::Utc::now(),
-        "service": "rustbase",
+        "service": "ferritedb",
         "version": env!("CARGO_PKG_VERSION")
     }))
 }
@@ -276,7 +276,7 @@ async fn readiness_check(State(state): State<AppState>) -> ServerResult<Json<Val
     let response = json!({
         "status": overall_status,
         "timestamp": chrono::Utc::now(),
-        "service": "rustbase",
+        "service": "ferritedb",
         "version": env!("CARGO_PKG_VERSION"),
         "checks": {
             "database": if db_status { "healthy" } else { "unhealthy" },
@@ -309,7 +309,7 @@ async fn check_storage_health(_state: &AppState) -> bool {
 #[cfg(feature = "metrics")]
 async fn metrics() -> ServerResult<String> {
     // TODO: Implement Prometheus metrics collection
-    Ok("# HELP rustbase_requests_total Total number of requests\n# TYPE rustbase_requests_total counter\nrustbase_requests_total 0\n".to_string())
+    Ok("# HELP ferritedb_requests_total Total number of requests\n# TYPE ferritedb_requests_total counter\nferritedb_requests_total 0\n".to_string())
 }
 
 /// User login endpoint
@@ -439,19 +439,19 @@ async fn get_current_user(
 }
 
 /// Helper function to convert rule errors to server errors
-fn rule_error_to_server_error(rule_error: rustbase_rules::RuleError) -> ServerError {
+fn rule_error_to_server_error(rule_error: ferritedb_rules::RuleError) -> ServerError {
     match rule_error {
-        rustbase_rules::RuleError::Parse(msg) => ServerError::BadRequest(format!("Rule parse error: {}", msg)),
-        rustbase_rules::RuleError::Evaluation(msg) => ServerError::Forbidden(format!("Rule evaluation failed: {}", msg)),
-        rustbase_rules::RuleError::Invalid(msg) => ServerError::BadRequest(format!("Invalid rule: {}", msg)),
+        ferritedb_rules::RuleError::Parse(msg) => ServerError::BadRequest(format!("Rule parse error: {}", msg)),
+        ferritedb_rules::RuleError::Evaluation(msg) => ServerError::Forbidden(format!("Rule evaluation failed: {}", msg)),
+        ferritedb_rules::RuleError::Invalid(msg) => ServerError::BadRequest(format!("Invalid rule: {}", msg)),
     }
 }
 
 /// Helper function to filter record fields based on permissions
 async fn filter_record_fields(
     record: &mut Record,
-    collection: &rustbase_core::models::Collection,
-    user: &rustbase_rules::evaluator::User,
+    collection: &ferritedb_core::models::Collection,
+    user: &ferritedb_rules::evaluator::User,
     rule_engine: &mut RuleEngine,
 ) -> ServerResult<()> {
     // For each field in the record, check if the user has read access
@@ -505,13 +505,13 @@ async fn list_records(
     };
 
     // Create evaluation context
-    let user = rustbase_rules::evaluator::User {
+    let user = ferritedb_rules::evaluator::User {
         id: auth_user.id,
         email: auth_user.email.clone(),
         role: match auth_user.role {
-            UserRole::Admin => rustbase_rules::evaluator::UserRole::Admin,
-            UserRole::User => rustbase_rules::evaluator::UserRole::User,
-            UserRole::Service => rustbase_rules::evaluator::UserRole::Service,
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
         },
         verified: auth_user.verified,
         created_at: auth_user.created_at,
@@ -611,13 +611,13 @@ async fn create_record(
     };
 
     // Create evaluation context
-    let user = rustbase_rules::evaluator::User {
+    let user = ferritedb_rules::evaluator::User {
         id: auth_user.id,
         email: auth_user.email.clone(),
         role: match auth_user.role {
-            UserRole::Admin => rustbase_rules::evaluator::UserRole::Admin,
-            UserRole::User => rustbase_rules::evaluator::UserRole::User,
-            UserRole::Service => rustbase_rules::evaluator::UserRole::Service,
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
         },
         verified: auth_user.verified,
         created_at: auth_user.created_at,
@@ -700,13 +700,13 @@ async fn get_record(
     };
 
     // Create evaluation context with record data
-    let user = rustbase_rules::evaluator::User {
+    let user = ferritedb_rules::evaluator::User {
         id: auth_user.id,
         email: auth_user.email.clone(),
         role: match auth_user.role {
-            UserRole::Admin => rustbase_rules::evaluator::UserRole::Admin,
-            UserRole::User => rustbase_rules::evaluator::UserRole::User,
-            UserRole::Service => rustbase_rules::evaluator::UserRole::Service,
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
         },
         verified: auth_user.verified,
         created_at: auth_user.created_at,
@@ -779,13 +779,13 @@ async fn update_record(
     };
 
     // Create evaluation context with existing record data
-    let user = rustbase_rules::evaluator::User {
+    let user = ferritedb_rules::evaluator::User {
         id: auth_user.id,
         email: auth_user.email.clone(),
         role: match auth_user.role {
-            UserRole::Admin => rustbase_rules::evaluator::UserRole::Admin,
-            UserRole::User => rustbase_rules::evaluator::UserRole::User,
-            UserRole::Service => rustbase_rules::evaluator::UserRole::Service,
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
         },
         verified: auth_user.verified,
         created_at: auth_user.created_at,
@@ -872,13 +872,13 @@ async fn delete_record(
     };
 
     // Create evaluation context with existing record data
-    let user = rustbase_rules::evaluator::User {
+    let user = ferritedb_rules::evaluator::User {
         id: auth_user.id,
         email: auth_user.email.clone(),
         role: match auth_user.role {
-            UserRole::Admin => rustbase_rules::evaluator::UserRole::Admin,
-            UserRole::User => rustbase_rules::evaluator::UserRole::User,
-            UserRole::Service => rustbase_rules::evaluator::UserRole::Service,
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
         },
         verified: auth_user.verified,
         created_at: auth_user.created_at,
@@ -987,12 +987,12 @@ async fn delete_file(
 /// Clean up files associated with a record when it's being deleted
 async fn cleanup_record_files(
     state: &AppState,
-    collection: &rustbase_core::models::Collection,
+    collection: &ferritedb_core::models::Collection,
     record: &Record,
 ) -> ServerResult<()> {
     // Find all file fields in the collection schema
     for field in &collection.schema_json.fields {
-        if matches!(field.field_type, rustbase_core::models::FieldType::File { .. }) {
+        if matches!(field.field_type, ferritedb_core::models::FieldType::File { .. }) {
             // Check if this record has a file in this field
             if let Some(field_value) = record.data.get(&field.name) {
                 if !field_value.is_null() {
@@ -1055,7 +1055,7 @@ mod tests {
         body::Body,
         http::{Request, StatusCode, HeaderValue},
     };
-    use rustbase_core::{auth::AuthService, config::AuthConfig};
+    use ferritedb_core::{auth::AuthService, config::AuthConfig};
     use serde_json::json;
     use tower::ServiceExt;
 

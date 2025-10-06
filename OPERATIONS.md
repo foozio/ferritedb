@@ -30,9 +30,9 @@ docker-compose up -d
 docker run -d \
   --name rustbase \
   -p 8090:8090 \
-  -v rustbase_data:/app/data \
-  -v ./rustbase.toml:/app/rustbase.toml:ro \
-  -e RUSTBASE_AUTH_JWT_SECRET="your-secure-secret" \
+  -v ferritedb_data:/app/data \
+  -v ./ferritedb.toml:/app/ferritedb.toml:ro \
+  -e FERRITEDB_AUTH_JWT_SECRET="your-secure-secret" \
   rustbase/rustbase:latest
 ```
 
@@ -62,7 +62,7 @@ Type=exec
 User=rustbase
 Group=rustbase
 WorkingDirectory=/var/lib/rustbase
-ExecStart=/usr/local/bin/rustbase serve --config /var/lib/rustbase/config/rustbase.toml
+ExecStart=/usr/local/bin/ferritedb serve --config /var/lib/ferritedb/config/ferritedb.toml
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -111,15 +111,15 @@ spec:
         ports:
         - containerPort: 8090
         env:
-        - name: RUSTBASE_AUTH_JWT_SECRET
+        - name: FERRITEDB_AUTH_JWT_SECRET
           valueFrom:
             secretKeyRef:
               name: rustbase-secrets
               key: jwt-secret
         volumeMounts:
         - name: config
-          mountPath: /app/rustbase.toml
-          subPath: rustbase.toml
+          mountPath: /app/ferritedb.toml
+          subPath: ferritedb.toml
         - name: data
           mountPath: /app/data
         livenessProbe:
@@ -161,7 +161,7 @@ spec:
 #### Nginx Configuration
 
 ```nginx
-upstream rustbase_backend {
+upstream ferritedb_backend {
     server 127.0.0.1:8090;
     # Add more servers for horizontal scaling
     # server 127.0.0.1:8091;
@@ -190,7 +190,7 @@ server {
     limit_req zone=api burst=20 nodelay;
 
     location / {
-        proxy_pass http://rustbase_backend;
+        proxy_pass http://ferritedb_backend;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -210,7 +210,7 @@ server {
     # Health check endpoint
     location /healthz {
         access_log off;
-        proxy_pass http://rustbase_backend;
+        proxy_pass http://ferritedb_backend;
     }
 }
 ```
@@ -221,20 +221,20 @@ server {
 
 ```bash
 # Production environment variables
-export RUSTBASE_SERVER_HOST="0.0.0.0"
-export RUSTBASE_SERVER_PORT="8090"
-export RUSTBASE_DATABASE_URL="sqlite:/var/lib/rustbase/data/rustbase.db"
-export RUSTBASE_AUTH_JWT_SECRET="$(openssl rand -base64 64)"
-export RUSTBASE_STORAGE_BACKEND="s3"
-export RUSTBASE_STORAGE_S3_BUCKET="rustbase-prod-files"
-export RUSTBASE_STORAGE_S3_REGION="us-east-1"
+export FERRITEDB_SERVER_HOST="0.0.0.0"
+export FERRITEDB_SERVER_PORT="8090"
+export FERRITEDB_DATABASE_URL="sqlite:/var/lib/ferritedb/data/ferritedb.db"
+export FERRITEDB_AUTH_JWT_SECRET="$(openssl rand -base64 64)"
+export FERRITEDB_STORAGE_BACKEND="s3"
+export FERRITEDB_STORAGE_S3_BUCKET="rustbase-prod-files"
+export FERRITEDB_STORAGE_S3_REGION="us-east-1"
 export RUST_LOG="info"
 ```
 
 ### Configuration File Template
 
 ```toml
-# /var/lib/rustbase/config/rustbase.toml
+# /var/lib/ferritedb/config/ferritedb.toml
 [server]
 host = "0.0.0.0"
 port = 8090
@@ -245,12 +245,12 @@ requests_per_minute = 60
 burst_size = 10
 
 [database]
-url = "sqlite:/var/lib/rustbase/data/rustbase.db"
+url = "sqlite:/var/lib/ferritedb/data/ferritedb.db"
 auto_migrate = true
 max_connections = 20
 
 [auth]
-jwt_secret = "${RUSTBASE_AUTH_JWT_SECRET}"
+jwt_secret = "${FERRITEDB_AUTH_JWT_SECRET}"
 token_ttl = 900      # 15 minutes
 refresh_ttl = 86400  # 1 day
 password_min_length = 12
@@ -259,9 +259,9 @@ password_min_length = 12
 backend = "s3"
 
 [storage.s3]
-bucket = "${RUSTBASE_S3_BUCKET}"
-region = "${RUSTBASE_S3_REGION}"
-endpoint = "${RUSTBASE_S3_ENDPOINT}"  # Optional for S3-compatible services
+bucket = "${FERRITEDB_S3_BUCKET}"
+region = "${FERRITEDB_S3_REGION}"
+endpoint = "${FERRITEDB_S3_ENDPOINT}"  # Optional for S3-compatible services
 
 [features]
 oauth2 = true
@@ -288,7 +288,7 @@ vault kv put secret/rustbase \
   s3_secret_key="..."
 
 # Retrieve in startup script
-export RUSTBASE_AUTH_JWT_SECRET=$(vault kv get -field=jwt_secret secret/rustbase)
+export FERRITEDB_AUTH_JWT_SECRET=$(vault kv get -field=jwt_secret secret/rustbase)
 ```
 
 #### Using Kubernetes Secrets
@@ -431,10 +431,10 @@ groups:
 #!/bin/bash
 # backup-database.sh
 
-BACKUP_DIR="/var/backups/rustbase"
-DB_PATH="/var/lib/rustbase/data/rustbase.db"
+BACKUP_DIR="/var/backups/ferritedb"
+DB_PATH="/var/lib/ferritedb/data/ferritedb.db"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="$BACKUP_DIR/rustbase_$TIMESTAMP.db"
+BACKUP_FILE="$BACKUP_DIR/ferritedb_$TIMESTAMP.db"
 
 # Create backup directory
 mkdir -p "$BACKUP_DIR"
@@ -505,10 +505,10 @@ aws s3api put-bucket-replication \
    sudo systemctl stop rustbase
    
    # Restore database
-   gunzip -c /var/backups/rustbase/rustbase_20240115_020000.db.gz > /var/lib/rustbase/data/rustbase.db
+   gunzip -c /var/backups/ferritedb/ferritedb_20240115_020000.db.gz > /var/lib/ferritedb/data/ferritedb.db
    
    # Fix permissions
-   chown rustbase:rustbase /var/lib/rustbase/data/rustbase.db
+   chown ferritedb:ferritedb /var/lib/ferritedb/data/ferritedb.db
    
    # Start service
    sudo systemctl start rustbase
@@ -529,7 +529,7 @@ aws s3api put-bucket-replication \
    docker-compose up -d
    
    # Restore data
-   docker cp backup.db rustbase:/app/data/rustbase.db
+   docker cp backup.db ferritedb:/app/data/ferritedb.db
    docker cp storage_backup/ rustbase:/app/data/storage/
    
    # Restart with restored data
@@ -550,7 +550,7 @@ aws s3api put-bucket-replication \
 NEW_SECRET=$(openssl rand -base64 64)
 
 # Update configuration
-sed -i "s/jwt_secret = .*/jwt_secret = \"$NEW_SECRET\"/" /var/lib/rustbase/config/rustbase.toml
+sed -i "s/jwt_secret = .*/jwt_secret = \"$NEW_SECRET\"/" /var/lib/ferritedb/config/ferritedb.toml
 
 # Restart service
 sudo systemctl restart rustbase
@@ -709,7 +709,7 @@ sudo systemctl status rustbase
 sudo journalctl -u rustbase -f
 
 # Check configuration
-rustbase --config /var/lib/rustbase/config/rustbase.toml validate
+ferritedb --config /var/lib/ferritedb/config/ferritedb.toml validate
 
 # Check file permissions
 ls -la /var/lib/rustbase/
@@ -719,10 +719,10 @@ ls -la /var/lib/rustbase/
 
 ```bash
 # Check database file
-sqlite3 /var/lib/rustbase/data/rustbase.db ".schema"
+sqlite3 /var/lib/ferritedb/data/ferritedb.db ".schema"
 
 # Check file locks
-lsof /var/lib/rustbase/data/rustbase.db
+lsof /var/lib/ferritedb/data/ferritedb.db
 
 # Check disk space
 df -h /var/lib/rustbase/
@@ -754,7 +754,7 @@ perf record -g rustbase serve
 perf report
 
 # Check database performance
-sqlite3 /var/lib/rustbase/data/rustbase.db "EXPLAIN QUERY PLAN SELECT ..."
+sqlite3 /var/lib/ferritedb/data/ferritedb.db "EXPLAIN QUERY PLAN SELECT ..."
 ```
 
 ### Debug Mode
@@ -822,7 +822,7 @@ curl -s https://api.github.com/repos/rustbase/rustbase/releases/latest | jq -r '
 grep "ERROR" /var/log/rustbase/rustbase.log | tail -100
 
 # Database maintenance
-sqlite3 /var/lib/rustbase/data/rustbase.db "VACUUM; ANALYZE;"
+sqlite3 /var/lib/ferritedb/data/ferritedb.db "VACUUM; ANALYZE;"
 ```
 
 #### Monthly Tasks
@@ -863,7 +863,7 @@ sudo mv rustbase /usr/local/bin/rustbase
 sudo chmod +x /usr/local/bin/rustbase
 
 # Run migrations
-sudo -u rustbase rustbase migrate run --config /var/lib/rustbase/config/rustbase.toml
+sudo -u ferritedb ferritedb migrate run --config /var/lib/ferritedb/config/ferritedb.toml
 
 # Start service
 sudo systemctl start rustbase
@@ -892,7 +892,7 @@ docker-compose logs rustbase
 
 ```bash
 # Database size growth
-du -h /var/lib/rustbase/data/rustbase.db
+du -h /var/lib/ferritedb/data/ferritedb.db
 
 # File storage growth
 du -sh /var/lib/rustbase/data/storage/
@@ -914,4 +914,4 @@ Monitor these metrics for scaling decisions:
 
 ---
 
-This operations guide provides a comprehensive framework for running RustBase in production. Adapt the procedures to your specific environment and requirements.
+This operations guide provides a comprehensive framework for running FerriteDB in production. Adapt the procedures to your specific environment and requirements.

@@ -2,8 +2,8 @@ use axum::{
     body::Body,
     http::{header, Method, Request, StatusCode},
 };
-use rustbase_core::config::CoreConfig;
-use rustbase_server::Server;
+use ferritedb_core::config::CoreConfig;
+use ferritedb_server::Server;
 use std::time::Duration;
 use tokio::time::timeout;
 
@@ -179,7 +179,7 @@ async fn test_metrics_endpoint() {
     assert_eq!(status, StatusCode::OK);
     
     // Should return Prometheus-format metrics
-    assert!(body.contains("rustbase") || body.is_empty());
+    assert!(body.contains("ferritedb") || body.is_empty());
 }
 
 #[tokio::test]

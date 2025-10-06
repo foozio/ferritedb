@@ -7,10 +7,10 @@ rule_files:
   # - "second_rules.yml"
 
 scrape_configs:
-  # RustBase metrics
-  - job_name: 'rustbase'
+  # FerriteDB metrics
+  - job_name: 'ferritedb'
     static_configs:
-      - targets: ['rustbase:8090']
+      - targets: ['ferritedb:8090']
     metrics_path: '/metrics'
     scrape_interval: 30s
     scrape_timeout: 10s

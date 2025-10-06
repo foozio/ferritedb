@@ -1,10 +1,10 @@
 use clap::{Parser, Subcommand};
-use rustbase_core::CoreConfig;
+use ferritedb_core::CoreConfig;
 use std::path::PathBuf;
 use tracing::{error, info};
 
 #[derive(Parser)]
-#[command(name = "rustbase")]
+#[command(name = "ferritedb")]
 #[command(about = "A production-ready, developer-friendly backend service")]
 #[command(version)]
 struct Cli {
@@ -22,7 +22,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start the RustBase server
+    /// Start the FerriteDB server
     Serve {
         /// Server host address
         #[arg(long, default_value = "0.0.0.0")]
@@ -33,7 +33,7 @@ enum Commands {
         port: u16,
 
         /// Database file path
-        #[arg(long, default_value = "data/rustbase.db")]
+        #[arg(long, default_value = "data/ferritedb.db")]
         database: PathBuf,
     },
     /// Database migration commands
@@ -118,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Execute command
     match cli.command {
         Commands::Serve { host, port, database } => {
-            info!("Starting RustBase server on {}:{}", host, port);
+            info!("Starting FerriteDB server on {}:{}", host, port);
             serve_command(config, host, port, database).await?;
         }
         Commands::Migrate { action } => {
@@ -170,12 +170,12 @@ async fn load_config(config_path: Option<&std::path::Path>) -> Result<CoreConfig
     } else {
         // Try default config locations
         figment = figment
-            .merge(Toml::file("rustbase.toml"))
-            .merge(Toml::file("config/rustbase.toml"));
+            .merge(Toml::file("ferritedb.toml"))
+            .merge(Toml::file("config/ferritedb.toml"));
     }
 
     // Override with environment variables
-    figment = figment.merge(Env::prefixed("RUSTBASE_"));
+    figment = figment.merge(Env::prefixed("FERRITEDB_"));
 
     figment.extract().map_err(ConfigError::Figment)
 }
@@ -185,27 +185,27 @@ async fn serve_command(
     host: String,
     port: u16,
     database: PathBuf,
-) -> Result<(), RustBaseError> {
+) -> Result<(), FerriteDbError> {
     // Override config with CLI arguments
     config.server.host = host;
     config.server.port = port;
     config.database.url = format!("sqlite:{}", database.display());
 
     // Create and start the server
-    let server = rustbase_server::Server::new(config)
+    let server = ferritedb_server::Server::new(config)
         .await
-        .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::configuration(format!("Server initialization failed: {}", e))))?;
+        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::configuration(format!("Server initialization failed: {}", e))))?;
 
     server
         .serve()
         .await
-        .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::configuration(format!("Server error: {}", e))))?;
+        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::configuration(format!("Server error: {}", e))))?;
 
     Ok(())
 }
 
-async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<(), RustBaseError> {
-    use rustbase_core::Database;
+async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<(), FerriteDbError> {
+    use ferritedb_core::Database;
     
     // Create database connection
     let database = Database::new(
@@ -214,12 +214,12 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| RustBaseError::Core(e))?;
+    .map_err(|e| FerriteDbError::Core(e))?;
 
     match action {
         MigrateCommands::Run => {
             info!("Running migrations...");
-            database.migrate().await.map_err(|e| RustBaseError::Core(e))?;
+            database.migrate().await.map_err(|e| FerriteDbError::Core(e))?;
             info!("✅ Migrations completed successfully");
         }
         MigrateCommands::Revert => {
@@ -231,7 +231,7 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
             )
             .fetch_optional(database.pool())
             .await
-            .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::validation(e.to_string())))?;
+            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string())))?;
 
             if let Some((version, description)) = migration_info {
                 info!("Found migration to revert: {} - {}", version, description);
@@ -241,7 +241,7 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
                 error!("To revert migration {}, you need to manually create a new migration that undoes the changes", version);
                 error!("Consider creating a new migration file with the reverse operations");
                 
-                return Err(RustBaseError::Core(rustbase_core::CoreError::configuration(
+                return Err(FerriteDbError::Core(ferritedb_core::CoreError::Configuration(
                     "Automatic rollback not supported. Create a new migration to undo changes.".to_string()
                 )));
             } else {
@@ -257,7 +257,7 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
             )
             .fetch_optional(database.pool())
             .await
-            .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::validation(e.to_string())))?;
+            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string())))?;
 
             if table_exists.is_none() {
                 info!("📋 No migrations have been run yet");
@@ -270,7 +270,7 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
             )
             .fetch_all(database.pool())
             .await
-            .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::validation(e.to_string())))?;
+            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string())))?;
 
             if migrations.is_empty() {
                 info!("📋 No migrations have been applied");
@@ -286,15 +286,15 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
             }
 
             // Check database health
-            database.health_check().await.map_err(|e| RustBaseError::Core(e))?;
+            database.health_check().await.map_err(|e| FerriteDbError::Core(e))?;
             info!("💚 Database connection is healthy");
         }
     }
     Ok(())
 }
 
-async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), RustBaseError> {
-    use rustbase_core::{Database, UserRepository, auth::AuthService, CreateUserRequest, UserRole};
+async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), FerriteDbError> {
+    use ferritedb_core::{Database, UserRepository, auth::AuthService, CreateUserRequest, UserRole};
     use std::io::{self, Write};
     
     // Create database connection
@@ -304,23 +304,23 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| RustBaseError::Core(e))?;
+    .map_err(|e| FerriteDbError::Core(e))?;
 
     // Ensure migrations are run
-    database.migrate().await.map_err(|e| RustBaseError::Core(e))?;
+    database.migrate().await.map_err(|e| FerriteDbError::Core(e))?;
 
     let user_repo = UserRepository::new(database.pool().clone());
     let auth_service = AuthService::new(config.auth.clone())
-        .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::authentication(e.to_string())))?;
+        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
 
     match action {
         AdminCommands::Create { email, password } => {
             info!("Creating admin user: {}", email);
             
             // Check if user already exists
-            if let Some(_existing) = user_repo.find_by_email(&email).await.map_err(|e| RustBaseError::Core(e))? {
+            if let Some(_existing) = user_repo.find_by_email(&email).await.map_err(|e| FerriteDbError::Core(e))? {
                 error!("❌ User with email '{}' already exists", email);
-                return Err(RustBaseError::Core(rustbase_core::CoreError::validation(
+                return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
                     format!("User with email '{}' already exists", email)
                 )));
             }
@@ -334,20 +334,20 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 
                 // Read password from stdin (note: this will be visible, in production you'd use a proper password input)
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).map_err(|e| RustBaseError::Io(e))?;
+                io::stdin().read_line(&mut input).map_err(|e| FerriteDbError::Io(e))?;
                 input.trim().to_string()
             };
 
             if password.is_empty() {
                 error!("❌ Password cannot be empty");
-                return Err(RustBaseError::Core(rustbase_core::CoreError::validation(
+                return Err(FerriteDbError::Core(ferritedb_core::CoreError::Validation(
                     "Password cannot be empty".to_string()
                 )));
             }
 
             // Hash password
             let password_hash = auth_service.hash_password(&password)
-                .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::authentication(e.to_string())))?;
+                .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
 
             // Create admin user
             let create_request = CreateUserRequest {
@@ -357,7 +357,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 verified: true,
             };
 
-            let user = user_repo.create(create_request, password_hash).await.map_err(|e| RustBaseError::Core(e))?;
+            let user = user_repo.create(create_request, password_hash).await.map_err(|e| FerriteDbError::Core(e))?;
             
             info!("✅ Admin user created successfully:");
             info!("  ID: {}", user.id);
@@ -368,7 +368,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
         AdminCommands::List => {
             info!("Listing users...");
             
-            let users = user_repo.list(100, 0).await.map_err(|e| RustBaseError::Core(e))?;
+            let users = user_repo.list(100, 0).await.map_err(|e| FerriteDbError::Core(e))?;
             
             if users.is_empty() {
                 info!("📋 No users found");
@@ -394,9 +394,9 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
             
             // Try to parse as UUID first, then fall back to email
             let user_to_delete = if let Ok(user_id) = uuid::Uuid::parse_str(&user) {
-                user_repo.find_by_id(user_id).await.map_err(|e| RustBaseError::Core(e))?
+                user_repo.find_by_id(user_id).await.map_err(|e| FerriteDbError::Core(e))?
             } else {
-                user_repo.find_by_email(&user).await.map_err(|e| RustBaseError::Core(e))?
+                user_repo.find_by_email(&user).await.map_err(|e| FerriteDbError::Core(e))?
             };
 
             if let Some(user_record) = user_to_delete {
@@ -405,11 +405,11 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 io::stdout().flush().unwrap();
                 
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).map_err(|e| RustBaseError::Io(e))?;
+                io::stdin().read_line(&mut input).map_err(|e| FerriteDbError::Io(e))?;
                 let confirmation = input.trim().to_lowercase();
                 
                 if confirmation == "y" || confirmation == "yes" {
-                    let deleted = user_repo.delete(user_record.id).await.map_err(|e| RustBaseError::Core(e))?;
+                    let deleted = user_repo.delete(user_record.id).await.map_err(|e| FerriteDbError::Core(e))?;
                     
                     if deleted {
                         info!("✅ User '{}' deleted successfully", user_record.email);
@@ -421,7 +421,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 }
             } else {
                 error!("❌ User '{}' not found", user);
-                return Err(RustBaseError::Core(rustbase_core::CoreError::validation(
+                return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
                     format!("User '{}' not found", user)
                 )));
             }
@@ -434,8 +434,8 @@ async fn import_command(
     config: CoreConfig,
     collection: String,
     file: PathBuf,
-) -> Result<(), RustBaseError> {
-    use rustbase_core::{Database, CollectionRepository, RecordService, CollectionService};
+) -> Result<(), FerriteDbError> {
+    use ferritedb_core::{Database, CollectionRepository, RecordService, CollectionService};
     use std::fs;
     
     info!("Importing data to collection '{}' from {:?}", collection, file);
@@ -443,7 +443,7 @@ async fn import_command(
     // Check if file exists
     if !file.exists() {
         error!("❌ File {:?} does not exist", file);
-        return Err(RustBaseError::Io(std::io::Error::new(
+        return Err(FerriteDbError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
             format!("File {:?} not found", file)
         )));
@@ -456,37 +456,37 @@ async fn import_command(
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| RustBaseError::Core(e))?;
+    .map_err(|e| FerriteDbError::Core(e))?;
 
     let collection_repo = CollectionRepository::new(database.pool().clone());
     let collection_service = CollectionService::new(collection_repo.clone());
     let record_service = RecordService::new(database.pool().clone(), collection_service);
 
     // Check if collection exists
-    let _collection_record = collection_repo.find_by_name(&collection).await.map_err(|e| RustBaseError::Core(e))?;
+    let _collection_record = collection_repo.find_by_name(&collection).await.map_err(|e| FerriteDbError::Core(e))?;
     let _collection_record = match _collection_record {
         Some(c) => c,
         None => {
             error!("❌ Collection '{}' not found", collection);
-            return Err(RustBaseError::Core(rustbase_core::CoreError::validation(
+            return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
                 format!("Collection '{}' not found", collection)
             )));
         }
     };
 
     // Read and parse file
-    let file_content = fs::read_to_string(&file).map_err(|e| RustBaseError::Io(e))?;
+    let file_content = fs::read_to_string(&file).map_err(|e| FerriteDbError::Io(e))?;
     
     let records: Vec<serde_json::Value> = if file.extension().and_then(|s| s.to_str()) == Some("csv") {
         // Parse CSV
         let mut reader = csv::Reader::from_reader(file_content.as_bytes());
-        let headers = reader.headers().map_err(|e| RustBaseError::Core(rustbase_core::CoreError::validation(
+        let headers = reader.headers().map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(
             format!("Failed to read CSV headers: {}", e)
         )))?.clone();
         
         let mut records = Vec::new();
         for result in reader.records() {
-            let record = result.map_err(|e| RustBaseError::Core(rustbase_core::CoreError::validation(
+            let record = result.map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Validation(
                 format!("Failed to read CSV record: {}", e)
             )))?;
             
@@ -510,7 +510,7 @@ async fn import_command(
     } else {
         // Parse JSON
         let parsed: serde_json::Value = serde_json::from_str(&file_content)
-            .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::validation(
+            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(
                 format!("Failed to parse JSON: {}", e)
             )))?;
         
@@ -519,7 +519,7 @@ async fn import_command(
             serde_json::Value::Object(_) => vec![parsed],
             _ => {
                 error!("❌ JSON file must contain an array of objects or a single object");
-                return Err(RustBaseError::Core(rustbase_core::CoreError::validation(
+                return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
                     "JSON file must contain an array of objects or a single object".to_string()
                 )));
             }
@@ -560,8 +560,8 @@ async fn export_command(
     config: CoreConfig,
     collection: String,
     output: Option<PathBuf>,
-) -> Result<(), RustBaseError> {
-    use rustbase_core::{Database, CollectionRepository, RecordService, CollectionService};
+) -> Result<(), FerriteDbError> {
+    use ferritedb_core::{Database, CollectionRepository, RecordService, CollectionService};
     use std::fs;
     
     info!("Exporting collection '{}' to {:?}", collection, output);
@@ -573,19 +573,19 @@ async fn export_command(
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| RustBaseError::Core(e))?;
+    .map_err(|e| FerriteDbError::Core(e))?;
 
     let collection_repo = CollectionRepository::new(database.pool().clone());
     let collection_service = CollectionService::new(collection_repo.clone());
     let record_service = RecordService::new(database.pool().clone(), collection_service);
 
     // Check if collection exists
-    let collection_record = collection_repo.find_by_name(&collection).await.map_err(|e| RustBaseError::Core(e))?;
+    let collection_record = collection_repo.find_by_name(&collection).await.map_err(|e| FerriteDbError::Core(e))?;
     let _collection_record = match collection_record {
         Some(c) => c,
         None => {
             error!("❌ Collection '{}' not found", collection);
-            return Err(RustBaseError::Core(rustbase_core::CoreError::validation(
+            return Err(FerriteDbError::Core(ferritedb_core::CoreError::Validation(
                 format!("Collection '{}' not found", collection)
             )));
         }
@@ -594,7 +594,7 @@ async fn export_command(
     // Get all records from collection
     info!("📤 Fetching records from collection '{}'...", collection);
     let records = record_service.list_records(&collection, 1000, 0).await
-        .map_err(|e| RustBaseError::Core(e))?;
+        .map_err(|e| FerriteDbError::Core(e))?;
 
     info!("📤 Found {} records to export", records.len());
 
@@ -622,11 +622,11 @@ async fn export_command(
 
     // Write to file
     let json_output = serde_json::to_string_pretty(&records_json)
-        .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::validation(
+        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(
             format!("Failed to serialize records: {}", e)
         )))?;
 
-    fs::write(&output_file, json_output).map_err(|e| RustBaseError::Io(e))?;
+    fs::write(&output_file, json_output).map_err(|e| FerriteDbError::Io(e))?;
 
     info!("✅ Export completed:");
     info!("  📤 Exported {} records", records_json.len());
@@ -639,8 +639,8 @@ async fn gen_jwt_command(
     config: CoreConfig,
     user: String,
     expires: u64,
-) -> Result<(), RustBaseError> {
-    use rustbase_core::{Database, UserRepository, auth::AuthService};
+) -> Result<(), FerriteDbError> {
+    use ferritedb_core::{Database, UserRepository, auth::AuthService};
     
     info!("Generating JWT for user '{}' (expires in {}s)", user, expires);
     
@@ -651,7 +651,7 @@ async fn gen_jwt_command(
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| RustBaseError::Core(e))?;
+    .map_err(|e| FerriteDbError::Core(e))?;
 
     let user_repo = UserRepository::new(database.pool().clone());
     
@@ -660,20 +660,20 @@ async fn gen_jwt_command(
     auth_config.token_ttl = expires;
     
     let auth_service = AuthService::new(auth_config)
-        .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::authentication(e.to_string())))?;
+        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
 
     // Find user by ID or email
     let user_record = if let Ok(user_id) = uuid::Uuid::parse_str(&user) {
-        user_repo.find_by_id(user_id).await.map_err(|e| RustBaseError::Core(e))?
+        user_repo.find_by_id(user_id).await.map_err(|e| FerriteDbError::Core(e))?
     } else {
-        user_repo.find_by_email(&user).await.map_err(|e| RustBaseError::Core(e))?
+        user_repo.find_by_email(&user).await.map_err(|e| FerriteDbError::Core(e))?
     };
 
     let user_record = match user_record {
         Some(u) => u,
         None => {
             error!("❌ User '{}' not found", user);
-            return Err(RustBaseError::Core(rustbase_core::CoreError::validation(
+            return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
                 format!("User '{}' not found", user)
             )));
         }
@@ -681,7 +681,7 @@ async fn gen_jwt_command(
 
     // Generate tokens
     let tokens = auth_service.generate_tokens(&user_record)
-        .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::authentication(e.to_string())))?;
+        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
 
     info!("✅ JWT tokens generated successfully:");
     println!();
@@ -708,8 +708,8 @@ async fn gen_jwt_command(
     Ok(())
 }
 
-async fn seed_command(config: CoreConfig, force: bool) -> Result<(), RustBaseError> {
-    use rustbase_core::{Database, SeedService, auth::AuthService};
+async fn seed_command(config: CoreConfig, force: bool) -> Result<(), FerriteDbError> {
+    use ferritedb_core::{Database, SeedService, auth::AuthService};
     
     info!("Initializing example collections and seed data...");
     
@@ -720,14 +720,14 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), RustBaseErr
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| RustBaseError::Core(e))?;
+    .map_err(|e| FerriteDbError::Core(e))?;
 
     // Ensure migrations are run
-    database.migrate().await.map_err(|e| RustBaseError::Core(e))?;
+    database.migrate().await.map_err(|e| FerriteDbError::Core(e))?;
 
     // Create auth service
     let auth_service = AuthService::new(config.auth.clone())
-        .map_err(|e| RustBaseError::Core(rustbase_core::CoreError::authentication_error(e.to_string())))?;
+        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::authentication_error(e.to_string())))?;
 
     // Create seed service
     let seed_service = SeedService::new(database.pool().clone(), auth_service);
@@ -738,20 +738,20 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), RustBaseErr
     }
 
     // Initialize examples
-    seed_service.initialize_examples().await.map_err(|e| RustBaseError::Core(e))?;
+    seed_service.initialize_examples().await.map_err(|e| FerriteDbError::Core(e))?;
 
     info!("✅ Example collections and seed data initialized successfully!");
     info!("📋 Created collections:");
     info!("  - users (built-in authentication collection)");
     info!("  - posts (example content collection with relations)");
     info!("👥 Created demo users:");
-    info!("  - admin@rustbase.dev (admin) - password: admin123");
+    info!("  - admin@ferritedb.dev (admin) - password: admin123");
     info!("  - alice@example.com (user) - password: password123");
     info!("  - bob@example.com (user) - password: password123");
     info!("  - carol@example.com (user) - password: password123");
     info!("📝 Created example posts with various statuses and ownership");
     info!("");
-    info!("🚀 You can now start the server with: rustbase serve");
+    info!("🚀 You can now start the server with: ferritedb serve");
     info!("🌐 Admin interface will be available at: http://localhost:8090/admin");
 
     Ok(())
@@ -759,11 +759,11 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), RustBaseErr
 
 // Error types
 #[derive(Debug, thiserror::Error)]
-pub enum RustBaseError {
+pub enum FerriteDbError {
     #[error("Configuration error: {0}")]
     Config(#[from] ConfigError),
     #[error("Core error: {0}")]
-    Core(#[from] rustbase_core::CoreError),
+    Core(#[from] ferritedb_core::CoreError),
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 }
