@@ -25,13 +25,13 @@ This comprehensive guide helps you diagnose and resolve common issues with Ferri
 
 ```bash
 # Basic health check
-curl -f http://localhost:8090/api/healthz
+curl -f http://localhost:8090/api/health
 
 # Detailed readiness check
 curl -f http://localhost:8090/api/readyz
 
 # Check with verbose output
-curl -v http://localhost:8090/api/healthz
+curl -v http://localhost:8090/api/health
 
 # Test with authentication
 curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:8090/api/auth/me
