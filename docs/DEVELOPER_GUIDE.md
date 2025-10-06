@@ -1,6 +1,6 @@
 # FerriteDB Developer Guide
 
-This comprehensive guide covers everything developers need to know to work with, extend, and contribute to FerriteDB.
+This comprehensive guide covers everything you need to know to contribute to FerriteDB development, from setting up your development environment to understanding the codebase architecture.
 
 ## Table of Contents
 
@@ -8,943 +8,910 @@ This comprehensive guide covers everything developers need to know to work with,
 - [Development Environment](#development-environment)
 - [Project Structure](#project-structure)
 - [Building and Testing](#building-and-testing)
-- [Core Concepts](#core-concepts)
-- [API Development](#api-development)
-- [Database Layer](#database-layer)
-- [Authentication System](#authentication-system)
-- [Rules Engine](#rules-engine)
-- [File Storage](#file-storage)
-- [Real-time Features](#real-time-features)
-- [Testing Strategy](#testing-strategy)
-- [Performance Optimization](#performance-optimization)
 - [Contributing Guidelines](#contributing-guidelines)
-- [Debugging and Troubleshooting](#debugging-and-troubleshooting)
+- [Code Style and Standards](#code-style-and-standards)
+- [Architecture Deep Dive](#architecture-deep-dive)
+- [Adding New Features](#adding-new-features)
+- [Debugging and Profiling](#debugging-and-profiling)
+- [Release Process](#release-process)
 
 ## Getting Started
 
 ### Prerequisites
 
-- **Rust**: 1.75.0 or later
-- **Git**: For version control
-- **Docker**: For containerized development (optional)
-- **PostgreSQL**: For database development (optional)
+**Required:**
+- Rust 1.75 or later
+- Git
+- A code editor (VS Code, IntelliJ IDEA, or Vim)
+
+**Optional but Recommended:**
+- Docker and Docker Compose
+- PostgreSQL (for testing)
+- Node.js (for frontend development)
 
 ### Quick Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/foozio/ferritedb.git
+git clone https://github.com/ferritedb/ferritedb.git
 cd ferritedb
 
-# Install Rust dependencies
+# Install Rust if you haven't already
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Install required components
+rustup component add clippy rustfmt
+
+# Build the project
 cargo build
 
 # Run tests
 cargo test
 
 # Start development server
-cargo run -- serve --config ferritedb.dev.toml
+cargo run -- serve --config examples/dev.toml
 ```
 
 ## Development Environment
 
-### Recommended Tools
-
-#### Code Editor
-- **VS Code** with Rust extensions:
-  - rust-analyzer
-  - CodeLLDB (for debugging)
-  - Better TOML
-  - Error Lens
-
-#### CLI Tools
-```bash
-# Install useful Rust tools
-cargo install cargo-watch    # Auto-rebuild on changes
-cargo install cargo-expand   # Macro expansion
-cargo install cargo-audit    # Security audit
-cargo install sqlx-cli       # Database migrations
-```
-
-### Environment Configuration
-
-Create a development configuration file:
-
-```toml
-# ferritedb.dev.toml
-[server]
-host = "127.0.0.1"
-port = 8090
-cors_origins = ["http://localhost:3000", "http://localhost:8080"]
-
-[database]
-url = "sqlite:data/dev.db"
-auto_migrate = true
-
-[auth]
-jwt_secret = "dev-secret-change-in-production"
-token_ttl = 3600
-
-[storage]
-backend = "Local"
-[storage.local]
-path = "data/dev-files"
-
-[features]
-admin_ui = true
-metrics = true
-audit_logging = true
-
-[logging]
-level = "debug"
-```
-
-### Development Workflow
+### Rust Setup
 
 ```bash
-# Watch mode for development
-cargo watch -x 'run -- serve --config ferritedb.dev.toml'
+# Install latest stable Rust
+rustup install stable
+rustup default stable
 
-# Run specific tests
-cargo test auth::tests
+# Install development tools
+rustup component add clippy rustfmt rust-analyzer
 
-# Check code formatting
-cargo fmt --check
+# Install cargo extensions
+cargo install cargo-watch cargo-expand cargo-audit
+```
 
-# Run linter
-cargo clippy -- -D warnings
+### IDE Configuration
 
-# Generate documentation
-cargo doc --open
+#### VS Code Setup
+
+Install recommended extensions:
+```json
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "vadimcn.vscode-lldb",
+    "serayuzgur.crates",
+    "tamasfe.even-better-toml"
+  ]
+}
+```
+
+Create `.vscode/settings.json`:
+```json
+{
+  "rust-analyzer.cargo.features": "all",
+  "rust-analyzer.checkOnSave.command": "clippy",
+  "editor.formatOnSave": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  }
+}
+```
+
+#### IntelliJ IDEA Setup
+
+1. Install the Rust plugin
+2. Configure Rust toolchain in Settings → Languages & Frameworks → Rust
+3. Enable Clippy integration
+4. Set up run configurations for development
+
+### Environment Variables
+
+Create a `.env` file for development:
+```bash
+# Development configuration
+RUST_LOG=ferritedb=debug,tower_http=debug
+FERRITEDB_DATABASE_URL=sqlite:data/dev.db
+FERRITEDB_AUTH_JWT_SECRET=dev-secret-change-in-production
+FERRITEDB_STORAGE_BACKEND=local
+FERRITEDB_STORAGE_LOCAL_PATH=data/storage
+FERRITEDB_FEATURES_ADMIN_UI=true
+FERRITEDB_FEATURES_METRICS=true
 ```
 
 ## Project Structure
 
 ```
 ferritedb/
-├── crates/                 # Rust workspace crates
-│   ├── core/              # Core business logic
+├── crates/                    # Rust workspace crates
+│   ├── core/                  # Core business logic
 │   │   ├── src/
-│   │   │   ├── auth/      # Authentication system
-│   │   │   ├── collections/ # Dynamic collections
-│   │   │   ├── models/    # Data models
+│   │   │   ├── auth/          # Authentication system
+│   │   │   ├── collections/   # Collection management
+│   │   │   ├── records/       # Record operations
+│   │   │   ├── rules/         # Rules engine
 │   │   │   └── lib.rs
 │   │   └── Cargo.toml
-│   ├── server/            # HTTP server and API
+│   ├── server/                # HTTP server and API
 │   │   ├── src/
-│   │   │   ├── handlers/  # Request handlers
-│   │   │   ├── middleware/ # HTTP middleware
-│   │   │   ├── realtime/  # WebSocket handling
+│   │   │   ├── handlers/      # HTTP request handlers
+│   │   │   ├── middleware/    # Custom middleware
+│   │   │   ├── realtime/      # WebSocket handling
+│   │   │   └── main.rs
+│   │   └── Cargo.toml
+│   ├── storage/               # File storage backends
+│   │   ├── src/
+│   │   │   ├── local/         # Local filesystem storage
+│   │   │   ├── s3/            # S3-compatible storage
 │   │   │   └── lib.rs
 │   │   └── Cargo.toml
-│   ├── storage/           # File storage backends
-│   │   ├── src/
-│   │   │   ├── local/     # Local filesystem
-│   │   │   ├── s3/        # S3-compatible storage
-│   │   │   └── lib.rs
-│   │   └── Cargo.toml
-│   ├── rules/             # Rules engine
-│   │   ├── src/
-│   │   │   ├── parser/    # Rule expression parser
-│   │   │   ├── evaluator/ # Rule evaluation
-│   │   │   └── lib.rs
-│   │   └── Cargo.toml
-│   └── sdk-rs/            # Rust SDK
-│       ├── src/
-│       │   ├── client/    # HTTP client
-│       │   ├── models/    # Shared models
-│       │   └── lib.rs
-│       └── Cargo.toml
-├── src/                   # Main binary
-│   └── main.rs
-├── tests/                 # Integration tests
-├── migrations/            # Database migrations
-├── docs/                  # Documentation
-├── scripts/               # Build and utility scripts
-└── Cargo.toml            # Workspace configuration
+│   └── sdk-rs/                # Rust SDK
+├── docs/                      # Documentation
+├── examples/                  # Example configurations
+├── tests/                     # Integration tests
+├── scripts/                   # Build and deployment scripts
+├── docker/                    # Docker configurations
+├── .github/                   # GitHub workflows
+├── Cargo.toml                 # Workspace configuration
+├── Cargo.lock
+└── README.md
 ```
 
-### Crate Dependencies
+### Crate Responsibilities
 
-```mermaid
-graph TD
-    A[ferritedb-server] --> B[ferritedb-core]
-    A --> C[ferritedb-storage]
-    A --> D[ferritedb-rules]
-    B --> E[Database Models]
-    B --> F[Authentication]
-    C --> G[Local Storage]
-    C --> H[S3 Storage]
-    D --> I[Rule Parser]
-    D --> J[Rule Evaluator]
-```
+#### `ferritedb-core`
+- **Purpose**: Core business logic and domain models
+- **Key Components**:
+  - Authentication and authorization
+  - Collection schema management
+  - Record validation and operations
+  - Rules engine implementation
+  - Database abstractions
+
+#### `ferritedb-server`
+- **Purpose**: HTTP server and API endpoints
+- **Key Components**:
+  - Axum web server setup
+  - REST API handlers
+  - WebSocket real-time functionality
+  - Middleware (auth, CORS, rate limiting)
+  - Admin UI serving
+
+#### `ferritedb-storage`
+- **Purpose**: File storage backends
+- **Key Components**:
+  - Storage trait definitions
+  - Local filesystem implementation
+  - S3-compatible storage
+  - File metadata management
+
+#### `ferritedb-sdk-rs`
+- **Purpose**: Rust client SDK
+- **Key Components**:
+  - HTTP client wrapper
+  - Type-safe API bindings
+  - Authentication handling
+  - Real-time subscriptions
 
 ## Building and Testing
 
-### Build Commands
+### Development Workflow
 
 ```bash
-# Debug build
-cargo build
+# Watch for changes and rebuild
+cargo watch -x "run -- serve --config examples/dev.toml"
 
-# Release build
-cargo build --release
-
-# Build specific crate
-cargo build -p ferritedb-core
-
-# Build with all features
-cargo build --all-features
-
-# Cross-compilation
-cargo build --target x86_64-unknown-linux-musl
-```
-
-### Testing
-
-```bash
-# Run all tests
-cargo test
+# Run specific tests
+cargo test auth::tests::test_login
 
 # Run tests with output
 cargo test -- --nocapture
 
-# Run specific test module
-cargo test auth::tests::test_login
+# Run clippy for linting
+cargo clippy -- -D warnings
 
-# Run integration tests
-cargo test --test integration
+# Format code
+cargo fmt
 
-# Run tests with coverage
-cargo tarpaulin --out Html
+# Check for security vulnerabilities
+cargo audit
 ```
 
-### Database Migrations
+### Testing Strategy
 
-```bash
-# Create new migration
-sqlx migrate add create_users_table
-
-# Run migrations
-sqlx migrate run --database-url sqlite:data/dev.db
-
-# Revert last migration
-sqlx migrate revert --database-url sqlite:data/dev.db
-```
-
-## Core Concepts
-
-### Request Lifecycle
-
+#### Unit Tests
 ```rust
-// Example request flow
-async fn handle_request(
-    State(app_state): State<AppState>,
-    headers: HeaderMap,
-    Json(payload): Json<CreateRecordRequest>,
-) -> Result<Json<Record>, ApiError> {
-    // 1. Authentication
-    let user = authenticate_request(&headers, &app_state.auth).await?;
+#[cfg(test)]
+mod tests {
+    use super::*;
     
-    // 2. Authorization
-    authorize_collection_access(&user, &payload.collection, "create").await?;
-    
-    // 3. Validation
-    let validated_data = validate_record_data(&payload.data)?;
-    
-    // 4. Business Logic
-    let record = app_state.collections
-        .create_record(&payload.collection, validated_data, &user)
-        .await?;
-    
-    // 5. Response
-    Ok(Json(record))
-}
-```
-
-### Error Handling
-
-```rust
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum ApiError {
-    #[error("Authentication failed: {0}")]
-    AuthenticationFailed(String),
-    
-    #[error("Authorization failed: {0}")]
-    AuthorizationFailed(String),
-    
-    #[error("Validation error: {field}")]
-    ValidationError { field: String },
-    
-    #[error("Database error: {0}")]
-    DatabaseError(#[from] sqlx::Error),
-    
-    #[error("Internal server error")]
-    InternalError,
-}
-
-impl IntoResponse for ApiError {
-    fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            ApiError::AuthenticationFailed(_) => (StatusCode::UNAUTHORIZED, self.to_string()),
-            ApiError::AuthorizationFailed(_) => (StatusCode::FORBIDDEN, self.to_string()),
-            ApiError::ValidationError { .. } => (StatusCode::BAD_REQUEST, self.to_string()),
-            ApiError::DatabaseError(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Database error".to_string()),
-            ApiError::InternalError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
-        };
-
-        let body = Json(json!({
-            "error": {
-                "message": error_message,
-                "code": status.as_u16()
-            }
-        }));
-
-        (status, body).into_response()
+    #[tokio::test]
+    async fn test_user_creation() {
+        let auth_service = AuthService::new(mock_db()).await;
+        
+        let user = auth_service.create_user(CreateUserRequest {
+            email: "test@example.com".to_string(),
+            password: "securepassword".to_string(),
+        }).await.unwrap();
+        
+        assert_eq!(user.email, "test@example.com");
+        assert!(user.verified);
     }
 }
 ```
 
-## API Development
-
-### Creating New Endpoints
-
-1. **Define the handler function**:
-
+#### Integration Tests
 ```rust
-// crates/server/src/handlers/collections.rs
-pub async fn create_collection(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-    Json(request): Json<CreateCollectionRequest>,
-) -> Result<Json<Collection>, ApiError> {
-    let user = authenticate_request(&headers, &state.auth).await?;
+// tests/integration/auth.rs
+use ferritedb_server::test_utils::TestApp;
+
+#[tokio::test]
+async fn test_auth_flow() {
+    let app = TestApp::new().await;
     
-    // Only admins can create collections
-    if user.role != UserRole::Admin {
-        return Err(ApiError::AuthorizationFailed("Admin role required".to_string()));
+    // Register user
+    let response = app.post("/api/auth/register")
+        .json(&serde_json::json!({
+            "email": "test@example.com",
+            "password": "securepassword"
+        }))
+        .send()
+        .await;
+    
+    assert_eq!(response.status(), 201);
+    
+    // Login
+    let response = app.post("/api/auth/login")
+        .json(&serde_json::json!({
+            "email": "test@example.com",
+            "password": "securepassword"
+        }))
+        .send()
+        .await;
+    
+    assert_eq!(response.status(), 200);
+    let body: serde_json::Value = response.json().await;
+    assert!(body["token"].is_string());
+}
+```
+
+#### Performance Tests
+```rust
+#[tokio::test]
+async fn benchmark_record_creation() {
+    let app = TestApp::new().await;
+    let start = std::time::Instant::now();
+    
+    for i in 0..1000 {
+        app.post("/api/collections/posts/records")
+            .json(&serde_json::json!({
+                "title": format!("Post {}", i),
+                "content": "Test content"
+            }))
+            .send()
+            .await;
     }
     
-    let collection = state.collections.create(request, &user).await?;
-    Ok(Json(collection))
+    let duration = start.elapsed();
+    println!("Created 1000 records in {:?}", duration);
+    assert!(duration.as_secs() < 10); // Should complete in under 10 seconds
 }
 ```
 
-2. **Add route to router**:
+### Test Utilities
 
 ```rust
-// crates/server/src/routes.rs
-pub fn create_router(state: AppState) -> Router {
-    Router::new()
-        .route("/api/collections", post(handlers::collections::create_collection))
-        .route("/api/collections", get(handlers::collections::list_collections))
-        .route("/api/collections/:name", get(handlers::collections::get_collection))
-        .with_state(state)
+// src/test_utils.rs
+pub struct TestApp {
+    pub client: reqwest::Client,
+    pub base_url: String,
+    pub db: Database,
 }
-```
 
-3. **Add request/response models**:
-
-```rust
-// crates/core/src/models/requests.rs
-#[derive(Debug, Deserialize, Validate)]
-pub struct CreateCollectionRequest {
-    #[validate(length(min = 1, max = 50))]
-    pub name: String,
-    
-    pub schema: CollectionSchema,
-    
-    #[serde(default)]
-    pub rules: CollectionRules,
-}
-```
-
-### Middleware Development
-
-```rust
-// crates/server/src/middleware/auth.rs
-pub async fn auth_middleware(
-    State(state): State<AppState>,
-    mut request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    let auth_header = request
-        .headers()
-        .get(AUTHORIZATION)
-        .and_then(|header| header.to_str().ok());
-
-    if let Some(auth_header) = auth_header {
-        if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            match state.auth.validate_token(token).await {
-                Ok(user) => {
-                    request.extensions_mut().insert(user);
-                    return Ok(next.run(request).await);
-                }
-                Err(_) => return Err(StatusCode::UNAUTHORIZED),
-            }
+impl TestApp {
+    pub async fn new() -> Self {
+        let db = Database::new_in_memory().await;
+        let server = create_test_server(db.clone()).await;
+        let base_url = format!("http://127.0.0.1:{}", server.port());
+        
+        Self {
+            client: reqwest::Client::new(),
+            base_url,
+            db,
         }
     }
-
-    Err(StatusCode::UNAUTHORIZED)
-}
-```
-
-## Database Layer
-
-### Model Definition
-
-```rust
-// crates/core/src/models/user.rs
-use sqlx::FromRow;
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
-
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct User {
-    pub id: Uuid,
-    pub email: String,
-    pub password_hash: String,
-    pub role: UserRole,
-    pub verified: bool,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "user_role", rename_all = "lowercase")]
-pub enum UserRole {
-    Admin,
-    User,
-    Service,
-}
-```
-
-### Repository Pattern
-
-```rust
-// crates/core/src/repositories/user.rs
-use async_trait::async_trait;
-use sqlx::{Database, Pool};
-use uuid::Uuid;
-
-#[async_trait]
-pub trait UserRepository: Send + Sync {
-    async fn create(&self, user: CreateUserRequest) -> Result<User, RepositoryError>;
-    async fn find_by_id(&self, id: Uuid) -> Result<Option<User>, RepositoryError>;
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, RepositoryError>;
-    async fn update(&self, id: Uuid, updates: UpdateUserRequest) -> Result<User, RepositoryError>;
-    async fn delete(&self, id: Uuid) -> Result<(), RepositoryError>;
-}
-
-pub struct SqlUserRepository<DB: Database> {
-    pool: Pool<DB>,
-}
-
-#[async_trait]
-impl UserRepository for SqlUserRepository<sqlx::Sqlite> {
-    async fn create(&self, request: CreateUserRequest) -> Result<User, RepositoryError> {
-        let user = sqlx::query_as!(
-            User,
-            r#"
-            INSERT INTO users (id, email, password_hash, role, verified)
-            VALUES (?, ?, ?, ?, ?)
-            RETURNING *
-            "#,
-            request.id,
-            request.email,
-            request.password_hash,
-            request.role as UserRole,
-            request.verified
-        )
-        .fetch_one(&self.pool)
-        .await?;
-
-        Ok(user)
+    
+    pub fn post(&self, path: &str) -> RequestBuilder {
+        self.client.post(&format!("{}{}", self.base_url, path))
     }
-
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, RepositoryError> {
-        let user = sqlx::query_as!(
-            User,
-            "SELECT * FROM users WHERE email = ?",
-            email
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(user)
+    
+    pub async fn authenticate_as_admin(&self) -> String {
+        // Create admin user and return JWT token
+        todo!()
     }
 }
 ```
 
-### Database Migrations
+## Contributing Guidelines
 
-```sql
--- migrations/001_create_users_table.sql
+### Contribution Process
+
+1. **Fork the Repository**
+   ```bash
+   git clone https://github.com/your-username/ferritedb.git
+   cd ferritedb
+   git remote add upstream https://github.com/ferritedb/ferritedb.git
+   ```
+
+2. **Create Feature Branch**
+   ```bash
+   git checkout -b feature/your-feature-name
+   ```
+
+3. **Make Changes**
+   - Write code following our style guidelines
+   - Add tests for new functionality
+   - Update documentation as needed
+
+4. **Test Your Changes**
+   ```bash
+   cargo test
+   cargo clippy -- -D warnings
+   cargo fmt --check
+   ```
+
+5. **Commit and Push**
+   ```bash
+   git add .
+   git commit -m "feat: add new feature description"
+   git push origin feature/your-feature-name
+   ```
+
+6. **Create Pull Request**
+   - Use our PR template
+   - Provide clear description of changes
+   - Link related issues
+
+### Commit Message Format
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+
+**Examples:**
+```
+feat(auth): add OAuth2 authentication support
+fix(storage): resolve S3 upload timeout issue
+docs: update API documentation for collections
+test(core): add unit tests for rules engine
+```
+
+### Pull Request Guidelines
+
+**PR Title Format:**
+```
+<type>: <description>
+```
+
+**PR Description Template:**
+```markdown
+## Description
+Brief description of changes
+
+## Type of Change
+- [ ] Bug fix
+- [ ] New feature
+- [ ] Breaking change
+- [ ] Documentation update
+
+## Testing
+- [ ] Unit tests pass
+- [ ] Integration tests pass
+- [ ] Manual testing completed
+
+## Checklist
+- [ ] Code follows style guidelines
+- [ ] Self-review completed
+- [ ] Documentation updated
+- [ ] Tests added/updated
+```
+
+## Code Style and Standards
+
+### Rust Style Guidelines
+
+We follow the official Rust style guide with some additions:
+
+#### Naming Conventions
+```rust
+// Use snake_case for functions and variables
+fn create_user_account() -> Result<User, Error> { }
+let user_email = "test@example.com";
+
+// Use PascalCase for types
+struct UserAccount {
+    email: String,
+    created_at: DateTime<Utc>,
+}
+
+// Use SCREAMING_SNAKE_CASE for constants
+const MAX_FILE_SIZE: usize = 10 * 1024 * 1024; // 10MB
+
+// Use descriptive names
+fn authenticate_user_with_jwt(token: &str) -> Result<User, AuthError> { }
+```
+
+#### Error Handling
+```rust
+// Use Result types for fallible operations
+pub async fn create_user(request: CreateUserRequest) -> Result<User, AuthError> {
+    let hashed_password = hash_password(&request.password)
+        .map_err(AuthError::PasswordHashingFailed)?;
+    
+    let user = User {
+        id: Uuid::new_v4(),
+        email: request.email,
+        password_hash: hashed_password,
+        created_at: Utc::now(),
+    };
+    
+    self.db.insert_user(&user).await
+        .map_err(AuthError::DatabaseError)?;
+    
+    Ok(user)
+}
+
+// Define specific error types
+#[derive(Debug, thiserror::Error)]
+pub enum AuthError {
+    #[error("Invalid credentials")]
+    InvalidCredentials,
+    #[error("User already exists")]
+    UserAlreadyExists,
+    #[error("Password hashing failed: {0}")]
+    PasswordHashingFailed(#[from] argon2::Error),
+    #[error("Database error: {0}")]
+    DatabaseError(#[from] sqlx::Error),
+}
+```
+
+#### Documentation
+```rust
+/// Authenticates a user with email and password.
+/// 
+/// # Arguments
+/// 
+/// * `email` - The user's email address
+/// * `password` - The user's plain text password
+/// 
+/// # Returns
+/// 
+/// Returns `Ok(AuthResult)` on successful authentication, containing the user
+/// information and JWT token. Returns `Err(AuthError)` if authentication fails.
+/// 
+/// # Examples
+/// 
+/// ```rust
+/// let result = auth_service.authenticate("user@example.com", "password").await?;
+/// println!("User {} authenticated", result.user.email);
+/// ```
+pub async fn authenticate(
+    &self,
+    email: &str,
+    password: &str,
+) -> Result<AuthResult, AuthError> {
+    // Implementation...
+}
+```
+
+#### Async/Await Patterns
+```rust
+// Prefer async/await over manual Future handling
+pub async fn process_batch_operations(
+    &self,
+    operations: Vec<BatchOperation>,
+) -> Result<Vec<BatchResult>, BatchError> {
+    let mut results = Vec::new();
+    
+    // Process operations concurrently
+    let futures: Vec<_> = operations
+        .into_iter()
+        .map(|op| self.process_single_operation(op))
+        .collect();
+    
+    let operation_results = futures::future::try_join_all(futures).await?;
+    
+    for result in operation_results {
+        results.push(result);
+    }
+    
+    Ok(results)
+}
+```
+
+### Database Patterns
+
+#### Query Building
+```rust
+// Use sqlx query builder for complex queries
+pub async fn list_records_with_filter(
+    &self,
+    collection_id: &str,
+    filter: &RecordFilter,
+    pagination: &Pagination,
+) -> Result<Vec<Record>, DatabaseError> {
+    let mut query = QueryBuilder::new("SELECT * FROM records WHERE collection_id = ");
+    query.push_bind(collection_id);
+    
+    if let Some(published) = filter.published {
+        query.push(" AND published = ");
+        query.push_bind(published);
+    }
+    
+    if let Some(author_id) = &filter.author_id {
+        query.push(" AND author_id = ");
+        query.push_bind(author_id);
+    }
+    
+    query.push(" ORDER BY created_at DESC LIMIT ");
+    query.push_bind(pagination.limit);
+    query.push(" OFFSET ");
+    query.push_bind(pagination.offset);
+    
+    let records = query
+        .build_query_as::<Record>()
+        .fetch_all(&self.pool)
+        .await?;
+    
+    Ok(records)
+}
+```
+
+#### Migrations
+```rust
+// migrations/001_initial_schema.sql
 CREATE TABLE users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'user',
-    verified BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'user',
+    verified BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 ```
 
-## Authentication System
+### API Design Patterns
 
-### JWT Token Management
-
+#### Handler Structure
 ```rust
-// crates/core/src/auth/jwt.rs
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    pub sub: Uuid,      // User ID
-    pub email: String,
-    pub role: UserRole,
-    pub exp: usize,     // Expiration time
-    pub iat: usize,     // Issued at
-}
-
-pub struct JwtManager {
-    encoding_key: EncodingKey,
-    decoding_key: DecodingKey,
-    validation: Validation,
-}
-
-impl JwtManager {
-    pub fn new(secret: &str) -> Self {
-        Self {
-            encoding_key: EncodingKey::from_secret(secret.as_ref()),
-            decoding_key: DecodingKey::from_secret(secret.as_ref()),
-            validation: Validation::default(),
-        }
+// handlers/collections.rs
+pub async fn create_collection(
+    State(app_state): State<AppState>,
+    Extension(current_user): Extension<User>,
+    Json(request): Json<CreateCollectionRequest>,
+) -> Result<Json<Collection>, ApiError> {
+    // Validate request
+    request.validate()
+        .map_err(ApiError::ValidationError)?;
+    
+    // Check permissions
+    if !current_user.can_create_collections() {
+        return Err(ApiError::Forbidden);
     }
-
-    pub fn generate_token(&self, user: &User, ttl: u64) -> Result<String, AuthError> {
-        let now = chrono::Utc::now().timestamp() as usize;
-        let claims = Claims {
-            sub: user.id,
-            email: user.email.clone(),
-            role: user.role.clone(),
-            exp: now + ttl as usize,
-            iat: now,
-        };
-
-        encode(&Header::default(), &claims, &self.encoding_key)
-            .map_err(|e| AuthError::TokenGeneration(e.to_string()))
-    }
-
-    pub fn validate_token(&self, token: &str) -> Result<Claims, AuthError> {
-        decode::<Claims>(token, &self.decoding_key, &self.validation)
-            .map(|data| data.claims)
-            .map_err(|e| AuthError::TokenValidation(e.to_string()))
-    }
+    
+    // Create collection
+    let collection = app_state
+        .collection_service
+        .create_collection(request, &current_user)
+        .await
+        .map_err(ApiError::from)?;
+    
+    Ok(Json(collection))
 }
 ```
 
-### Password Hashing
-
+#### Response Types
 ```rust
-// crates/core/src/auth/password.rs
-use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
-use argon2::password_hash::{rand_core::OsRng, SaltString};
-
-pub struct PasswordManager {
-    argon2: Argon2<'static>,
+#[derive(Debug, Serialize)]
+pub struct ApiResponse<T> {
+    pub data: T,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pagination: Option<PaginationInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Value>,
 }
 
-impl PasswordManager {
-    pub fn new() -> Self {
-        Self {
-            argon2: Argon2::default(),
-        }
-    }
+#[derive(Debug, Serialize)]
+pub struct ApiError {
+    pub error: ErrorInfo,
+}
 
-    pub fn hash_password(&self, password: &str) -> Result<String, AuthError> {
-        let salt = SaltString::generate(&mut OsRng);
-        let password_hash = self.argon2
-            .hash_password(password.as_bytes(), &salt)
-            .map_err(|e| AuthError::PasswordHashing(e.to_string()))?;
-        
-        Ok(password_hash.to_string())
-    }
-
-    pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError> {
-        let parsed_hash = PasswordHash::new(hash)
-            .map_err(|e| AuthError::PasswordVerification(e.to_string()))?;
-        
-        match self.argon2.verify_password(password.as_bytes(), &parsed_hash) {
-            Ok(()) => Ok(true),
-            Err(_) => Ok(false),
-        }
-    }
+#[derive(Debug, Serialize)]
+pub struct ErrorInfo {
+    pub code: String,
+    pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
 }
 ```
 
-## Rules Engine
+## Architecture Deep Dive
 
-### Rule Expression Parser
+### Request Flow
 
-```rust
-// crates/rules/src/parser.rs
-use pest::Parser;
-use pest_derive::Parser;
-
-#[derive(Parser)]
-#[grammar = "rules.pest"]
-pub struct RuleParser;
-
-#[derive(Debug, Clone)]
-pub enum Expression {
-    Binary {
-        left: Box<Expression>,
-        operator: BinaryOperator,
-        right: Box<Expression>,
-    },
-    Unary {
-        operator: UnaryOperator,
-        operand: Box<Expression>,
-    },
-    Field {
-        object: String,
-        field: String,
-    },
-    Literal(Value),
-}
-
-#[derive(Debug, Clone)]
-pub enum BinaryOperator {
-    Equal,
-    NotEqual,
-    GreaterThan,
-    LessThan,
-    And,
-    Or,
-}
-
-pub fn parse_rule(input: &str) -> Result<Expression, ParseError> {
-    let pairs = RuleParser::parse(Rule::expression, input)?;
-    // Parse implementation...
-}
+```
+1. HTTP Request → Axum Router
+2. Middleware Stack:
+   - CORS handling
+   - Rate limiting
+   - Authentication
+   - Request logging
+3. Route Handler:
+   - Request validation
+   - Permission checking
+   - Business logic
+4. Service Layer:
+   - Core business operations
+   - Database interactions
+   - External API calls
+5. Response Generation:
+   - Data serialization
+   - Error handling
+   - Response logging
 ```
 
-### Rule Evaluation
+### Dependency Injection
 
 ```rust
-// crates/rules/src/evaluator.rs
-use std::collections::HashMap;
-use serde_json::Value;
-
-pub struct RuleEvaluator {
-    context: HashMap<String, Value>,
+// Application state container
+#[derive(Clone)]
+pub struct AppState {
+    pub db: Database,
+    pub auth_service: AuthService,
+    pub collection_service: CollectionService,
+    pub storage_service: StorageService,
+    pub config: Config,
 }
 
-impl RuleEvaluator {
-    pub fn new() -> Self {
-        Self {
-            context: HashMap::new(),
-        }
-    }
-
-    pub fn with_user(&mut self, user: &User) -> &mut Self {
-        self.context.insert("user".to_string(), json!({
-            "id": user.id,
-            "email": user.email,
-            "role": user.role,
-        }));
-        self
-    }
-
-    pub fn with_record(&mut self, record: &Value) -> &mut Self {
-        self.context.insert("record".to_string(), record.clone());
-        self
-    }
-
-    pub fn evaluate(&self, expression: &Expression) -> Result<bool, EvaluationError> {
-        match expression {
-            Expression::Binary { left, operator, right } => {
-                let left_val = self.evaluate_value(left)?;
-                let right_val = self.evaluate_value(right)?;
-                self.evaluate_binary_op(&left_val, operator, &right_val)
-            }
-            Expression::Field { object, field } => {
-                let value = self.get_field_value(object, field)?;
-                Ok(value.as_bool().unwrap_or(false))
-            }
-            Expression::Literal(value) => {
-                Ok(value.as_bool().unwrap_or(false))
-            }
-        }
-    }
-}
-```
-
-## File Storage
-
-### Storage Backend Trait
-
-```rust
-// crates/storage/src/backend.rs
-use async_trait::async_trait;
-use bytes::Bytes;
-use std::path::Path;
-
-#[async_trait]
-pub trait StorageBackend: Send + Sync {
-    async fn store(&self, path: &str, data: Bytes) -> Result<StorageMetadata, StorageError>;
-    async fn retrieve(&self, path: &str) -> Result<Bytes, StorageError>;
-    async fn delete(&self, path: &str) -> Result<(), StorageError>;
-    async fn exists(&self, path: &str) -> Result<bool, StorageError>;
-    async fn metadata(&self, path: &str) -> Result<StorageMetadata, StorageError>;
-}
-
-#[derive(Debug, Clone)]
-pub struct StorageMetadata {
-    pub size: u64,
-    pub content_type: Option<String>,
-    pub etag: Option<String>,
-    pub last_modified: Option<chrono::DateTime<chrono::Utc>>,
-}
-```
-
-### Local Storage Implementation
-
-```rust
-// crates/storage/src/local.rs
-use std::path::PathBuf;
-use tokio::fs;
-
-pub struct LocalStorage {
-    base_path: PathBuf,
-}
-
-#[async_trait]
-impl StorageBackend for LocalStorage {
-    async fn store(&self, path: &str, data: Bytes) -> Result<StorageMetadata, StorageError> {
-        let full_path = self.base_path.join(path);
+impl AppState {
+    pub async fn new(config: Config) -> Result<Self, AppError> {
+        let db = Database::connect(&config.database_url).await?;
         
-        // Create parent directories
-        if let Some(parent) = full_path.parent() {
-            fs::create_dir_all(parent).await?;
-        }
+        let auth_service = AuthService::new(db.clone(), &config.auth);
+        let collection_service = CollectionService::new(db.clone());
+        let storage_service = StorageService::new(&config.storage).await?;
         
-        // Write file
-        fs::write(&full_path, &data).await?;
-        
-        // Get metadata
-        let metadata = fs::metadata(&full_path).await?;
-        
-        Ok(StorageMetadata {
-            size: metadata.len(),
-            content_type: None,
-            etag: None,
-            last_modified: metadata.modified().ok()
-                .map(|t| chrono::DateTime::from(t)),
+        Ok(Self {
+            db,
+            auth_service,
+            collection_service,
+            storage_service,
+            config,
         })
     }
+}
+```
 
-    async fn retrieve(&self, path: &str) -> Result<Bytes, StorageError> {
-        let full_path = self.base_path.join(path);
-        let data = fs::read(&full_path).await?;
-        Ok(Bytes::from(data))
+### Error Handling Strategy
+
+```rust
+// Centralized error handling
+#[derive(Debug, thiserror::Error)]
+pub enum AppError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    
+    #[error("Authentication error: {0}")]
+    Auth(#[from] AuthError),
+    
+    #[error("Storage error: {0}")]
+    Storage(#[from] StorageError),
+    
+    #[error("Validation error: {0}")]
+    Validation(#[from] ValidationError),
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, error_code, message) = match self {
+            AppError::Auth(AuthError::InvalidCredentials) => {
+                (StatusCode::UNAUTHORIZED, "INVALID_CREDENTIALS", "Invalid email or password")
+            }
+            AppError::Validation(e) => {
+                (StatusCode::BAD_REQUEST, "VALIDATION_ERROR", &e.to_string())
+            }
+            _ => {
+                tracing::error!("Internal server error: {}", self);
+                (StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Internal server error")
+            }
+        };
+        
+        let body = Json(ApiError {
+            error: ErrorInfo {
+                code: error_code.to_string(),
+                message: message.to_string(),
+                details: None,
+            },
+        });
+        
+        (status, body).into_response()
     }
 }
 ```
 
-## Real-time Features
+## Adding New Features
 
-### WebSocket Handler
+### Feature Development Checklist
 
+1. **Design Phase**
+   - [ ] Write feature specification
+   - [ ] Design API endpoints
+   - [ ] Plan database schema changes
+   - [ ] Consider security implications
+
+2. **Implementation Phase**
+   - [ ] Create database migrations
+   - [ ] Implement core business logic
+   - [ ] Add API handlers
+   - [ ] Write comprehensive tests
+
+3. **Documentation Phase**
+   - [ ] Update API documentation
+   - [ ] Add usage examples
+   - [ ] Update SDK if needed
+   - [ ] Write migration guide if breaking
+
+### Example: Adding a New Collection Field Type
+
+1. **Define the Field Type**
 ```rust
-// crates/server/src/realtime/websocket.rs
-use axum::extract::ws::{Message, WebSocket};
-use futures_util::{SinkExt, StreamExt};
-use tokio::sync::broadcast;
-
-pub async fn websocket_handler(
-    ws: WebSocket,
-    state: AppState,
-) {
-    let (mut sender, mut receiver) = ws.split();
-    let mut rx = state.realtime.subscribe();
-
-    // Handle incoming messages
-    let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(msg)) = receiver.next().await {
-            if let Message::Text(text) = msg {
-                if let Ok(request) = serde_json::from_str::<RealtimeRequest>(&text) {
-                    handle_realtime_request(request, &state).await;
-                }
-            }
-        }
-    });
-
-    // Handle outgoing messages
-    let mut send_task = tokio::spawn(async move {
-        while let Ok(event) = rx.recv().await {
-            let message = serde_json::to_string(&event).unwrap();
-            if sender.send(Message::Text(message)).await.is_err() {
-                break;
-            }
-        }
-    });
-
-    // Wait for either task to finish
-    tokio::select! {
-        _ = (&mut send_task) => {
-            recv_task.abort();
-        },
-        _ = (&mut recv_task) => {
-            send_task.abort();
-        }
-    }
-}
-```
-
-### Event Broadcasting
-
-```rust
-// crates/server/src/realtime/events.rs
-use tokio::sync::broadcast;
-use serde::{Deserialize, Serialize};
-
+// crates/core/src/collections/field_types.rs
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum RealtimeEvent {
-    RecordCreated {
-        collection: String,
-        record: serde_json::Value,
-    },
-    RecordUpdated {
-        collection: String,
-        record: serde_json::Value,
-    },
-    RecordDeleted {
-        collection: String,
-        record_id: String,
-    },
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum FieldType {
+    Text { max_length: Option<usize> },
+    Number { min: Option<f64>, max: Option<f64> },
+    Boolean,
+    Date,
+    File { allowed_types: Vec<String> },
+    Relation { target_collection: String },
+    // New field type
+    Json { schema: Option<JsonSchema> },
 }
+```
 
-pub struct RealtimeManager {
-    sender: broadcast::Sender<RealtimeEvent>,
-}
-
-impl RealtimeManager {
-    pub fn new() -> Self {
-        let (sender, _) = broadcast::channel(1000);
-        Self { sender }
-    }
-
-    pub fn subscribe(&self) -> broadcast::Receiver<RealtimeEvent> {
-        self.sender.subscribe()
-    }
-
-    pub fn broadcast(&self, event: RealtimeEvent) -> Result<(), broadcast::error::SendError<RealtimeEvent>> {
-        self.sender.send(event).map(|_| ())
+2. **Add Validation Logic**
+```rust
+impl FieldType {
+    pub fn validate_value(&self, value: &serde_json::Value) -> Result<(), ValidationError> {
+        match self {
+            FieldType::Json { schema } => {
+                if !value.is_object() && !value.is_array() {
+                    return Err(ValidationError::InvalidType {
+                        expected: "object or array".to_string(),
+                        actual: value.to_string(),
+                    });
+                }
+                
+                if let Some(schema) = schema {
+                    schema.validate(value)?;
+                }
+                
+                Ok(())
+            }
+            // ... other types
+        }
     }
 }
 ```
 
-## Testing Strategy
+3. **Update Database Schema**
+```sql
+-- migrations/XXX_add_json_field_support.sql
+ALTER TABLE collection_fields 
+ADD COLUMN json_schema JSONB;
+```
 
-### Unit Tests
-
+4. **Add Tests**
 ```rust
-// crates/core/src/auth/tests.rs
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[tokio::test]
-    async fn test_password_hashing() {
-        let manager = PasswordManager::new();
-        let password = "test_password_123";
+    
+    #[test]
+    fn test_json_field_validation() {
+        let field_type = FieldType::Json { schema: None };
         
-        let hash = manager.hash_password(password).unwrap();
-        assert!(manager.verify_password(password, &hash).unwrap());
-        assert!(!manager.verify_password("wrong_password", &hash).unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_jwt_token_generation() {
-        let manager = JwtManager::new("test_secret");
-        let user = User {
-            id: Uuid::new_v4(),
-            email: "test@example.com".to_string(),
-            role: UserRole::User,
-            // ... other fields
-        };
-
-        let token = manager.generate_token(&user, 3600).unwrap();
-        let claims = manager.validate_token(&token).unwrap();
+        // Valid JSON object
+        let valid_object = serde_json::json!({"key": "value"});
+        assert!(field_type.validate_value(&valid_object).is_ok());
         
-        assert_eq!(claims.sub, user.id);
-        assert_eq!(claims.email, user.email);
+        // Valid JSON array
+        let valid_array = serde_json::json!([1, 2, 3]);
+        assert!(field_type.validate_value(&valid_array).is_ok());
+        
+        // Invalid JSON (string)
+        let invalid_value = serde_json::json!("not an object or array");
+        assert!(field_type.validate_value(&invalid_value).is_err());
     }
 }
 ```
 
-### Integration Tests
+## Debugging and Profiling
+
+### Logging Configuration
 
 ```rust
-// tests/integration/auth.rs
-use ferritedb_server::create_app;
-use axum_test::TestServer;
+// Enable structured logging
+use tracing::{info, warn, error, debug, instrument};
 
-#[tokio::test]
-async fn test_user_registration_and_login() {
-    let app = create_app().await;
-    let server = TestServer::new(app).unwrap();
-
-    // Register user
-    let response = server
-        .post("/api/auth/register")
-        .json(&json!({
-            "email": "test@example.com",
-            "password": "secure_password_123",
-            "password_confirm": "secure_password_123"
-        }))
-        .await;
-
-    assert_eq!(response.status_code(), 201);
-
-    // Login
-    let response = server
-        .post("/api/auth/login")
-        .json(&json!({
-            "email": "test@example.com",
-            "password": "secure_password_123"
-        }))
-        .await;
-
-    assert_eq!(response.status_code(), 200);
-    let body: serde_json::Value = response.json();
-    assert!(body["token"].is_string());
+#[instrument(skip(self))]
+pub async fn authenticate_user(&self, email: &str, password: &str) -> Result<User, AuthError> {
+    debug!("Attempting to authenticate user with email: {}", email);
+    
+    let user = self.find_user_by_email(email).await
+        .map_err(|e| {
+            warn!("Failed to find user by email {}: {}", email, e);
+            AuthError::InvalidCredentials
+        })?;
+    
+    if self.verify_password(password, &user.password_hash)? {
+        info!("User {} authenticated successfully", user.id);
+        Ok(user)
+    } else {
+        warn!("Invalid password for user {}", user.id);
+        Err(AuthError::InvalidCredentials)
+    }
 }
 ```
 
-### Performance Tests
+### Performance Profiling
+
+```bash
+# Profile with perf (Linux)
+cargo build --release
+perf record --call-graph=dwarf ./target/release/ferritedb serve
+perf report
+
+# Profile with Instruments (macOS)
+cargo instruments -t "Time Profiler" --bin ferritedb -- serve
+
+# Memory profiling with valgrind
+cargo build
+valgrind --tool=massif ./target/debug/ferritedb serve
+```
+
+### Benchmarking
 
 ```rust
-// tests/performance/load_test.rs
+// benches/auth_benchmark.rs
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use ferritedb_core::auth::AuthService;
 
 fn benchmark_password_hashing(c: &mut Criterion) {
-    let manager = PasswordManager::new();
+    let auth_service = AuthService::new_for_testing();
     
     c.bench_function("password_hashing", |b| {
         b.iter(|| {
-            manager.hash_password(black_box("test_password_123"))
+            auth_service.hash_password(black_box("test_password"))
         })
     });
 }
@@ -953,224 +920,107 @@ criterion_group!(benches, benchmark_password_hashing);
 criterion_main!(benches);
 ```
 
-## Performance Optimization
-
-### Database Query Optimization
-
-```rust
-// Efficient batch operations
-pub async fn create_multiple_records(
-    &self,
-    collection: &str,
-    records: Vec<CreateRecordRequest>,
-) -> Result<Vec<Record>, RepositoryError> {
-    let mut tx = self.pool.begin().await?;
-    let mut created_records = Vec::new();
-
-    for record in records {
-        let created = sqlx::query_as!(
-            Record,
-            "INSERT INTO records (collection, data) VALUES (?, ?) RETURNING *",
-            collection,
-            serde_json::to_string(&record.data)?
-        )
-        .fetch_one(&mut *tx)
-        .await?;
-        
-        created_records.push(created);
-    }
-
-    tx.commit().await?;
-    Ok(created_records)
-}
-```
-
-### Caching Implementation
-
-```rust
-// crates/core/src/cache.rs
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
-use std::time::{Duration, Instant};
-
-pub struct Cache<K, V> {
-    data: Arc<RwLock<HashMap<K, CacheEntry<V>>>>,
-    ttl: Duration,
-}
-
-struct CacheEntry<V> {
-    value: V,
-    expires_at: Instant,
-}
-
-impl<K, V> Cache<K, V>
-where
-    K: std::hash::Hash + Eq + Clone,
-    V: Clone,
-{
-    pub fn new(ttl: Duration) -> Self {
-        Self {
-            data: Arc::new(RwLock::new(HashMap::new())),
-            ttl,
-        }
-    }
-
-    pub async fn get(&self, key: &K) -> Option<V> {
-        let data = self.data.read().await;
-        if let Some(entry) = data.get(key) {
-            if entry.expires_at > Instant::now() {
-                return Some(entry.value.clone());
-            }
-        }
-        None
-    }
-
-    pub async fn set(&self, key: K, value: V) {
-        let mut data = self.data.write().await;
-        data.insert(key, CacheEntry {
-            value,
-            expires_at: Instant::now() + self.ttl,
-        });
-    }
-}
-```
-
-## Contributing Guidelines
-
-### Code Style
-
-```rust
-// Use consistent naming conventions
-pub struct UserRepository;  // PascalCase for types
-pub fn create_user();       // snake_case for functions
-pub const MAX_USERS: u32;   // SCREAMING_SNAKE_CASE for constants
-
-// Prefer explicit error handling
-pub fn risky_operation() -> Result<String, MyError> {
-    // Implementation
-}
-
-// Use meaningful variable names
-let user_repository = UserRepository::new();
-let authenticated_user = authenticate_request(&headers)?;
-
-// Document public APIs
-/// Creates a new user with the provided email and password.
-/// 
-/// # Arguments
-/// 
-/// * `email` - A valid email address
-/// * `password` - A password meeting security requirements
-/// 
-/// # Returns
-/// 
-/// Returns the created user on success, or an error if creation fails.
-pub async fn create_user(email: String, password: String) -> Result<User, AuthError> {
-    // Implementation
-}
-```
-
-### Commit Guidelines
+### Debug Tools
 
 ```bash
-# Use conventional commits
-git commit -m "feat: add user authentication system"
-git commit -m "fix: resolve database connection timeout"
-git commit -m "docs: update API documentation"
-git commit -m "test: add integration tests for collections"
-git commit -m "refactor: improve error handling in auth module"
+# Expand macros
+cargo expand --bin ferritedb
+
+# Check generated assembly
+cargo asm ferritedb::auth::hash_password
+
+# Analyze dependencies
+cargo tree
+cargo bloat --release
+
+# Security audit
+cargo audit
 ```
 
-### Pull Request Process
+## Release Process
 
-1. **Fork and Branch**: Create a feature branch from `main`
-2. **Implement**: Write code following project conventions
-3. **Test**: Ensure all tests pass and add new tests
-4. **Document**: Update documentation as needed
-5. **Submit**: Create a pull request with clear description
+### Version Management
 
-## Debugging and Troubleshooting
+We follow [Semantic Versioning](https://semver.org/):
+- **MAJOR**: Breaking changes
+- **MINOR**: New features (backward compatible)
+- **PATCH**: Bug fixes (backward compatible)
 
-### Logging Configuration
+### Release Checklist
 
-```rust
-// Enable detailed logging
-use tracing::{info, warn, error, debug};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+1. **Pre-release**
+   - [ ] Update version in `Cargo.toml`
+   - [ ] Update `CHANGELOG.md`
+   - [ ] Run full test suite
+   - [ ] Update documentation
+   - [ ] Security audit
 
-pub fn init_logging() {
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::EnvFilter::new(
-            std::env::var("RUST_LOG").unwrap_or_else(|_| "ferritedb=debug,tower_http=debug".into()),
-        ))
-        .with(tracing_subscriber::fmt::layer())
-        .init();
-}
+2. **Release**
+   - [ ] Create release branch
+   - [ ] Tag release version
+   - [ ] Build release binaries
+   - [ ] Create GitHub release
+   - [ ] Publish to crates.io
 
-// Use structured logging
-#[tracing::instrument(skip(password))]
-pub async fn authenticate_user(email: &str, password: &str) -> Result<User, AuthError> {
-    debug!("Attempting to authenticate user with email: {}", email);
+3. **Post-release**
+   - [ ] Update documentation site
+   - [ ] Announce on social media
+   - [ ] Update Docker images
+   - [ ] Monitor for issues
+
+### Automated Release Pipeline
+
+```yaml
+# .github/workflows/release.yml
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     
-    match find_user_by_email(email).await {
-        Ok(Some(user)) => {
-            info!("User found, verifying password");
-            // Implementation
-        }
-        Ok(None) => {
-            warn!("Authentication failed: user not found");
-            Err(AuthError::UserNotFound)
-        }
-        Err(e) => {
-            error!("Database error during authentication: {}", e);
-            Err(AuthError::DatabaseError(e))
-        }
-    }
-}
-```
-
-### Common Issues and Solutions
-
-#### Database Connection Issues
-```bash
-# Check database connectivity
-export RUST_LOG=sqlx=debug
-cargo run -- serve --config ferritedb.dev.toml
-
-# Verify database file permissions
-ls -la data/dev.db
-chmod 644 data/dev.db
-```
-
-#### Memory Usage Issues
-```bash
-# Profile memory usage
-cargo install cargo-profiler
-cargo profiler callgrind --bin ferritedb
-
-# Use memory-efficient alternatives
-# Instead of collecting all results
-let results: Vec<_> = query.fetch_all(&pool).await?;
-
-# Use streaming
-let mut stream = query.fetch(&pool);
-while let Some(row) = stream.try_next().await? {
-    // Process row immediately
-}
-```
-
-#### Performance Issues
-```bash
-# Enable performance profiling
-cargo build --release
-perf record --call-graph=dwarf ./target/release/ferritedb serve
-perf report
-
-# Database query analysis
-EXPLAIN QUERY PLAN SELECT * FROM users WHERE email = ?;
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          
+      - name: Build release
+        run: cargo build --release
+        
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ferritedb-${{ matrix.os }}
+          path: target/release/ferritedb*
 ```
 
 ---
 
-*This developer guide is continuously updated. For the latest information, check our [GitHub repository](https://github.com/foozio/ferritedb) and [documentation site](https://docs.ferritedb.com).*
+## Getting Help
+
+### Development Support
+
+- **Discord**: Join our [developer channel](https://discord.gg/ferritedb-dev)
+- **GitHub Discussions**: [Development discussions](https://github.com/ferritedb/ferritedb/discussions)
+- **Office Hours**: Weekly developer office hours (see Discord for schedule)
+
+### Resources
+
+- **Rust Book**: [The Rust Programming Language](https://doc.rust-lang.org/book/)
+- **Async Book**: [Asynchronous Programming in Rust](https://rust-lang.github.io/async-book/)
+- **Axum Docs**: [Axum Web Framework](https://docs.rs/axum/)
+- **SQLx Guide**: [SQLx Documentation](https://docs.rs/sqlx/)
+
+---
+
+*This developer guide is maintained by the FerriteDB team and community. Contributions and improvements are always welcome!*
