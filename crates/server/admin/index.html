@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RustBase Admin</title>
+    <title>FerriteDB Admin</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f97316'%3E%3Cpath d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/%3E%3C/svg%3E">
 </head>
@@ -13,7 +13,7 @@
         <div id="login-screen" class="login-container">
             <div class="login-card">
                 <div class="login-header">
-                    <h1>RustBase Admin</h1>
+                    <h1>FerriteDB Admin</h1>
                     <p>Sign in to manage your backend</p>
                 </div>
                 <form id="login-form" class="login-form">
@@ -44,7 +44,7 @@
             <!-- Navigation -->
             <nav class="navbar">
                 <div class="navbar-brand">
-                    <h1>RustBase Admin</h1>
+                    <h1>FerriteDB Admin</h1>
                 </div>
                 <div class="navbar-controls">
                     <button id="theme-toggle" class="btn btn-ghost" title="Toggle theme" aria-label="Toggle dark/light theme">
@@ -111,6 +111,27 @@
 
             <!-- Main Content -->
             <main class="main-content">
+                <div class="welcome-screen" id="welcome-screen">
+                    <div class="welcome-content">
+                        <h1>FerriteDB Admin</h1>
+                        <p>Welcome to the FerriteDB Admin Interface. Manage your database, users, and more.</p>
+                        <div class="features-grid">
+                            <div class="feature-card">
+                                <h3>Database Management</h3>
+                                <p>Create, manage, and delete collections and records.</p>
+                            </div>
+                            <div class="feature-card">
+                                <h3>User Management</h3>
+                                <p>Manage user accounts, roles, and permissions.</p>
+                            </div>
+                            <div class="feature-card">
+                                <h3>FerriteDB API Documentation</h3>
+                                <p>Access comprehensive API documentation with interactive examples.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Dashboard Page -->
                 <div id="dashboard-page" class="page active">
                     <div class="page-header">
@@ -364,7 +385,7 @@
                                 </div>
                                 <div class="doc-content" id="doc-content">
                                     <div class="doc-welcome">
-                                        <h3>RustBase API Documentation</h3>
+                                        <h3>FerriteDB API Documentation</h3>
                                         <p>Select an endpoint from the sidebar to view detailed documentation.</p>
                                     </div>
                                 </div>

@@ -1,6 +1,6 @@
 # Operations Guide
 
-This guide covers operational aspects of running RustBase in production, including deployment, monitoring, backup strategies, and maintenance procedures.
+This guide covers operational aspects of running FerriteDB in production, including deployment, monitoring, backup strategies, and maintenance procedures.
 
 ## Table of Contents
 
@@ -21,100 +21,100 @@ This guide covers operational aspects of running RustBase in production, includi
 
 ```bash
 # Pull the latest image
-docker pull rustbase/rustbase:latest
+docker pull ferritedb/ferritedb:latest
 
 # Run with docker-compose
 docker-compose up -d
 
 # Or run directly
 docker run -d \
-  --name rustbase \
+  --name ferritedb \
   -p 8090:8090 \
   -v ferritedb_data:/app/data \
   -v ./ferritedb.toml:/app/ferritedb.toml:ro \
   -e FERRITEDB_AUTH_JWT_SECRET="your-secure-secret" \
-  rustbase/rustbase:latest
+  ferritedb/ferritedb:latest
 ```
 
 #### 2. Binary Deployment
 
 ```bash
 # Download and install
-curl -L https://github.com/rustbase/rustbase/releases/latest/download/rustbase-linux-x86_64.tar.gz | tar xz
-sudo mv rustbase /usr/local/bin/
+curl -L https://github.com/ferritedb/ferritedb/releases/latest/download/ferritedb-linux-x86_64.tar.gz | tar xz
+sudo mv ferritedb /usr/local/bin/
 
 # Create service user
-sudo useradd --system --home /var/lib/rustbase --shell /bin/false rustbase
+sudo useradd --system --home /var/lib/ferritedb --shell /bin/false ferritedb
 
 # Create directories
-sudo mkdir -p /var/lib/rustbase/{data,config,logs}
-sudo chown -R rustbase:rustbase /var/lib/rustbase
+sudo mkdir -p /var/lib/ferritedb/{data,config,logs}
+sudo chown -R ferritedb:ferritedb /var/lib/ferritedb
 
 # Create systemd service
-sudo tee /etc/systemd/system/rustbase.service << 'EOF'
+sudo tee /etc/systemd/system/ferritedb.service << 'EOF'
 [Unit]
-Description=RustBase Backend Service
+Description=FerriteDB Backend Service
 After=network.target
 Wants=network.target
 
 [Service]
 Type=exec
-User=rustbase
-Group=rustbase
-WorkingDirectory=/var/lib/rustbase
+User=ferritedb
+Group=ferritedb
+WorkingDirectory=/var/lib/ferritedb
 ExecStart=/usr/local/bin/ferritedb serve --config /var/lib/ferritedb/config/ferritedb.toml
 Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=rustbase
+SyslogIdentifier=ferritedb
 
 # Security settings
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/rustbase
+ReadWritePaths=/var/lib/ferritedb
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
 # Enable and start service
-sudo systemctl enable rustbase
-sudo systemctl start rustbase
+sudo systemctl enable ferritedb
+sudo systemctl start ferritedb
 ```
 
 #### 3. Kubernetes Deployment
 
 ```yaml
-# rustbase-deployment.yaml
+# ferritedb-deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: rustbase
+  name: ferritedb
   labels:
-    app: rustbase
+    app: ferritedb
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: rustbase
+      app: ferritedb
   template:
     metadata:
       labels:
-        app: rustbase
+        app: ferritedb
     spec:
       containers:
-      - name: rustbase
-        image: rustbase/rustbase:latest
+      - name: ferritedb
+        image: ferritedb/ferritedb:latest
         ports:
         - containerPort: 8090
         env:
         - name: FERRITEDB_AUTH_JWT_SECRET
           valueFrom:
             secretKeyRef:
-              name: rustbase-secrets
+              name: ferritedb-secrets
               key: jwt-secret
         volumeMounts:
         - name: config
@@ -137,18 +137,18 @@ spec:
       volumes:
       - name: config
         configMap:
-          name: rustbase-config
+          name: ferritedb-config
       - name: data
         persistentVolumeClaim:
-          claimName: rustbase-data
+          claimName: ferritedb-data
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: rustbase-service
+  name: ferritedb-service
 spec:
   selector:
-    app: rustbase
+    app: ferritedb
   ports:
   - protocol: TCP
     port: 80
@@ -226,7 +226,7 @@ export FERRITEDB_SERVER_PORT="8090"
 export FERRITEDB_DATABASE_URL="sqlite:/var/lib/ferritedb/data/ferritedb.db"
 export FERRITEDB_AUTH_JWT_SECRET="$(openssl rand -base64 64)"
 export FERRITEDB_STORAGE_BACKEND="s3"
-export FERRITEDB_STORAGE_S3_BUCKET="rustbase-prod-files"
+export FERRITEDB_STORAGE_S3_BUCKET="ferritedb-prod-files"
 export FERRITEDB_STORAGE_S3_REGION="us-east-1"
 export RUST_LOG="info"
 ```
@@ -282,13 +282,13 @@ format = "json"
 
 ```bash
 # Store secrets in Vault
-vault kv put secret/rustbase \
+vault kv put secret/ferritedb \
   jwt_secret="$(openssl rand -base64 64)" \
   s3_access_key="AKIA..." \
   s3_secret_key="..."
 
 # Retrieve in startup script
-export FERRITEDB_AUTH_JWT_SECRET=$(vault kv get -field=jwt_secret secret/rustbase)
+export FERRITEDB_AUTH_JWT_SECRET=$(vault kv get -field=jwt_secret secret/ferritedb)
 ```
 
 #### Using Kubernetes Secrets
@@ -297,7 +297,7 @@ export FERRITEDB_AUTH_JWT_SECRET=$(vault kv get -field=jwt_secret secret/rustbas
 apiVersion: v1
 kind: Secret
 metadata:
-  name: rustbase-secrets
+  name: ferritedb-secrets
 type: Opaque
 data:
   jwt-secret: <base64-encoded-secret>
@@ -309,7 +309,7 @@ data:
 
 ### Health Checks
 
-RustBase provides built-in health check endpoints:
+FerriteDB provides built-in health check endpoints:
 
 - `/healthz`: Liveness probe (service is running)
 - `/readyz`: Readiness probe (service can handle requests)
@@ -330,7 +330,7 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'rustbase'
+  - job_name: 'ferritedb'
     static_configs:
       - targets: ['localhost:8090']
     metrics_path: '/metrics'
@@ -365,44 +365,44 @@ filebeat.inputs:
 - type: log
   enabled: true
   paths:
-    - /var/log/rustbase/*.log
+    - /var/log/ferritedb/*.log
   json.keys_under_root: true
   json.add_error_key: true
 
 output.elasticsearch:
   hosts: ["elasticsearch:9200"]
-  index: "rustbase-logs-%{+yyyy.MM.dd}"
+  index: "ferritedb-logs-%{+yyyy.MM.dd}"
 ```
 
 #### Log Analysis Queries
 
 ```bash
 # Find authentication failures
-grep "authentication_failed" /var/log/rustbase/rustbase.log
+grep "authentication_failed" /var/log/ferritedb/ferritedb.log
 
 # Monitor error rates
-grep "ERROR" /var/log/rustbase/rustbase.log | wc -l
+grep "ERROR" /var/log/ferritedb/ferritedb.log | wc -l
 
 # Track slow queries
-grep "slow_query" /var/log/rustbase/rustbase.log
+grep "slow_query" /var/log/ferritedb/ferritedb.log
 ```
 
 ### Alerting
 
 #### Prometheus Alerting Rules
 
-```yaml
+```
 # alerts.yml
 groups:
-- name: rustbase
+- name: ferritedb
   rules:
-  - alert: RustBaseDown
-    expr: up{job="rustbase"} == 0
+  - alert: FerriteDBDown
+    expr: up{job="ferritedb"} == 0
     for: 1m
     labels:
       severity: critical
     annotations:
-      summary: "RustBase service is down"
+      summary: "FerriteDB service is down"
 
   - alert: HighErrorRate
     expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
@@ -446,7 +446,7 @@ sqlite3 "$DB_PATH" ".backup $BACKUP_FILE"
 gzip "$BACKUP_FILE"
 
 # Keep only last 30 days of backups
-find "$BACKUP_DIR" -name "rustbase_*.db.gz" -mtime +30 -delete
+find "$BACKUP_DIR" -name "ferritedb_*.db.gz" -mtime +30 -delete
 
 echo "Backup completed: $BACKUP_FILE.gz"
 ```
@@ -455,7 +455,7 @@ echo "Backup completed: $BACKUP_FILE.gz"
 
 ```bash
 # Add to crontab
-0 2 * * * /usr/local/bin/backup-database.sh >> /var/log/rustbase/backup.log 2>&1
+0 2 * * * /usr/local/bin/backup-database.sh >> /var/log/ferritedb/backup.log 2>&1
 ```
 
 ### File Storage Backup
@@ -466,8 +466,8 @@ echo "Backup completed: $BACKUP_FILE.gz"
 #!/bin/bash
 # backup-files.sh
 
-STORAGE_DIR="/var/lib/rustbase/data/storage"
-BACKUP_DIR="/var/backups/rustbase/files"
+STORAGE_DIR="/var/lib/ferritedb/data/storage"
+BACKUP_DIR="/var/backups/ferritedb/files"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Create incremental backup using rsync
@@ -486,12 +486,12 @@ echo "File backup completed: $BACKUP_DIR/$TIMESTAMP"
 ```bash
 # S3 buckets have built-in versioning and cross-region replication
 aws s3api put-bucket-versioning \
-  --bucket rustbase-prod-files \
+  --bucket ferritedb-prod-files \
   --versioning-configuration Status=Enabled
 
 # Set up cross-region replication
 aws s3api put-bucket-replication \
-  --bucket rustbase-prod-files \
+  --bucket ferritedb-prod-files \
   --replication-configuration file://replication.json
 ```
 
@@ -502,7 +502,7 @@ aws s3api put-bucket-replication \
 1. **Database Recovery**
    ```bash
    # Stop service
-   sudo systemctl stop rustbase
+   sudo systemctl stop ferritedb
    
    # Restore database
    gunzip -c /var/backups/ferritedb/ferritedb_20240115_020000.db.gz > /var/lib/ferritedb/data/ferritedb.db
@@ -511,16 +511,16 @@ aws s3api put-bucket-replication \
    chown ferritedb:ferritedb /var/lib/ferritedb/data/ferritedb.db
    
    # Start service
-   sudo systemctl start rustbase
+   sudo systemctl start ferritedb
    ```
 
 2. **File Storage Recovery**
    ```bash
    # Restore files
-   rsync -av /var/backups/rustbase/files/latest/ /var/lib/rustbase/data/storage/
+   rsync -av /var/backups/ferritedb/files/latest/ /var/lib/ferritedb/data/storage/
    
    # Fix permissions
-   chown -R rustbase:rustbase /var/lib/rustbase/data/storage
+   chown -R ferritedb:ferritedb /var/lib/ferritedb/data/storage
    ```
 
 3. **Complete System Recovery**
@@ -530,7 +530,7 @@ aws s3api put-bucket-replication \
    
    # Restore data
    docker cp backup.db ferritedb:/app/data/ferritedb.db
-   docker cp storage_backup/ rustbase:/app/data/storage/
+   docker cp storage_backup/ ferritedb:/app/data/storage/
    
    # Restart with restored data
    docker-compose restart
@@ -553,10 +553,10 @@ NEW_SECRET=$(openssl rand -base64 64)
 sed -i "s/jwt_secret = .*/jwt_secret = \"$NEW_SECRET\"/" /var/lib/ferritedb/config/ferritedb.toml
 
 # Restart service
-sudo systemctl restart rustbase
+sudo systemctl restart ferritedb
 
 # Log rotation
-echo "$(date): JWT secret rotated" >> /var/log/rustbase/security.log
+echo "$(date): JWT secret rotated" >> /var/log/ferritedb/security.log
 ```
 
 #### Database Encryption Key Rotation
@@ -572,20 +572,20 @@ sqlite3 encrypted.db "PRAGMA rekey = 'new-encryption-key';"
 
 ```bash
 # List all admin users
-rustbase admin list --role admin
+ferritedb admin list --role admin
 
 # Check user activity
-grep "user_id.*admin" /var/log/rustbase/audit.log
+grep "user_id.*admin" /var/log/ferritedb/audit.log
 
 # Disable inactive users
-rustbase admin disable --email inactive@example.com
+ferritedb admin disable --email inactive@example.com
 ```
 
 #### Permission Review
 
 ```bash
 # Export collection rules for review
-rustbase export collections --format json > collections_audit.json
+ferritedb export collections --format json > collections_audit.json
 
 # Review access rules
 jq '.[] | {name: .name, rules: .rules}' collections_audit.json
@@ -597,10 +597,10 @@ jq '.[] | {name: .name, rules: .rules}' collections_audit.json
 
 ```bash
 # Monitor failed logins
-tail -f /var/log/rustbase/rustbase.log | grep "authentication_failed"
+tail -f /var/log/ferritedb/ferritedb.log | grep "authentication_failed"
 
 # Count failed attempts by IP
-grep "authentication_failed" /var/log/rustbase/rustbase.log | \
+grep "authentication_failed" /var/log/ferritedb/ferritedb.log | \
   jq -r '.ip_address' | sort | uniq -c | sort -nr
 ```
 
@@ -608,10 +608,10 @@ grep "authentication_failed" /var/log/rustbase/rustbase.log | \
 
 ```bash
 # Monitor for suspicious patterns
-grep -E "(sql_injection|xss_attempt|path_traversal)" /var/log/rustbase/security.log
+grep -E "(sql_injection|xss_attempt|path_traversal)" /var/log/ferritedb/security.log
 
 # Check for unusual admin activity
-grep "admin_action" /var/log/rustbase/audit.log | \
+grep "admin_action" /var/log/ferritedb/audit.log | \
   jq 'select(.timestamp > "2024-01-15T00:00:00Z")'
 ```
 
@@ -647,13 +647,13 @@ max_lifetime = 1800
 
 ```bash
 # Monitor memory usage
-ps aux | grep rustbase
-cat /proc/$(pgrep rustbase)/status | grep -E "(VmRSS|VmSize)"
+ps aux | grep ferritedb
+cat /proc/$(pgrep ferritedb)/status | grep -E "(VmRSS|VmSize)"
 
 # Set memory limits in systemd
-echo "MemoryMax=512M" >> /etc/systemd/system/rustbase.service
+echo "MemoryMax=512M" >> /etc/systemd/system/ferritedb.service
 sudo systemctl daemon-reload
-sudo systemctl restart rustbase
+sudo systemctl restart ferritedb
 ```
 
 #### CPU Optimization
@@ -703,16 +703,16 @@ let schema_cache: Cache<String, CollectionSchema> = Cache::builder()
 
 ```bash
 # Check service status
-sudo systemctl status rustbase
+sudo systemctl status ferritedb
 
 # Check logs
-sudo journalctl -u rustbase -f
+sudo journalctl -u ferritedb -f
 
 # Check configuration
 ferritedb --config /var/lib/ferritedb/config/ferritedb.toml validate
 
 # Check file permissions
-ls -la /var/lib/rustbase/
+ls -la /var/lib/ferritedb/
 ```
 
 #### Database Connection Issues
@@ -725,20 +725,20 @@ sqlite3 /var/lib/ferritedb/data/ferritedb.db ".schema"
 lsof /var/lib/ferritedb/data/ferritedb.db
 
 # Check disk space
-df -h /var/lib/rustbase/
+df -h /var/lib/ferritedb/
 ```
 
 #### High Memory Usage
 
 ```bash
 # Check memory usage
-top -p $(pgrep rustbase)
+top -p $(pgrep ferritedb)
 
 # Check for memory leaks
-valgrind --tool=memcheck --leak-check=full rustbase serve
+valgrind --tool=memcheck --leak-check=full ferritedb serve
 
 # Analyze heap usage
-heaptrack rustbase serve
+heaptrack ferritedb serve
 ```
 
 #### Performance Issues
@@ -750,7 +750,7 @@ iotop
 nethogs
 
 # Profile application
-perf record -g rustbase serve
+perf record -g ferritedb serve
 perf report
 
 # Check database performance
@@ -762,24 +762,24 @@ sqlite3 /var/lib/ferritedb/data/ferritedb.db "EXPLAIN QUERY PLAN SELECT ..."
 ```bash
 # Enable debug logging
 export RUST_LOG=debug
-rustbase serve
+ferritedb serve
 
 # Enable SQL query logging
-export RUST_LOG=sqlx=debug,rustbase=debug
-rustbase serve
+export RUST_LOG=sqlx=debug,ferritedb=debug
+ferritedb serve
 ```
 
 ### Log Analysis
 
 ```bash
 # Parse JSON logs
-cat /var/log/rustbase/rustbase.log | jq 'select(.level == "ERROR")'
+cat /var/log/ferritedb/ferritedb.log | jq 'select(.level == "ERROR")'
 
 # Find slow requests
-cat /var/log/rustbase/rustbase.log | jq 'select(.duration_ms > 1000)'
+cat /var/log/ferritedb/ferritedb.log | jq 'select(.duration_ms > 1000)'
 
 # Analyze request patterns
-cat /var/log/rustbase/rustbase.log | jq -r '.path' | sort | uniq -c | sort -nr
+cat /var/log/ferritedb/ferritedb.log | jq -r '.path' | sort | uniq -c | sort -nr
 ```
 
 ## Maintenance
@@ -799,7 +799,7 @@ curl -f http://localhost:8090/healthz || echo "Health check failed"
 df -h | awk '$5 > 80 {print "Disk usage high: " $0}'
 
 # Rotate logs
-logrotate /etc/logrotate.d/rustbase
+logrotate /etc/logrotate.d/ferritedb
 
 # Backup database
 /usr/local/bin/backup-database.sh
@@ -814,12 +814,12 @@ logrotate /etc/logrotate.d/rustbase
 # Update system packages
 sudo apt update && sudo apt upgrade -y
 
-# Check for RustBase updates
-rustbase --version
-curl -s https://api.github.com/repos/rustbase/rustbase/releases/latest | jq -r '.tag_name'
+# Check for FerriteDB updates
+ferritedb --version
+curl -s https://api.github.com/repos/ferritedb/ferritedb/releases/latest | jq -r '.tag_name'
 
 # Analyze logs for errors
-grep "ERROR" /var/log/rustbase/rustbase.log | tail -100
+grep "ERROR" /var/log/ferritedb/ferritedb.log | tail -100
 
 # Database maintenance
 sqlite3 /var/lib/ferritedb/data/ferritedb.db "VACUUM; ANALYZE;"
@@ -853,20 +853,20 @@ certbot renew --dry-run
 /usr/local/bin/backup-database.sh
 
 # Download new version
-curl -L https://github.com/rustbase/rustbase/releases/latest/download/rustbase-linux-x86_64.tar.gz | tar xz
+curl -L https://github.com/ferritedb/ferritedb/releases/latest/download/ferritedb-linux-x86_64.tar.gz | tar xz
 
 # Stop service
-sudo systemctl stop rustbase
+sudo systemctl stop ferritedb
 
 # Replace binary
-sudo mv rustbase /usr/local/bin/rustbase
-sudo chmod +x /usr/local/bin/rustbase
+sudo mv ferritedb /usr/local/bin/ferritedb
+sudo chmod +x /usr/local/bin/ferritedb
 
 # Run migrations
 sudo -u ferritedb ferritedb migrate run --config /var/lib/ferritedb/config/ferritedb.toml
 
 # Start service
-sudo systemctl start rustbase
+sudo systemctl start ferritedb
 
 # Verify update
 curl -f http://localhost:8090/healthz
@@ -876,14 +876,14 @@ curl -f http://localhost:8090/healthz
 
 ```bash
 # Pull new image
-docker pull rustbase/rustbase:latest
+docker pull ferritedb/ferritedb:latest
 
 # Update with zero downtime
-docker-compose up -d --no-deps rustbase
+docker-compose up -d --no-deps ferritedb
 
 # Verify deployment
 docker-compose ps
-docker-compose logs rustbase
+docker-compose logs ferritedb
 ```
 
 ### Capacity Planning
@@ -895,10 +895,10 @@ docker-compose logs rustbase
 du -h /var/lib/ferritedb/data/ferritedb.db
 
 # File storage growth
-du -sh /var/lib/rustbase/data/storage/
+du -sh /var/lib/ferritedb/data/storage/
 
 # Request volume trends
-grep "http_request" /var/log/rustbase/rustbase.log | \
+grep "http_request" /var/log/ferritedb/ferritedb.log | \
   awk '{print $1}' | cut -d'T' -f1 | sort | uniq -c
 ```
 

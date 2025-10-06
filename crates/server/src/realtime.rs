@@ -673,7 +673,7 @@ mod tests {
         let connection = Connection {
             id: connection_id,
             user_id: Some(Uuid::new_v4()),
-            user_role: Some(rustbase_core::models::UserRole::User),
+            user_role: Some(ferritedb_core::models::UserRole::User),
             user_email: Some("test@example.com".to_string()),
             subscriptions: HashMap::new(),
             sender: tx,
@@ -694,7 +694,7 @@ mod tests {
             collection: "posts".to_string(),
             filter: None,
             user_id,
-            user_role: rustbase_core::models::UserRole::User,
+            user_role: ferritedb_core::models::UserRole::User,
             user_email: "test@example.com".to_string(),
         };
 
@@ -852,9 +852,9 @@ mod tests {
     #[test]
     fn test_user_role_types() {
         // Test that we can create different user roles
-        let admin_role = rustbase_core::models::UserRole::Admin;
-        let user_role = rustbase_core::models::UserRole::User;
-        let service_role = rustbase_core::models::UserRole::Service;
+        let admin_role = ferritedb_core::models::UserRole::Admin;
+        let user_role = ferritedb_core::models::UserRole::User;
+        let service_role = ferritedb_core::models::UserRole::Service;
 
         // Test role comparison
         assert_ne!(admin_role, user_role);

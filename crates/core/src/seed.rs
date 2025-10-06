@@ -301,185 +301,157 @@ impl SeedService {
         Ok(())
     }
 
-    /// Create seed data for development and testing
+    /// Create seed data including admin user and example posts
     async fn create_seed_data(&self) -> CoreResult<()> {
         info!("Creating seed data...");
 
-        // Create example users
-        let demo_users = self.create_demo_users().await?;
+        // Create admin user
+        let admin_email = "admin@ferritedb.dev";
+        if self.user_repo.find_by_email(admin_email).await?.is_none() {
+            let admin_password = "admin123".to_string();
+            let password_hash = self.auth_service.hash_password(&admin_password)
+                .map_err(|e| CoreError::Authentication(e.to_string()))?;
 
-        // Create example posts
-        self.create_demo_posts(&demo_users).await?;
+            let admin_request = CreateUserRequest {
+                email: admin_email.to_string(),
+                password: admin_password,
+                role: Some(UserRole::Admin),
+                verified: true,
+            };
+
+            let _admin_user = self.user_repo.create(admin_request, password_hash).await?;
+            info!("Created demo admin user: {}", admin_email);
+        } else {
+            info!("Admin user already exists, skipping creation");
+        }
+
+        // Create example users
+        let example_users = vec![
+            ("Alice Johnson", "alice@example.com"),
+            ("Bob Smith", "bob@example.com"),
+            ("Carol Davis", "carol@example.com"),
+        ];
+
+        for (name, email) in example_users {
+            if self.user_repo.find_by_email(email).await?.is_none() {
+                let user_password = "password123".to_string();
+                let password_hash = self.auth_service.hash_password(&user_password)
+                    .map_err(|e| CoreError::Authentication(e.to_string()))?;
+
+                let names: Vec<&str> = name.split(' ').collect();
+                let first_name = names.first().unwrap_or(&"");
+                let last_name = names.get(1).unwrap_or(&"");
+
+                let user_request = CreateUserRequest {
+                    email: email.to_string(),
+                    password: user_password,
+                    role: Some(UserRole::User),
+                    verified: true,
+                };
+
+                let _user = self.user_repo.create(user_request, password_hash).await?;
+                info!("Created demo user: {} ({})", email, name);
+            }
+        }
+
+        // Get all users to create posts
+        let users = self.user_repo.list(100, 0).await?;
+        let admin_user = users.iter().find(|u| u.email == "admin@ferritedb.dev");
+        let alice_user = users.iter().find(|u| u.email == "alice@example.com");
+
+        // Only create posts if we have the required users
+        if let (Some(admin), Some(alice)) = (admin_user, alice_user) {
+            // Create example posts
+            self.create_example_posts(admin, alice).await?;
+        }
 
         info!("✅ Seed data created successfully");
         Ok(())
     }
 
-    /// Create demo users for testing
-    async fn create_demo_users(&self) -> CoreResult<Vec<User>> {
-        let mut users = Vec::new();
-
-        // Create admin user
-        let admin_email = "admin@rustbase.dev";
-        if self.user_repo.find_by_email(admin_email).await?.is_none() {
-            let password_hash = self.auth_service.hash_password("admin123")
-                .map_err(|e| CoreError::AuthenticationError(e.to_string()))?;
-            let admin_request = CreateUserRequest {
-                email: admin_email.to_string(),
-                password: "admin123".to_string(),
-                role: Some(UserRole::Admin),
-                verified: true,
-            };
-            let admin_user = self.user_repo.create(admin_request, password_hash).await?;
-            users.push(admin_user);
-            info!("Created demo admin user: {}", admin_email);
-        } else {
-            let admin_user = self.user_repo.find_by_email(admin_email).await?.unwrap();
-            users.push(admin_user);
-            info!("Demo admin user already exists: {}", admin_email);
-        }
-
-        // Create regular users
-        let demo_user_data = vec![
-            ("alice@example.com", "Alice", "Johnson"),
-            ("bob@example.com", "Bob", "Smith"),
-            ("carol@example.com", "Carol", "Davis"),
-        ];
-
-        for (email, first_name, last_name) in demo_user_data {
-            if self.user_repo.find_by_email(email).await?.is_none() {
-                let password_hash = self.auth_service.hash_password("password123")
-                    .map_err(|e| CoreError::AuthenticationError(e.to_string()))?;
-                let user_request = CreateUserRequest {
-                    email: email.to_string(),
-                    password: "password123".to_string(),
-                    role: Some(UserRole::User),
-                    verified: true,
-                };
-                let user = self.user_repo.create(user_request, password_hash).await?;
-                users.push(user);
-                info!("Created demo user: {} ({} {})", email, first_name, last_name);
-            } else {
-                let user = self.user_repo.find_by_email(email).await?.unwrap();
-                users.push(user);
-                info!("Demo user already exists: {}", email);
-            }
-        }
-
-        Ok(users)
-    }
-
-    /// Create demo posts with various statuses and ownership
-    async fn create_demo_posts(&self, users: &[User]) -> CoreResult<()> {
-        if users.is_empty() {
-            warn!("No users available for creating demo posts");
-            return Ok(());
-        }
-
+    /// Create example posts for demonstration
+    async fn create_example_posts(&self, admin: &User, alice: &User) -> CoreResult<()> {
         // Check if posts already exist
-        let existing_posts = self.count_records("posts").await?;
-        if existing_posts > 0 {
-            info!("Demo posts already exist ({}), skipping creation", existing_posts);
+        let existing_posts = self.record_service.list_records("posts", 1, 0).await?;
+        if !existing_posts.is_empty() {
+            info!("Posts already exist, skipping creation");
             return Ok(());
         }
 
-        let demo_posts = vec![
+        info!("Creating example posts...");
+
+        let example_posts = vec![
             (
-                "Welcome to RustBase",
-                "This is your first post in RustBase! RustBase is a production-ready, developer-friendly backend service that provides a complete backend-as-a-service solution in a single self-contained binary.",
-                "Welcome to RustBase - your new backend service",
-                true,
-                "published",
-                vec!["welcome", "rustbase", "backend"],
+                admin,
+                json!({
+                    "title": "Welcome to FerriteDB",
+                    "content": "This is your first post in FerriteDB! FerriteDB is a production-ready, developer-friendly backend service that provides a complete backend-as-a-service solution in a single self-contained binary.",
+                    "excerpt": "Welcome to FerriteDB - your new backend service",
+                    "published": true,
+                    "status": "published",
+                    "tags": ["welcome", "ferritedb", "backend"],
+                    "published_at": chrono::Utc::now().to_rfc3339()
+                })
             ),
             (
-                "Getting Started with Collections",
-                "Collections in RustBase are dynamic schemas that allow you to define your data structure without writing SQL. You can create fields of various types including text, numbers, booleans, relations, and files.",
-                "Learn how to work with dynamic collections in RustBase",
-                true,
-                "published",
-                vec!["tutorial", "collections", "guide"],
+                alice,
+                json!({
+                    "title": "Understanding Collections in FerriteDB",
+                    "content": "Collections in FerriteDB are dynamic schemas that allow you to define your data structure without writing SQL. You can create fields of various types including text, numbers, booleans, relations, and files.",
+                    "excerpt": "Learn how to work with dynamic collections in FerriteDB",
+                    "published": true,
+                    "status": "published",
+                    "tags": ["collections", "schema", "data-modeling"],
+                    "published_at": chrono::Utc::now().to_rfc3339()
+                })
             ),
             (
-                "Understanding Access Rules",
-                "RustBase uses a powerful rule-based access control system. You can define rules for listing, viewing, creating, updating, and deleting records using a CEL-like expression language.",
-                "Master the access control system in RustBase",
-                true,
-                "published",
-                vec!["security", "rules", "access-control"],
+                admin,
+                json!({
+                    "title": "Access Control Rules in FerriteDB",
+                    "content": "FerriteDB uses a powerful rule-based access control system. You can define rules for listing, viewing, creating, updating, and deleting records using a CEL-like expression language.",
+                    "excerpt": "Master the access control system in FerriteDB",
+                    "published": true,
+                    "status": "published",
+                    "tags": ["security", "access-control", "rules"],
+                    "published_at": chrono::Utc::now().to_rfc3339()
+                })
             ),
             (
-                "Draft Post: Advanced Features",
-                "This post covers advanced RustBase features including realtime subscriptions, file storage, and custom validation rules. This is still a work in progress.",
-                "Exploring advanced RustBase capabilities",
-                false,
-                "draft",
-                vec!["advanced", "realtime", "files"],
+                alice,
+                json!({
+                    "title": "Advanced FerriteDB Features",
+                    "content": "This post covers advanced FerriteDB features including realtime subscriptions, file storage, and custom validation rules. This is still a work in progress.",
+                    "excerpt": "Exploring advanced FerriteDB capabilities",
+                    "published": false,
+                    "status": "draft",
+                    "tags": ["advanced", "realtime", "files"],
+                })
             ),
             (
-                "Building REST APIs",
-                "RustBase automatically generates REST APIs for your collections. Learn how to use query parameters for filtering, sorting, and pagination.",
-                "Complete guide to RustBase REST APIs",
-                true,
-                "published",
-                vec!["api", "rest", "tutorial"],
+                admin,
+                json!({
+                    "title": "REST API Guide for FerriteDB",
+                    "content": "FerriteDB automatically generates REST APIs for your collections. Learn how to use query parameters for filtering, sorting, and pagination.",
+                    "excerpt": "Complete guide to FerriteDB REST APIs",
+                    "published": true,
+                    "status": "published",
+                    "tags": ["api", "rest", "documentation"],
+                    "published_at": chrono::Utc::now().to_rfc3339()
+                })
             ),
         ];
 
-        for (i, (title, content, excerpt, published, status, tags)) in demo_posts.iter().enumerate() {
-            let owner = &users[i % users.len()]; // Distribute posts among users
-
-            let post_data = json!({
-                "title": title,
-                "content": content,
-                "excerpt": excerpt,
-                "owner_id": owner.id.to_string(),
-                "published": published,
-                "status": status,
-                "tags": tags,
-                "published_at": if *published {
-                    Some(chrono::Utc::now().to_rfc3339())
-                } else {
-                    None::<String>
-                }
-            });
-
-            self.create_record("posts", post_data).await?;
-            info!("Created demo post: {}", title);
+        let post_count = example_posts.len();
+        for (owner, post_data) in example_posts {
+            let mut post_with_owner = post_data.as_object().unwrap().clone();
+            post_with_owner.insert("owner_id".to_string(), json!(owner.id.to_string()));
+            
+            self.record_service.create_record("posts", json!(post_with_owner)).await?;
         }
 
+        info!("✅ Created {} example posts", post_count);
         Ok(())
-    }
-
-    /// Helper method to create a record in a collection
-    async fn create_record(&self, collection_name: &str, data: Value) -> CoreResult<()> {
-        // Use the RecordService to create the record properly
-        let _record = self.record_service.create_record(collection_name, data).await?;
-        Ok(())
-    }
-
-    /// Helper method to count records in a collection
-    async fn count_records(&self, collection_name: &str) -> CoreResult<i64> {
-        let table_name = format!("records_{}", collection_name);
-        
-        // Check if table exists first
-        let table_exists = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?1"
-        )
-        .bind(&table_name)
-        .fetch_one(&self.pool)
-        .await?;
-
-        if table_exists == 0 {
-            return Ok(0);
-        }
-
-        let count = sqlx::query_scalar::<_, i64>(&format!("SELECT COUNT(*) FROM {}", table_name))
-            .fetch_one(&self.pool)
-            .await
-            .unwrap_or(0);
-
-        Ok(count)
     }
 }
 
@@ -581,11 +553,12 @@ mod tests {
     async fn test_create_demo_users() {
         let (db, seed_service) = setup_test_service().await;
 
-        let users = seed_service.create_demo_users().await.unwrap();
+        seed_service.initialize_examples().await.unwrap();
+        let users = seed_service.user_repo.list(100, 0).await.unwrap();
         assert!(!users.is_empty());
 
         // Verify admin user exists
-        let admin_user = users.iter().find(|u| u.email == "admin@rustbase.dev");
+        let admin_user = users.iter().find(|u| u.email == "admin@ferritedb.dev");
         assert!(admin_user.is_some());
         assert_eq!(admin_user.unwrap().role, UserRole::Admin);
 

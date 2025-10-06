@@ -1,7 +1,6 @@
 #!/bin/bash
+# FerriteDB Deployment Testing Script
 
-# RustBase Deployment Testing Script
-# 
 # This script runs comprehensive deployment tests including:
 # - Docker container builds and health checks
 # - Docker Compose development environment
@@ -20,7 +19,7 @@ NC='\033[0m' # No Color
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-TEST_IMAGE="rustbase:deployment-test"
+TEST_IMAGE="ferritedb:deployment-test"
 TEST_TIMEOUT=300 # 5 minutes
 
 # Logging functions
@@ -45,10 +44,10 @@ cleanup() {
     log_info "Cleaning up test resources..."
     
     # Stop and remove test containers
-    docker ps -aq --filter "name=rustbase-deploy-test*" | xargs -r docker rm -f
+    docker ps -aq --filter "name=ferritedb-deploy-test*" | xargs -r docker rm -f
     
     # Remove test volumes
-    docker volume ls -q --filter "name=rustbase-deploy-test*" | xargs -r docker volume rm
+    docker volume ls -q --filter "name=ferritedb-deploy-test*" | xargs -r docker volume rm
     
     # Stop docker-compose if running
     if [ -f "$PROJECT_ROOT/docker-compose.dev.yml" ]; then
@@ -122,7 +121,7 @@ test_container_health() {
     
     # Start container
     CONTAINER_ID=$(docker run -d \
-        --name "rustbase-deploy-test-health" \
+        --name "ferritedb-deploy-test-health" \
         -p "8090:8090" \
         -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-$(date +%s)" \
         "$TEST_IMAGE")
@@ -145,7 +144,7 @@ test_container_health() {
         
         if [ $attempts -eq $max_attempts ]; then
             log_error "Container failed to become healthy within timeout"
-            docker logs "rustbase-deploy-test-health"
+            docker logs "ferritedb-deploy-test-health"
             return 1
         fi
     done
@@ -190,7 +189,7 @@ test_container_health() {
     fi
     
     # Stop container
-    docker stop "rustbase-deploy-test-health" > /dev/null
+    docker stop "ferritedb-deploy-test-health" > /dev/null
     log_success "Container health tests completed"
 }
 
@@ -201,7 +200,7 @@ test_docker_compose() {
     cd "$PROJECT_ROOT"
     
     # Start services
-    if docker-compose -f docker-compose.dev.yml up -d rustbase-dev; then
+    if docker-compose -f docker-compose.dev.yml up -d ferritedb-dev; then
         log_success "Docker Compose services started"
     else
         log_error "Failed to start Docker Compose services"
@@ -224,7 +223,7 @@ test_docker_compose() {
         
         if [ $attempts -eq $max_attempts ]; then
             log_error "Docker Compose service failed to become healthy"
-            docker-compose -f docker-compose.dev.yml logs rustbase-dev
+            docker-compose -f docker-compose.dev.yml logs ferritedb-dev
             return 1
         fi
     done
@@ -249,7 +248,7 @@ test_container_security() {
     
     # Start container for security tests
     CONTAINER_ID=$(docker run -d \
-        --name "rustbase-deploy-test-security" \
+        --name "ferritedb-deploy-test-security" \
         -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-security" \
         "$TEST_IMAGE")
     
@@ -280,13 +279,13 @@ test_volume_persistence() {
     log_info "Testing volume persistence..."
     
     # Create test volume
-    docker volume create rustbase-deploy-test-volume > /dev/null
+    docker volume create ferritedb-deploy-test-volume > /dev/null
     
     # Start first container with volume
     CONTAINER1_ID=$(docker run -d \
-        --name "rustbase-deploy-test-persist1" \
+        --name "ferritedb-deploy-test-persist1" \
         -p "8091:8090" \
-        -v "rustbase-deploy-test-volume:/app/data" \
+        -v "ferritedb-deploy-test-volume:/app/data" \
         -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-persist" \
         "$TEST_IMAGE")
     
@@ -311,9 +310,9 @@ test_volume_persistence() {
     
     # Start second container with same volume
     CONTAINER2_ID=$(docker run -d \
-        --name "rustbase-deploy-test-persist2" \
+        --name "ferritedb-deploy-test-persist2" \
         -p "8091:8090" \
-        -v "rustbase-deploy-test-volume:/app/data" \
+        -v "ferritedb-deploy-test-volume:/app/data" \
         -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-persist" \
         "$TEST_IMAGE")
     
@@ -343,7 +342,7 @@ test_volume_persistence() {
     # Cleanup
     docker stop "$CONTAINER2_ID" > /dev/null
     docker rm "$CONTAINER2_ID" > /dev/null
-    docker volume rm "rustbase-deploy-test-volume" > /dev/null
+    docker volume rm "ferritedb-deploy-test-volume" > /dev/null
     
     log_success "Volume persistence tests completed"
 }
@@ -398,7 +397,7 @@ test_performance_baseline() {
     
     # Start container for performance testing
     CONTAINER_ID=$(docker run -d \
-        --name "rustbase-deploy-test-perf" \
+        --name "ferritedb-deploy-test-perf" \
         -p "8092:8090" \
         -e "FERRITEDB_AUTH_JWT_SECRET=test-secret-perf" \
         "$TEST_IMAGE")

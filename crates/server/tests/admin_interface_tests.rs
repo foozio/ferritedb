@@ -28,22 +28,22 @@ fn create_test_app_state() -> AppState {
     };
 
     let auth_service = Arc::new(AuthService::new(auth_config).unwrap());
-    let user_repository = Arc::new(MockUserRepository) as Arc<dyn rustbase_server::routes::UserRepository>;
+    let user_repository = Arc::new(MockUserRepository) as Arc<dyn ferritedb_server::routes::UserRepository>;
     let collection_service = Arc::new(MockCollectionService);
     let record_service = Arc::new(MockRecordService);
     let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
 
-    let storage_config = rustbase_storage::StorageConfig {
-        storage_type: rustbase_storage::StorageType::Local {
-            path: "/tmp/rustbase_admin_test".into(),
+    let storage_config = ferritedb_storage::StorageConfig {
+        storage_type: ferritedb_storage::StorageType::Local {
+            path: "/tmp/ferritedb_admin_test".into(),
         },
         max_file_size: 10 * 1024 * 1024,
         allowed_extensions: vec![],
         blocked_extensions: vec![],
     };
 
-    let storage_backend = Arc::new(rustbase_storage::LocalStorage::new("/tmp/rustbase_admin_test".into()))
-        as Arc<dyn rustbase_storage::StorageBackend>;
+    let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new("/tmp/ferritedb_admin_test".into()))
+        as Arc<dyn ferritedb_storage::StorageBackend>;
 
     let realtime_manager = RealtimeManager::new(auth_service.clone(), rule_engine.clone());
 

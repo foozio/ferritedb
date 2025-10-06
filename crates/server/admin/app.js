@@ -1,8 +1,8 @@
-// RustBase Admin Interface
+// FerriteDB Admin Interface
 class AdminApp {
     constructor() {
-        this.token = localStorage.getItem('rustbase_token');
-        this.refreshToken = localStorage.getItem('rustbase_refresh_token');
+        this.token = localStorage.getItem('ferritedb_token');
+        this.refreshToken = localStorage.getItem('ferritedb_refresh_token');
         this.currentUser = null;
         this.apiBase = '/api';
         
@@ -28,7 +28,7 @@ class AdminApp {
     }
 
     setupTheme() {
-        const savedTheme = localStorage.getItem('rustbase_theme') || 'light';
+        const savedTheme = localStorage.getItem('ferritedb_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         this.updateThemeIcon(savedTheme);
     }
@@ -277,8 +277,8 @@ class AdminApp {
             this.refreshToken = data.token.refresh_token;
             this.currentUser = data.user;
             
-            localStorage.setItem('rustbase_token', this.token);
-            localStorage.setItem('rustbase_refresh_token', this.refreshToken);
+            localStorage.setItem('ferritedb_token', this.token);
+            localStorage.setItem('ferritedb_refresh_token', this.refreshToken);
 
             this.showAdminInterface();
             await this.loadDashboardData();
@@ -315,8 +315,8 @@ class AdminApp {
         this.refreshToken = null;
         this.currentUser = null;
         
-        localStorage.removeItem('rustbase_token');
-        localStorage.removeItem('rustbase_refresh_token');
+        localStorage.removeItem('ferritedb_token');
+        localStorage.removeItem('ferritedb_refresh_token');
         
         this.showLoginScreen();
     }
@@ -326,7 +326,7 @@ class AdminApp {
         const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
         
         document.documentElement.setAttribute('data-theme', newTheme);
-        localStorage.setItem('rustbase_theme', newTheme);
+        localStorage.setItem('ferritedb_theme', newTheme);
         this.updateThemeIcon(newTheme);
     }
 
@@ -1006,8 +1006,8 @@ class AdminApp {
             this.token = data.access_token;
             this.refreshToken = data.refresh_token;
             
-            localStorage.setItem('rustbase_token', this.token);
-            localStorage.setItem('rustbase_refresh_token', this.refreshToken);
+            localStorage.setItem('ferritedb_token', this.token);
+            localStorage.setItem('ferritedb_refresh_token', this.refreshToken);
             
             this.updateJwtDisplay();
             this.showNotification('Token refreshed successfully', 'success');
@@ -1631,8 +1631,8 @@ ${section.request.body ? JSON.stringify(section.request.body, null, 2) : ''}</pr
                 ];
             case 'posts':
                 return [
-                    { id: '1', title: 'Welcome to RustBase', content: 'This is the first post...', author_id: '1', published: true, created_at: '2024-01-18T12:00:00Z' },
-                    { id: '2', title: 'Getting Started Guide', content: 'Learn how to use RustBase...', author_id: '1', published: true, created_at: '2024-01-19T15:30:00Z' },
+                    { id: '1', title: 'Welcome to FerriteDB', content: 'This is the first post...', author_id: '1', published: true, created_at: '2024-01-18T12:00:00Z' },
+                    { id: '2', title: 'Getting Started Guide', content: 'Learn how to use FerriteDB...', author_id: '1', published: true, created_at: '2024-01-19T15:30:00Z' },
                     { id: '3', title: 'Draft Post', content: 'This is a draft...', author_id: '2', published: false, created_at: '2024-01-20T08:45:00Z' }
                 ];
             case 'comments':

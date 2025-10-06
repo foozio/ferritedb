@@ -9,7 +9,7 @@ use ferritedb_core::{Collection, Field, FieldType, UserRole};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
-/// OpenAPI specification generator for RustBase
+/// OpenAPI specification generator for FerriteDB
 pub struct OpenApiGenerator {
     title: String,
     version: String,
@@ -941,7 +941,7 @@ pub async fn swagger_ui_handler() -> impl IntoResponse {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RustBase API Documentation</title>
+    <title>FerriteDB API Documentation</title>
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5.9.0/swagger-ui.css" />
     <style>
         html {
@@ -979,7 +979,7 @@ pub async fn swagger_ui_handler() -> impl IntoResponse {
                 tryItOutEnabled: true,
                 requestInterceptor: function(request) {
                     // Add authorization header if token is available
-                    const token = localStorage.getItem('rustbase_token');
+                    const token = localStorage.getItem('ferritedb_token');
                     if (token) {
                         request.headers['Authorization'] = 'Bearer ' + token;
                     }
@@ -987,27 +987,27 @@ pub async fn swagger_ui_handler() -> impl IntoResponse {
                 },
                 onComplete: function() {
                     // Add custom styling or functionality
-                    console.log('RustBase API Documentation loaded');
+                    console.log('FerriteDB API Documentation loaded');
                 }
             });
 
             // Add token management functionality
             window.setAuthToken = function(token) {
-                localStorage.setItem('rustbase_token', token);
+                localStorage.setItem('ferritedb_token', token);
                 console.log('Auth token set');
             };
 
             window.clearAuthToken = function() {
-                localStorage.removeItem('rustbase_token');
+                localStorage.removeItem('ferritedb_token');
                 console.log('Auth token cleared');
             };
 
             // Add helper functions to window for easy testing
-            window.rustbaseHelpers = {
+            window.ferritedbHelpers = {
                 setToken: window.setAuthToken,
                 clearToken: window.clearAuthToken,
                 getToken: function() {
-                    return localStorage.getItem('rustbase_token');
+                    return localStorage.getItem('ferritedb_token');
                 }
             };
         };

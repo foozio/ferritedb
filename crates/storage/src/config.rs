@@ -104,7 +104,7 @@ impl StorageConfig {
                         secret_key,
                         None,
                         None,
-                        "rustbase-config",
+                        "ferritedb-config",
                     );
                     config_builder = config_builder.credentials_provider(credentials);
                 }

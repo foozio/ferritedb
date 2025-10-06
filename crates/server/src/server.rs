@@ -37,7 +37,7 @@ pub struct Server {
 impl Server {
     /// Create a new server instance with the provided configuration
     pub async fn new(config: CoreConfig) -> ServerResult<Self> {
-        info!("Initializing RustBase server...");
+        info!("Initializing FerriteDB server...");
 
         // Initialize database connection
         let database = Database::new(
@@ -70,8 +70,8 @@ impl Server {
                     }
                 }
                 #[cfg(feature = "s3")]
-                rustbase_core::config::StorageBackend::S3 => {
-                    rustbase_storage::StorageType::S3 {
+                ferritedb_core::config::StorageBackend::S3 => {
+                    ferritedb_storage::StorageType::S3 {
                         bucket: config.storage.s3.bucket.clone(),
                         region: config.storage.s3.region.clone(),
                         access_key_id: config.storage.s3.access_key_id.clone(),

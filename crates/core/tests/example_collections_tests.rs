@@ -274,7 +274,7 @@ async fn test_demo_users_creation() {
     // Verify admin user was created
     let admin_user = seed_service
         .user_repo
-        .find_by_email("admin@rustbase.dev")
+        .find_by_email("admin@ferritedb.dev")
         .await
         .unwrap();
     assert!(admin_user.is_some(), "Admin user should be created");
@@ -352,7 +352,7 @@ async fn test_idempotent_initialization() {
     // Verify users are not duplicated
     let admin_user = seed_service
         .user_repo
-        .find_by_email("admin@rustbase.dev")
+        .find_by_email("admin@ferritedb.dev")
         .await
         .unwrap();
     assert!(admin_user.is_some(), "Admin user should still exist");

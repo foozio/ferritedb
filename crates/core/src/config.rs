@@ -159,7 +159,7 @@ pub struct S3StorageConfig {
 impl Default for S3StorageConfig {
     fn default() -> Self {
         Self {
-            bucket: "rustbase-files".to_string(),
+            bucket: "ferritedb-files".to_string(),
             region: "us-east-1".to_string(),
             access_key_id: None,
             secret_access_key: None,

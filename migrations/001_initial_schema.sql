@@ -1,4 +1,4 @@
--- Initial database schema for RustBase
+-- Initial database schema for FerriteDB
 -- This migration creates the core tables for collections, users, and audit logging
 
 -- Collections metadata table

@@ -1083,10 +1083,10 @@ mod tests {
         let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
         
         // Create mock storage for testing
-        let storage_backend = Arc::new(rustbase_storage::LocalStorage::new(
-            std::path::PathBuf::from("/tmp/test-storage")
-        )) as Arc<dyn rustbase_storage::StorageBackend>;
-        let storage_config = rustbase_storage::StorageConfig::default();
+        let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new(
+            "/tmp/ferritedb_test_storage".into(),
+        )) as Arc<dyn ferritedb_storage::StorageBackend>;
+        let storage_config = ferritedb_storage::StorageConfig::default();
 
         let realtime_manager = RealtimeManager::new(auth_service.clone(), rule_engine.clone());
 

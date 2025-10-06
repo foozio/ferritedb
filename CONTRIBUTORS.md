@@ -12,7 +12,7 @@ This file recognizes all the amazing people who have contributed to FerriteDB.
 - 🔐 **Authentication System**: Built the JWT-based authentication with Argon2 password hashing
 - 🛡️ **Rules Engine**: Created the CEL-like rules engine for access control
 - 📊 **Dynamic Collections**: Implemented the dynamic schema system
-- 🔄 **Complete Rebrand**: Led the comprehensive RustBase to FerriteDB rebrand
+- 🔄 **Complete Rebrand**: Led the comprehensive FerriteDB rebrand
 - 📝 **Documentation**: Authored comprehensive documentation and guides
 - 🧪 **Testing & Validation**: Established testing frameworks and validation processes
 
