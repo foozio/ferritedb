@@ -961,4 +961,223 @@ metrics = true
 
 ---
 
-This deployment guide covers the most common scenarios for deploying FerriteDB. For specific questions or advanced configurations, please refer to the [documentation](https://ferritedb.dev/docs) or join our [community](https://discord.gg/ferritedb).
+This deployment guide covers the most common scenarios for deploying FerriteDB. For specific questions or advanced configurations, please refer to the [documentation](https://ferritedb.dev/docs) or join our [community](https://discord.gg/ferritedb).  
+            key: jwt-secret
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+```
+
+#### Azure Container Instances
+```bash
+# Deploy to Azure Container Instances
+az container create \
+  --resource-group myResourceGroup \
+  --name ferritedb \
+  --image ferritedb/ferritedb:latest \
+  --dns-name-label ferritedb-unique \
+  --ports 8090 \
+  --environment-variables \
+    FERRITEDB_AUTH_JWT_SECRET=your-jwt-secret \
+  --secure-environment-variables \
+    FERRITEDB_DATABASE_URL=postgresql://user:pass@host:5432/db
+```
+
+## Production Considerations
+
+### High Availability Setup
+
+#### Load Balancer Configuration (Nginx)
+```nginx
+# /etc/nginx/sites-available/ferritedb
+upstream ferritedb_backend {
+    least_conn;
+    server ferritedb1:8090 max_fails=3 fail_timeout=30s;
+    server ferritedb2:8090 max_fails=3 fail_timeout=30s;
+    server ferritedb3:8090 max_fails=3 fail_timeout=30s;
+}
+
+server {
+    listen 80;
+    listen 443 ssl http2;
+    server_name api.yourdomain.com;
+
+    # SSL Configuration
+    ssl_certificate /etc/ssl/certs/ferritedb.crt;
+    ssl_certificate_key /etc/ssl/private/ferritedb.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers ECDHE-RSA-AES256-GCM-SHA512:DHE-RSA-AES256-GCM-SHA512;
+    ssl_prefer_server_ciphers off;
+
+    # Security Headers
+    add_header X-Frame-Options DENY;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload";
+
+    # Rate Limiting
+    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
+    limit_req zone=api burst=20 nodelay;
+
+    # Proxy Configuration
+    location / {
+        proxy_pass http://ferritedb_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # WebSocket support
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+    }
+
+    # Health check endpoint
+    location /health {
+        access_log off;
+        proxy_pass http://ferritedb_backend/api/health;
+    }
+}
+```
+
+### Database Configuration
+
+#### PostgreSQL Production Setup
+```sql
+-- Create database and user
+CREATE DATABASE ferritedb;
+CREATE USER ferritedb_user WITH ENCRYPTED PASSWORD 'secure_password';
+GRANT ALL PRIVILEGES ON DATABASE ferritedb TO ferritedb_user;
+
+-- Performance tuning
+ALTER SYSTEM SET shared_buffers = '256MB';
+ALTER SYSTEM SET effective_cache_size = '1GB';
+ALTER SYSTEM SET maintenance_work_mem = '64MB';
+ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+ALTER SYSTEM SET wal_buffers = '16MB';
+ALTER SYSTEM SET default_statistics_target = 100;
+```
+
+#### Connection Pooling with PgBouncer
+```ini
+# /etc/pgbouncer/pgbouncer.ini
+[databases]
+ferritedb = host=localhost port=5432 dbname=ferritedb
+
+[pgbouncer]
+listen_port = 6432
+listen_addr = 127.0.0.1
+auth_type = md5
+auth_file = /etc/pgbouncer/userlist.txt
+logfile = /var/log/pgbouncer/pgbouncer.log
+pidfile = /var/run/pgbouncer/pgbouncer.pid
+admin_users = postgres
+stats_users = stats, postgres
+pool_mode = transaction
+server_reset_query = DISCARD ALL
+max_client_conn = 100
+default_pool_size = 20
+```
+
+### Backup and Recovery
+
+#### Automated Backup Script
+```bash
+#!/bin/bash
+# backup-ferritedb.sh
+
+set -e
+
+BACKUP_DIR="/backups/ferritedb"
+DATE=$(date +%Y%m%d_%H%M%S)
+RETENTION_DAYS=30
+
+# Create backup directory
+mkdir -p "$BACKUP_DIR"
+
+# Database backup
+if [[ "$DATABASE_TYPE" == "postgresql" ]]; then
+    pg_dump "$DATABASE_URL" | gzip > "$BACKUP_DIR/db_$DATE.sql.gz"
+elif [[ "$DATABASE_TYPE" == "sqlite" ]]; then
+    sqlite3 "$SQLITE_PATH" ".backup '$BACKUP_DIR/db_$DATE.sqlite'"
+    gzip "$BACKUP_DIR/db_$DATE.sqlite"
+fi
+
+# Files backup
+tar -czf "$BACKUP_DIR/files_$DATE.tar.gz" -C "$FILES_PATH" .
+
+# Upload to S3 (optional)
+if [[ -n "$S3_BACKUP_BUCKET" ]]; then
+    aws s3 cp "$BACKUP_DIR/db_$DATE.sql.gz" "s3://$S3_BACKUP_BUCKET/database/"
+    aws s3 cp "$BACKUP_DIR/files_$DATE.tar.gz" "s3://$S3_BACKUP_BUCKET/files/"
+fi
+
+# Cleanup old backups
+find "$BACKUP_DIR" -name "*.gz" -mtime +$RETENTION_DAYS -delete
+
+echo "Backup completed: $DATE"
+```
+
+## Monitoring and Maintenance
+
+### Health Checks
+```bash
+# Basic health check
+curl -f http://localhost:8090/api/health
+
+# Detailed readiness check
+curl -f http://localhost:8090/api/readyz
+
+# Custom health check script
+#!/bin/bash
+response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/api/health)
+if [ $response -eq 200 ]; then
+    echo "FerriteDB is healthy"
+    exit 0
+else
+    echo "FerriteDB is unhealthy (HTTP $response)"
+    exit 1
+fi
+```
+
+## Security Best Practices
+
+### SSL/TLS Configuration
+```bash
+# Generate SSL certificate with Let's Encrypt
+certbot --nginx -d api.yourdomain.com
+
+# Or use self-signed for development
+openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes
+```
+
+### Firewall Configuration
+```bash
+# UFW (Ubuntu)
+sudo ufw allow 22/tcp    # SSH
+sudo ufw allow 80/tcp    # HTTP
+sudo ufw allow 443/tcp   # HTTPS
+sudo ufw deny 8090/tcp   # Block direct access to FerriteDB
+sudo ufw enable
+
+# iptables
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8090 -s 127.0.0.1 -j ACCEPT
+iptables -A INPUT -p tcp --dport 8090 -j DROP
+```
+
+---
+
+*This deployment guide is maintained by the FerriteDB team and updated with each release.*
