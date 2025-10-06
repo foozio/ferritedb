@@ -35,7 +35,7 @@ thiserror.workspace = true
 anyhow.workspace = true
 futures-util.workspace = true
 regex = "1.10"
-base64 = "0.21"
+base64 = "0.22"
 rand_core.workspace = true
 
 [dev-dependencies]
