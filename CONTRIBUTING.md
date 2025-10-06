@@ -323,6 +323,35 @@ FerriteDB follows [Semantic Versioning](https://semver.org/):
 4. Tag release after merge
 5. Automated CI builds and publishes artifacts
 
+## Contributor Recognition
+
+We believe in recognizing and celebrating our contributors! Here's how we show appreciation:
+
+### 🏅 Recognition Process
+
+1. **First Contribution**: Welcome message and thanks in the PR
+2. **Regular Contributor**: Added to our [Contributors list](CONTRIBUTORS.md)
+3. **Significant Contributions**: Featured in release notes and announcements
+4. **Core Contributor**: Invitation to join the core team discussions
+
+### 📝 How to Get Listed
+
+All contributors who have merged pull requests will be automatically added to our contributors list. We recognize contributions of all types:
+
+- **Code contributions** (features, bug fixes, improvements)
+- **Documentation** (guides, API docs, examples)
+- **Testing** (unit tests, integration tests, bug reports)
+- **Community support** (helping users, answering questions)
+- **Design and UX** (UI improvements, user experience enhancements)
+
+### 🌟 Maintainer
+
+**[@foozio](https://github.com/foozio)** is the project creator and lead maintainer, responsible for:
+- Overall project vision and roadmap
+- Architecture decisions and code reviews
+- Community management and contributor onboarding
+- Release management and project governance
+
 ## Community
 
 ### Communication Channels

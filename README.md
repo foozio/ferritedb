@@ -542,6 +542,43 @@ wrk -t12 -c400 -d30s http://localhost:8090/api/collections/posts/records
 - **Discussions**: [GitHub Discussions](https://github.com/ferritedb/ferritedb/discussions)
 - **Issues**: [GitHub Issues](https://github.com/ferritedb/ferritedb/issues)
 
+## 👥 Contributors
+
+### Maintainer
+
+- **[@foozio](https://github.com/foozio)** - Project Creator & Lead Maintainer
+
+### Core Contributors
+
+We welcome contributions from the community! Here are the amazing people who have contributed to FerriteDB:
+
+<!-- Contributors list will be automatically updated -->
+<a href="https://github.com/foozio/ferritedb/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=foozio/ferritedb" />
+</a>
+
+**Featured Contributors:**
+- **[@foozio](https://github.com/foozio)** - Core architecture, authentication system, rules engine, and project leadership
+
+*See our complete [Contributors List](CONTRIBUTORS.md) for detailed contributions.*
+
+### How to Contribute
+
+We'd love your help making FerriteDB better! Here's how you can contribute:
+
+1. **🐛 Report Bugs** - Found a bug? [Open an issue](https://github.com/foozio/ferritedb/issues/new?template=bug_report.yml)
+2. **💡 Suggest Features** - Have an idea? [Request a feature](https://github.com/foozio/ferritedb/issues/new?template=feature_request.yml)
+3. **📝 Improve Documentation** - Help make our docs better
+4. **🔧 Submit Code** - Fix bugs or implement new features
+5. **🧪 Write Tests** - Help us improve test coverage
+6. **🌍 Translate** - Help make FerriteDB accessible worldwide
+
+### Recognition
+
+All contributors will be recognized here and in our release notes. We believe in giving credit where credit is due!
+
+**Want to see your name here?** Check out our [Contributing Guide](CONTRIBUTING.md) to get started.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
