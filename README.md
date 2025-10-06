@@ -3,7 +3,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.75+-orange.svg)](https://www.rust-lang.org)
 
-
 **FerriteDB** is a developer-friendly backend service that provides a complete backend-as-a-service solution in a single self-contained binary. Built with Rust for performance, security, and reliability.
 
 ## ✨ Features
@@ -99,19 +98,19 @@ Define who can access your data with CEL-like expressions:
 
 ```javascript
 // List Rule: Anyone can see published posts
-"record.published = true || @request.auth.id != ''"
+"record.published = true || @request.auth.id != ''";
 
 // View Rule: Anyone can view published, owners can view drafts
-"record.published = true || record.author_id = @request.auth.id"
+"record.published = true || record.author_id = @request.auth.id";
 
 // Create Rule: Only authenticated users
-"@request.auth.id != ''"
+"@request.auth.id != ''";
 
 // Update Rule: Only the author or admin
-"record.author_id = @request.auth.id || @request.auth.role = 'admin'"
+"record.author_id = @request.auth.id || @request.auth.role = 'admin'";
 
 // Delete Rule: Only admins
-"@request.auth.role = 'admin'"
+"@request.auth.role = 'admin'";
 ```
 
 ### REST API Usage
@@ -144,20 +143,22 @@ curl -X PATCH http://localhost:8090/api/collections/posts/records/POST_ID \
 ### Realtime Subscriptions
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8090/realtime');
+const ws = new WebSocket("ws://localhost:8090/realtime");
 
 ws.onopen = () => {
   // Subscribe to posts collection
-  ws.send(JSON.stringify({
-    type: 'subscribe',
-    collection: 'posts',
-    filter: 'record.published = true'
-  }));
+  ws.send(
+    JSON.stringify({
+      type: "subscribe",
+      collection: "posts",
+      filter: "record.published = true",
+    })
+  );
 };
 
 ws.onmessage = (event) => {
   const data = JSON.parse(event.data);
-  console.log('Realtime update:', data);
+  console.log("Realtime update:", data);
 };
 ```
 
@@ -354,7 +355,7 @@ CMD ["ferritedb", "serve"]
 ### Docker Compose
 
 ```yaml
-version: '3.8'
+version: "3.8"
 
 services:
   ferritedb:
@@ -417,22 +418,22 @@ fly deploy
 ```yaml
 name: ferritedb
 services:
-- name: api
-  source_dir: /
-  github:
-    repo: your-username/your-ferritedb-fork
-    branch: main
-  run_command: ferritedb serve
-  environment_slug: rust
-  instance_count: 1
-  instance_size_slug: basic-xxs
-  envs:
-  - key: FERRITEDB_AUTH_JWT_SECRET
-    value: your-production-secret
-    type: SECRET
-  http_port: 8090
-  health_check:
-    http_path: /healthz
+  - name: api
+    source_dir: /
+    github:
+      repo: your-username/your-ferritedb-fork
+      branch: main
+    run_command: ferritedb serve
+    environment_slug: rust
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: FERRITEDB_AUTH_JWT_SECRET
+        value: your-production-secret
+        type: SECRET
+    http_port: 8090
+    health_check:
+      http_path: /healthz
 ```
 
 ## 🧪 Development
@@ -558,9 +559,10 @@ We welcome contributions from the community! Here are the amazing people who hav
 </a>
 
 **Featured Contributors:**
+
 - **[@foozio](https://github.com/foozio)** - Core architecture, authentication system, rules engine, and project leadership
 
-*See our complete [Contributors List](CONTRIBUTORS.md) for detailed contributions.*
+_See our complete [Contributors List](CONTRIBUTORS.md) for detailed contributions._
 
 ### How to Contribute
 
