@@ -146,3 +146,8 @@ strip = true
 
 [profile.dev]
 debug = 1
+
+[dev-dependencies]
+serde_yaml = "0.9"
+toml = "0.8"
+reqwest.workspace = true

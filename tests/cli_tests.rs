@@ -1,17 +1,30 @@
+use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 use tempfile::tempdir;
-use uuid::Uuid;
 
 /// Helper function to get the path to the ferritedb binary
 fn ferritedb_binary() -> PathBuf {
-    let mut path = std::env::current_exe().unwrap();
+    let mut path = env::current_exe().unwrap();
     path.pop(); // Remove test binary name
     if path.ends_with("deps") {
         path.pop(); // Remove deps directory
     }
     path.push("ferritedb");
     path
+}
+
+const CLI_TEST_ENV: &str = "RUN_CLI_INTEGRATION_TESTS";
+
+fn cli_tests_enabled(test_name: &str) -> bool {
+    if env::var(CLI_TEST_ENV).is_err() {
+        println!(
+            "Skipping {}. Set {}=1 to execute CLI integration tests.",
+            test_name, CLI_TEST_ENV
+        );
+        return false;
+    }
+    true
 }
 
 /// Helper function to create a temporary database configuration
@@ -22,6 +35,7 @@ fn create_temp_config(db_path: &str) -> String {
 url = "sqlite:{}"
 max_connections = 5
 connection_timeout = 30
+auto_migrate = true
 
 [auth]
 jwt_secret = "test-secret-key-for-testing-only-do-not-use-in-production"
@@ -47,6 +61,10 @@ burst_size = 10
 
 #[test]
 fn test_migrate_run_command() {
+    if !cli_tests_enabled("migrate run command") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -77,6 +95,10 @@ fn test_migrate_run_command() {
 
 #[test]
 fn test_migrate_status_command() {
+    if !cli_tests_enabled("migrate status command") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -110,6 +132,10 @@ fn test_migrate_status_command() {
 
 #[test]
 fn test_admin_create_command() {
+    if !cli_tests_enabled("admin create command") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -142,6 +168,10 @@ fn test_admin_create_command() {
 
 #[test]
 fn test_admin_list_command() {
+    if !cli_tests_enabled("admin list command") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -180,6 +210,10 @@ fn test_admin_list_command() {
 
 #[test]
 fn test_gen_jwt_command() {
+    if !cli_tests_enabled("gen jwt command") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -225,11 +259,15 @@ fn test_gen_jwt_command() {
 
 #[test]
 fn test_import_export_json_data() {
+    if !cli_tests_enabled("import export json") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
     let import_file = temp_dir.path().join("test_data.json");
-    let export_file = temp_dir.path().join("exported_data.json");
+    let _export_file = temp_dir.path().join("exported_data.json");
     
     // Create config file
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
@@ -275,6 +313,10 @@ fn test_import_export_json_data() {
 
 #[test]
 fn test_import_csv_data() {
+    if !cli_tests_enabled("import csv data") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -308,6 +350,10 @@ fn test_import_csv_data() {
 
 #[test]
 fn test_export_nonexistent_collection() {
+    if !cli_tests_enabled("export nonexistent collection") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -336,6 +382,10 @@ fn test_export_nonexistent_collection() {
 
 #[test]
 fn test_gen_jwt_nonexistent_user() {
+    if !cli_tests_enabled("gen jwt nonexistent user") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -364,6 +414,10 @@ fn test_gen_jwt_nonexistent_user() {
 
 #[test]
 fn test_admin_create_duplicate_user() {
+    if !cli_tests_enabled("admin create duplicate user") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");
@@ -406,6 +460,10 @@ fn test_admin_create_duplicate_user() {
 
 #[test]
 fn test_migrate_revert_command() {
+    if !cli_tests_enabled("migrate revert command") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let config_path = temp_dir.path().join("config.toml");

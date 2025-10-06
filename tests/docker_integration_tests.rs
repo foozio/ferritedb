@@ -289,7 +289,8 @@ async fn test_docker_container_graceful_shutdown() {
         .output()
         .expect("Failed to inspect container");
 
-    let exit_code = String::from_utf8_lossy(&inspect_output.stdout).trim();
+    let exit_code_output = String::from_utf8_lossy(&inspect_output.stdout);
+    let exit_code = exit_code_output.trim();
     assert_eq!(exit_code, "0", "Container did not exit cleanly");
 
     // Cleanup
@@ -450,7 +451,8 @@ async fn test_docker_security_configuration() {
         .output()
         .expect("Failed to check user");
 
-    let user = String::from_utf8_lossy(&user_check.stdout).trim();
+    let user_output = String::from_utf8_lossy(&user_check.stdout);
+    let user = user_output.trim();
     assert_ne!(user, "root", "Container should not run as root user");
 
     // Check file permissions

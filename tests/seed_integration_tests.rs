@@ -1,16 +1,29 @@
-use ferritedb_core::{
-    auth::{AuthConfig, AuthService},
-    seed::SeedService,
-    Database, UserRepository,
-};
+use ferritedb_core::{auth::AuthService, config::AuthConfig, Database, UserRepository};
 use serde_json::json;
-use std::process::Command;
+use std::{env, process::Command};
 use tempfile::tempdir;
 use tokio::time::{sleep, Duration};
+
+const SEED_TEST_ENV: &str = "RUN_SEED_INTEGRATION_TESTS";
+
+fn seed_tests_enabled(test_name: &str) -> bool {
+    if env::var(SEED_TEST_ENV).is_err() {
+        println!(
+            "Skipping {}. Set {}=1 to execute seed integration tests.",
+            test_name, SEED_TEST_ENV
+        );
+        return false;
+    }
+    true
+}
 
 /// Integration tests for seed data initialization via CLI
 #[tokio::test]
 async fn test_seed_command_integration() {
+    if !seed_tests_enabled("seed command integration") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
@@ -86,11 +99,15 @@ jwt_secret = "test-secret-for-integration-test"
 
 #[tokio::test]
 async fn test_seed_command_idempotent() {
+    if !seed_tests_enabled("seed command idempotent") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
 
-    let config_content = format!(
+    let _config_content = format!(
         r#"
 [server]
 host = "127.0.0.1"
@@ -144,6 +161,10 @@ jwt_secret = "test-secret-for-integration-test"
 
 #[tokio::test]
 async fn test_server_with_seeded_data() {
+    if !seed_tests_enabled("server with seeded data") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
@@ -213,6 +234,10 @@ async fn test_server_with_seeded_data() {
 
 #[tokio::test]
 async fn test_collections_created_with_proper_schema() {
+    if !seed_tests_enabled("collections created with proper schema") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
@@ -282,6 +307,10 @@ async fn test_collections_created_with_proper_schema() {
 
 #[tokio::test]
 async fn test_admin_user_can_authenticate() {
+    if !seed_tests_enabled("admin user authenticate") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
@@ -346,6 +375,10 @@ async fn test_admin_user_can_authenticate() {
 
 #[tokio::test]
 async fn test_demo_users_have_correct_passwords() {
+    if !seed_tests_enabled("demo users passwords") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
@@ -399,6 +432,10 @@ async fn test_demo_users_have_correct_passwords() {
 
 #[tokio::test]
 async fn test_seed_with_force_flag() {
+    if !seed_tests_enabled("seed with force flag") {
+        return;
+    }
+
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());

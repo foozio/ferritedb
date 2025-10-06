@@ -311,13 +311,13 @@ data:
 
 FerriteDB provides built-in health check endpoints:
 
-- `/healthz`: Liveness probe (service is running)
-- `/readyz`: Readiness probe (service can handle requests)
+- `/api/health`: Liveness probe (service is running)
+- `/api/readyz`: Readiness probe (service can handle requests)
 
 ```bash
 # Check service health
-curl -f http://localhost:8090/healthz
-curl -f http://localhost:8090/readyz
+curl -f http://localhost:8090/api/health
+curl -f http://localhost:8090/api/readyz
 ```
 
 ### Metrics Collection
