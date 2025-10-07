@@ -118,7 +118,7 @@ aws-sdk-s3 = "1.0"
 image = "0.24"
 
 # OAuth2 (optional feature)
-oauth2 = "4.4"
+oauth2 = "5.0"
 reqwest = { version = "0.11", features = ["json"] }
 
 # Expression evaluation
