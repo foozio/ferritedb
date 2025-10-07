@@ -225,13 +225,20 @@ impl CollectionService {
             }
         }
 
-        for fk in foreign_keys {
-            sql.push_str(&format!("{},\n", fk));
+        // Add foreign keys if any
+        if !foreign_keys.is_empty() {
+            for fk in foreign_keys {
+                sql.push_str(&format!("    {},\n", fk));
+            }
         }
-        
-        // Standard timestamp fields
-        sql.push_str("    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n");
-        sql.push_str("    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n");
+
+        // Standard timestamp fields (only if not already present)
+        if !sql.contains("created_at") {
+            sql.push_str("    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n");
+        }
+        if !sql.contains("updated_at") {
+            sql.push_str("    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP\n");
+        }
         sql.push(')');
 
         Ok(sql)

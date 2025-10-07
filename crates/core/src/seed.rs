@@ -17,11 +17,11 @@ use uuid::Uuid;
 /// Service for creating example collections and seed data
 #[derive(Clone)]
 pub struct SeedService {
-    collection_repo: CollectionRepository,
-    user_repo: UserRepository,
-    record_service: RecordService,
-    schema_manager: SchemaManager,
-    auth_service: AuthService,
+    pub collection_repo: CollectionRepository,
+    pub user_repo: UserRepository,
+    pub record_service: RecordService,
+    pub schema_manager: SchemaManager,
+    pub auth_service: AuthService,
 }
 
 impl SeedService {
@@ -303,7 +303,7 @@ impl SeedService {
         // Create admin user
         let admin_email = "admin@ferritedb.dev";
         if self.user_repo.find_by_email(admin_email).await?.is_none() {
-            let admin_password = "admin123".to_string();
+            let admin_password = "Admin123!".to_string();
             let password_hash = self.auth_service.hash_password(&admin_password)
                 .map_err(|e| CoreError::Authentication(e.to_string()))?;
 
@@ -329,7 +329,7 @@ impl SeedService {
 
         for (name, email) in example_users {
             if self.user_repo.find_by_email(email).await?.is_none() {
-                let user_password = "password123".to_string();
+                let user_password = "Password123!".to_string();
                 let password_hash = self.auth_service.hash_password(&user_password)
                     .map_err(|e| CoreError::Authentication(e.to_string()))?;
 

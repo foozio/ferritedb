@@ -17,7 +17,7 @@ use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{middleware::AuthUser, routes::AppState};
+use crate::{middleware::AuthUser, routes::{AppState, CollectionServiceTrait}};
 
 /// WebSocket connection query parameters for authentication
 #[derive(Debug, Deserialize)]
@@ -204,7 +204,7 @@ impl RealtimeManager {
         user_id: Uuid,
         user_role: UserRole,
         user_email: &str,
-        collection_service: &crate::routes::MockCollectionService,
+        collection_service: &dyn crate::routes::CollectionServiceTrait,
     ) -> Result<bool, String> {
         // Get collection to check rules
         let collection = collection_service
@@ -252,7 +252,7 @@ impl RealtimeManager {
         &self,
         event: &RealtimeEvent,
         subscription: &Subscription,
-        collection_service: &crate::routes::MockCollectionService,
+        collection_service: &dyn crate::routes::CollectionServiceTrait,
     ) -> bool {
         // Check if event matches subscription collection
         if event.collection != subscription.collection {
@@ -294,7 +294,7 @@ impl RealtimeManager {
     pub async fn broadcast_event(
         &self,
         event: RealtimeEvent,
-        collection_service: &crate::routes::MockCollectionService,
+        collection_service: &dyn crate::routes::CollectionServiceTrait,
     ) {
         debug!("Broadcasting event for collection: {}", event.collection);
         
@@ -565,7 +565,7 @@ async fn handle_client_message(
                 auth_user.id,
                 auth_user.role.clone(),
                 &auth_user.email,
-                &state.collection_service,
+                state.collection_service.as_ref(),
             ).await?;
 
             if !has_access {

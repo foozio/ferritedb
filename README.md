@@ -81,8 +81,8 @@ That's it! FerriteDB is now running on `http://localhost:8090`
 
 The seed command creates demo users:
 
-- **Admin**: `admin@ferritedb.dev` / `admin123`
-- **Users**: `alice@example.com`, `bob@example.com`, `carol@example.com` / `password123`
+- **Admin**: `admin@ferritedb.dev` / `Admin123!`
+- **Users**: `alice@example.com`, `bob@example.com`, `carol@example.com` / `Password123!`
 
 ## 📚 Documentation
 

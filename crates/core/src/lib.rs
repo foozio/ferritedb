@@ -12,6 +12,8 @@ pub mod schema_manager;
 pub mod seed;
 
 pub use audit::{AuditAction, AuditContext, AuditLogEntry, AuditLogger};
+pub use auth::AuthService;
+pub use config::AuthConfig;
 pub use collections::CollectionService;
 pub use config::CoreConfig;
 pub use database::{Database, DatabasePool};

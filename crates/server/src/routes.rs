@@ -78,6 +78,74 @@ pub trait UserRepository: Send + Sync {
     async fn create(&self, request: CreateUserRequest, password_hash: String) -> Result<User, Box<dyn Error + Send + Sync>>;
 }
 
+// Service traits for dependency injection
+#[axum::async_trait]
+pub trait CollectionServiceTrait: Send + Sync {
+    async fn get_collection(&self, name: &str) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>>;
+}
+
+#[axum::async_trait]
+pub trait RecordServiceTrait: Send + Sync {
+    async fn list_records(&self, collection_name: &str, limit: i64, offset: i64) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>>;
+    async fn list_records_with_query(&self, collection_name: &str, limit: i64, offset: i64, filter: Option<&str>, sort: Option<&str>, fields: Option<&[String]>) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>>;
+    async fn create_record(&self, collection_name: &str, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record>;
+    async fn get_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Record>>;
+    async fn update_record(&self, collection_name: &str, record_id: uuid::Uuid, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record>;
+    async fn delete_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<bool>;
+    async fn count_records(&self, collection_name: &str) -> ferritedb_core::CoreResult<i64>;
+    async fn count_records_with_filter(&self, collection_name: &str, filter: Option<&str>) -> ferritedb_core::CoreResult<i64>;
+    async fn table_exists(&self, collection_name: &str) -> ferritedb_core::CoreResult<bool>;
+}
+
+// Implement traits for real services
+use ferritedb_core::{CollectionService as CoreCollectionService, RecordService as CoreRecordService};
+
+#[axum::async_trait]
+impl CollectionServiceTrait for CoreCollectionService {
+    async fn get_collection(&self, name: &str) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>> {
+        CoreCollectionService::get_collection(self, name).await
+    }
+}
+
+#[axum::async_trait]
+impl RecordServiceTrait for CoreRecordService {
+    async fn list_records(&self, collection_name: &str, limit: i64, offset: i64) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>> {
+        CoreRecordService::list_records(self, collection_name, limit, offset).await
+    }
+
+    async fn list_records_with_query(&self, collection_name: &str, limit: i64, offset: i64, filter: Option<&str>, sort: Option<&str>, fields: Option<&[String]>) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>> {
+        CoreRecordService::list_records_with_query(self, collection_name, limit, offset, filter, sort, fields).await
+    }
+
+    async fn create_record(&self, collection_name: &str, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record> {
+        CoreRecordService::create_record(self, collection_name, data).await
+    }
+
+    async fn get_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Record>> {
+        CoreRecordService::get_record(self, collection_name, record_id).await
+    }
+
+    async fn update_record(&self, collection_name: &str, record_id: uuid::Uuid, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record> {
+        CoreRecordService::update_record(self, collection_name, record_id, data).await
+    }
+
+    async fn delete_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<bool> {
+        CoreRecordService::delete_record(self, collection_name, record_id).await
+    }
+
+    async fn count_records(&self, collection_name: &str) -> ferritedb_core::CoreResult<i64> {
+        CoreRecordService::count_records(self, collection_name).await
+    }
+
+    async fn count_records_with_filter(&self, collection_name: &str, filter: Option<&str>) -> ferritedb_core::CoreResult<i64> {
+        CoreRecordService::count_records_with_filter(self, collection_name, filter).await
+    }
+
+    async fn table_exists(&self, collection_name: &str) -> ferritedb_core::CoreResult<bool> {
+        CoreRecordService::table_exists(self, collection_name).await
+    }
+}
+
 // Mock implementations for testing
 pub struct MockUserRepository;
 pub struct MockCollectionService;
@@ -221,8 +289,8 @@ where
 pub struct AppState {
     pub auth_service: Arc<AuthService>,
     pub user_repository: Arc<dyn UserRepository>,
-    pub collection_service: Arc<MockCollectionService>,
-    pub record_service: Arc<MockRecordService>,
+    pub collection_service: Arc<dyn CollectionServiceTrait>,
+    pub record_service: Arc<dyn RecordServiceTrait>,
     pub rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
     pub storage_backend: Arc<dyn ferritedb_storage::StorageBackend>,
     pub storage_config: ferritedb_storage::StorageConfig,
@@ -932,8 +1000,8 @@ async fn upload_file(
     let file_state = FileAppState {
         storage_backend: state.storage_backend.clone(),
         storage_config: state.storage_config.clone(),
-        collection_service: state.collection_service.clone() as Arc<dyn FileCollectionService>,
-        record_service: state.record_service.clone() as Arc<dyn FileRecordService>,
+        collection_service: Arc::new(MockCollectionService) as Arc<dyn FileCollectionService>,
+        record_service: Arc::new(MockRecordService) as Arc<dyn FileRecordService>,
     };
     
     upload_file_handler(State(file_state), path, auth_user, multipart).await
@@ -948,8 +1016,8 @@ async fn serve_file(
     let file_state = FileAppState {
         storage_backend: state.storage_backend.clone(),
         storage_config: state.storage_config.clone(),
-        collection_service: state.collection_service.clone() as Arc<dyn FileCollectionService>,
-        record_service: state.record_service.clone() as Arc<dyn FileRecordService>,
+        collection_service: Arc::new(MockCollectionService) as Arc<dyn FileCollectionService>,
+        record_service: Arc::new(MockRecordService) as Arc<dyn FileRecordService>,
     };
     
     serve_file_handler(State(file_state), path, auth_user).await
@@ -964,8 +1032,8 @@ async fn delete_file(
     let file_state = FileAppState {
         storage_backend: state.storage_backend.clone(),
         storage_config: state.storage_config.clone(),
-        collection_service: state.collection_service.clone() as Arc<dyn FileCollectionService>,
-        record_service: state.record_service.clone() as Arc<dyn FileRecordService>,
+        collection_service: Arc::new(MockCollectionService) as Arc<dyn FileCollectionService>,
+        record_service: Arc::new(MockRecordService) as Arc<dyn FileRecordService>,
     };
     
     delete_file_handler(State(file_state), path, auth_user).await

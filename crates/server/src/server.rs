@@ -58,8 +58,13 @@ impl Server {
         );
         let user_repository: Arc<dyn crate::routes::UserRepository> =
             Arc::new(ferritedb_core::UserRepository::new(db_pool.clone()));
-        let collection_service = Arc::new(MockCollectionService);
-        let record_service = Arc::new(MockRecordService);
+        let collection_service = Arc::new(ferritedb_core::CollectionService::new(
+            ferritedb_core::CollectionRepository::new(db_pool.clone())
+        ));
+        let record_service = Arc::new(ferritedb_core::RecordService::new(
+            db_pool.clone(),
+            ferritedb_core::CollectionService::new(ferritedb_core::CollectionRepository::new(db_pool.clone()))
+        ));
         let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
 
         // Convert core storage config to storage crate config

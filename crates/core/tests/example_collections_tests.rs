@@ -1,5 +1,6 @@
 use ferritedb_core::{
-    auth::{AuthConfig, AuthService},
+    auth::AuthService,
+    config::AuthConfig,
     models::{CreateUserRequest, UserRole},
     seed::SeedService,
     Database, UserRepository,
@@ -310,7 +311,7 @@ async fn test_demo_posts_creation() {
     seed_service.initialize_examples().await.unwrap();
 
     // Check that demo posts were created
-    let posts_count = seed_service.count_records("posts").await.unwrap();
+    let posts_count = seed_service.record_service.count_records("posts").await.unwrap();
     assert!(posts_count > 0, "Demo posts should be created");
 
     // Note: The actual record creation is simplified in the current implementation
