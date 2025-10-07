@@ -126,7 +126,7 @@ pest = "2.7"
 pest_derive = "2.7"
 
 # WebSocket client
-tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+tokio-tungstenite = { version = "0.28", features = ["native-tls"] }
 url = "2.5"
 
 # Async trait support
