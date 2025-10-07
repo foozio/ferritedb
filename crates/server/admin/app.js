@@ -1,8 +1,23 @@
+const HTML_ESCAPE_MAP = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+};
+
+function escapeHtml(value) {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    return String(value).replace(/[&<>"']/g, (char) => HTML_ESCAPE_MAP[char]);
+}
+
 // FerriteDB Admin Interface
 class AdminApp {
     constructor() {
-        this.token = localStorage.getItem('ferritedb_token');
-        this.refreshToken = localStorage.getItem('ferritedb_refresh_token');
+        this.token = sessionStorage.getItem('ferritedb_token');
+        this.refreshToken = sessionStorage.getItem('ferritedb_refresh_token');
         this.currentUser = null;
         this.apiBase = '/api';
         
@@ -25,6 +40,38 @@ class AdminApp {
         } else {
             this.showLoginScreen();
         }
+    }
+
+    bindUserTableEvents(tableBody) {
+        const buttons = tableBody.querySelectorAll('.user-action-btn');
+        buttons.forEach((button) => {
+            const action = button.getAttribute('data-user-action');
+            if (!action) {
+                return;
+            }
+
+            const clonedButton = button.cloneNode(true);
+            button.replaceWith(clonedButton);
+            const userId = clonedButton.getAttribute('data-user-id');
+
+            switch (action) {
+                case 'edit':
+                    clonedButton.addEventListener('click', () => this.editUser(userId));
+                    break;
+                case 'toggle-verification': {
+                    const verifiedAttr = clonedButton.getAttribute('data-next-verified');
+                    const nextVerified = verifiedAttr === 'true';
+                    clonedButton.addEventListener('click', () => this.toggleUserVerification(userId, nextVerified));
+                    break;
+                }
+                case 'reset-password':
+                    clonedButton.addEventListener('click', () => this.resetUserPassword(userId));
+                    break;
+                case 'delete':
+                    clonedButton.addEventListener('click', () => this.deleteUser(userId));
+                    break;
+            }
+        });
     }
 
     setupTheme() {
@@ -243,6 +290,22 @@ class AdminApp {
         }
     }
 
+    formatDate(value, options = { dateStyle: 'medium' }) {
+        if (!value) {
+            return '-';
+        }
+
+        try {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return String(value);
+            }
+            return date.toLocaleString(undefined, options);
+        } catch {
+            return String(value);
+        }
+    }
+
     async handleLogin(e) {
         e.preventDefault();
         
@@ -277,8 +340,10 @@ class AdminApp {
             this.refreshToken = data.token.refresh_token;
             this.currentUser = data.user;
             
-            localStorage.setItem('ferritedb_token', this.token);
-            localStorage.setItem('ferritedb_refresh_token', this.refreshToken);
+            sessionStorage.setItem('ferritedb_token', this.token);
+            sessionStorage.setItem('ferritedb_refresh_token', this.refreshToken);
+
+            this.updateJwtDisplay();
 
             this.showAdminInterface();
             await this.loadDashboardData();
@@ -315,9 +380,10 @@ class AdminApp {
         this.refreshToken = null;
         this.currentUser = null;
         
-        localStorage.removeItem('ferritedb_token');
-        localStorage.removeItem('ferritedb_refresh_token');
+        sessionStorage.removeItem('ferritedb_token');
+        sessionStorage.removeItem('ferritedb_refresh_token');
         
+        this.updateJwtDisplay();
         this.showLoginScreen();
     }
 
@@ -475,59 +541,77 @@ class AdminApp {
                 }
             ];
 
-            collectionsContainer.innerHTML = collections.map(collection => `
-                <div class="collection-card" data-collection-id="${collection.id}">
-                    <div class="collection-header">
-                        <div class="collection-name">${collection.name}</div>
-                        <div class="collection-type">${collection.type}</div>
-                    </div>
-                    <div class="collection-stats">
-                        <div class="collection-stat">
-                            <div class="collection-stat-value">${collection.recordCount}</div>
-                            <div class="collection-stat-label">Records</div>
+            const collectionCards = collections.map(collection => {
+                const safeId = escapeHtml(collection.id);
+                const safeName = escapeHtml(collection.name);
+                const safeType = escapeHtml(collection.type);
+                const fieldsPreview = collection.fields.slice(0, 3).map(field => {
+                    const fieldName = escapeHtml(field.name);
+                    const fieldType = escapeHtml(field.type);
+                    const requiredBadge = field.required ? '<span class="required">*</span>' : '';
+                    return `
+                        <span class="field-tag">
+                            ${fieldName} (${fieldType})
+                            ${requiredBadge}
+                        </span>
+                    `;
+                }).join('');
+
+                const additionalFieldCount = collection.fields.length > 3
+                    ? `<span class="field-tag more">+${collection.fields.length - 3} more</span>`
+                    : '';
+
+                return `
+                    <div class="collection-card" data-collection-id="${safeId}" data-collection-name="${safeName}">
+                        <div class="collection-header">
+                            <div class="collection-name">${safeName}</div>
+                            <div class="collection-type">${safeType}</div>
                         </div>
-                        <div class="collection-stat">
-                            <div class="collection-stat-value">${collection.fieldCount}</div>
-                            <div class="collection-stat-label">Fields</div>
+                        <div class="collection-stats">
+                            <div class="collection-stat">
+                                <div class="collection-stat-value">${collection.recordCount}</div>
+                                <div class="collection-stat-label">Records</div>
+                            </div>
+                            <div class="collection-stat">
+                                <div class="collection-stat-value">${collection.fieldCount}</div>
+                                <div class="collection-stat-label">Fields</div>
+                            </div>
+                        </div>
+                        <div class="collection-fields">
+                            <h4>Fields</h4>
+                            <div class="field-list">
+                                ${fieldsPreview}${additionalFieldCount}
+                            </div>
+                        </div>
+                        <div class="collection-actions">
+                            <button class="btn btn-secondary collection-action-btn" data-collection-action="edit" data-collection-id="${safeId}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                </svg>
+                                Edit
+                            </button>
+                            <button class="btn btn-secondary collection-action-btn" data-collection-action="view-records" data-collection-name="${safeName}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                View Records
+                            </button>
+                            <button class="btn btn-secondary collection-action-btn" data-collection-action="delete" data-collection-id="${safeId}">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <polyline points="3,6 5,6 21,6"/>
+                                    <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/>
+                                </svg>
+                                Delete
+                            </button>
                         </div>
                     </div>
-                    <div class="collection-fields">
-                        <h4>Fields</h4>
-                        <div class="field-list">
-                            ${collection.fields.slice(0, 3).map(field => `
-                                <span class="field-tag">
-                                    ${field.name} (${field.type})
-                                    ${field.required ? '<span class="required">*</span>' : ''}
-                                </span>
-                            `).join('')}
-                            ${collection.fields.length > 3 ? `<span class="field-tag more">+${collection.fields.length - 3} more</span>` : ''}
-                        </div>
-                    </div>
-                    <div class="collection-actions">
-                        <button class="btn btn-secondary" onclick="app.editCollection('${collection.id}')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                            </svg>
-                            Edit
-                        </button>
-                        <button class="btn btn-secondary" onclick="app.viewRecords('${collection.name}')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                <circle cx="12" cy="12" r="3"/>
-                            </svg>
-                            View Records
-                        </button>
-                        <button class="btn btn-secondary" onclick="app.deleteCollection('${collection.id}')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="3,6 5,6 21,6"/>
-                                <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/>
-                            </svg>
-                            Delete
-                        </button>
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
+
+            collectionsContainer.innerHTML = collectionCards;
+            this.bindCollectionCardEvents(collectionsContainer);
 
             // Store collections data for editing
             this.collectionsData = collections;
@@ -536,6 +620,39 @@ class AdminApp {
             console.error('Failed to load collections:', error);
             collectionsContainer.innerHTML = '<p class="text-error">Failed to load collections</p>';
         }
+    }
+
+    bindCollectionCardEvents(container) {
+        const buttons = container.querySelectorAll('.collection-action-btn');
+        buttons.forEach((button) => {
+            const action = button.getAttribute('data-collection-action');
+            if (!action) {
+                return;
+            }
+
+            // Remove previous listeners by cloning
+            const clonedButton = button.cloneNode(true);
+            button.replaceWith(clonedButton);
+
+            const collectionId = clonedButton.getAttribute('data-collection-id');
+            const collectionName = clonedButton.getAttribute('data-collection-name');
+
+            switch (action) {
+                case 'edit':
+                    clonedButton.addEventListener('click', () => this.editCollection(collectionId));
+                    break;
+                case 'view-records':
+                    clonedButton.addEventListener('click', () => {
+                        if (collectionName) {
+                            this.viewRecords(collectionName);
+                        }
+                    });
+                    break;
+                case 'delete':
+                    clonedButton.addEventListener('click', () => this.deleteCollection(collectionId));
+                    break;
+            }
+        });
     }
 
     async loadUsers() {
@@ -582,62 +699,74 @@ class AdminApp {
                 }
             ];
 
-            usersTableBody.innerHTML = users.map(user => `
-                <tr>
-                    <td>
-                        <div class="user-info">
-                            <div class="user-email">${user.email}</div>
-                            <div class="user-meta">
-                                ID: ${user.id} • 
-                                ${user.recordsCreated} records • 
-                                ${user.lastLogin ? 'Last login: ' + new Date(user.lastLogin).toLocaleDateString() : 'Never logged in'}
-                            </div>
-                        </div>
-                    </td>
-                    <td>
-                        <span class="badge badge-${user.role}">${user.role}</span>
-                    </td>
-                    <td>
-                        <span class="badge ${user.verified ? 'badge-success' : 'badge-warning'}">
-                            ${user.verified ? 'Verified' : 'Unverified'}
-                        </span>
-                    </td>
-                    <td>${new Date(user.created).toLocaleDateString()}</td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn btn-secondary btn-sm" onclick="app.editUser('${user.id}')" title="Edit user">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                                </svg>
-                            </button>
-                            <button class="btn btn-secondary btn-sm" onclick="app.toggleUserVerification('${user.id}', ${!user.verified})" title="${user.verified ? 'Unverify' : 'Verify'} user">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    ${user.verified ? 
-                                        '<path d="M9 12l2 2 4-4"/><path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/><path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>' :
-                                        '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'
-                                    }
-                                </svg>
-                            </button>
-                            <button class="btn btn-secondary btn-sm" onclick="app.resetUserPassword('${user.id}')" title="Reset password">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                                    <circle cx="12" cy="16" r="1"/>
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                                </svg>
-                            </button>
-                            <button class="btn btn-secondary btn-sm text-error" onclick="app.deleteUser('${user.id}')" title="Delete user">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polyline points="3,6 5,6 21,6"/>
-                                    <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
+            const userRows = users.map(user => {
+                const safeId = escapeHtml(user.id);
+                const safeEmail = escapeHtml(user.email);
+                const safeRole = escapeHtml(user.role);
+                const lastLoginShort = user.lastLogin
+                    ? this.formatDate(user.lastLogin, { dateStyle: 'medium' })
+                    : 'Never logged in';
+                const createdDate = this.formatDate(user.created, { dateStyle: 'medium' });
+                const nextVerifiedState = (!user.verified).toString();
 
-            // Store users data for editing
+                return `
+                    <tr data-user-id="${safeId}">
+                        <td>
+                            <div class="user-info">
+                                <div class="user-email">${safeEmail}</div>
+                                <div class="user-meta">
+                                    ID: ${safeId} • 
+                                    ${user.recordsCreated} records • 
+                                    ${escapeHtml(lastLoginShort)}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge badge-${safeRole}">${safeRole}</span>
+                        </td>
+                        <td>
+                            <span class="badge ${user.verified ? 'badge-success' : 'badge-warning'}">
+                                ${user.verified ? 'Verified' : 'Unverified'}
+                            </span>
+                        </td>
+                        <td>${escapeHtml(createdDate)}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button class="btn btn-secondary btn-sm user-action-btn" data-user-action="edit" data-user-id="${safeId}" title="Edit user">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                    </svg>
+                                </button>
+                                <button class="btn btn-secondary btn-sm user-action-btn" data-user-action="toggle-verification" data-user-id="${safeId}" data-next-verified="${nextVerifiedState}" title="${user.verified ? 'Unverify' : 'Verify'} user">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        ${user.verified ? 
+                                            '<path d="M9 12l2 2 4-4"/><path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/><path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>' :
+                                            '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>'
+                                        }
+                                    </svg>
+                                </button>
+                                <button class="btn btn-secondary btn-sm user-action-btn" data-user-action="reset-password" data-user-id="${safeId}" title="Reset password">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                        <circle cx="12" cy="16" r="1"/>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                    </svg>
+                                </button>
+                                <button class="btn btn-secondary btn-sm text-error user-action-btn" data-user-action="delete" data-user-id="${safeId}" title="Delete user">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polyline points="3,6 5,6 21,6"/>
+                                        <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2v2"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            usersTableBody.innerHTML = userRows;
+            this.bindUserTableEvents(usersTableBody);
             this.usersData = users;
 
         } catch (error) {
@@ -716,6 +845,11 @@ class AdminApp {
                     modalBody.insertBefore(statsDiv, form);
                 }
                 
+                const lastLoginDisplay = user.lastLogin
+                    ? this.formatDate(user.lastLogin, { dateStyle: 'medium', timeStyle: 'short' })
+                    : 'Never';
+                const createdDisplay = this.formatDate(user.created, { dateStyle: 'medium', timeStyle: 'short' });
+
                 statsDiv.innerHTML = `
                     <div class="stats-grid">
                         <div class="stat-item">
@@ -724,11 +858,11 @@ class AdminApp {
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">Last Login</div>
-                            <div class="stat-value">${user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}</div>
+                            <div class="stat-value">${escapeHtml(lastLoginDisplay)}</div>
                         </div>
                         <div class="stat-item">
                             <div class="stat-label">Created</div>
-                            <div class="stat-value">${new Date(user.created).toLocaleString()}</div>
+                            <div class="stat-value">${escapeHtml(createdDisplay)}</div>
                         </div>
                     </div>
                 `;
@@ -760,13 +894,15 @@ class AdminApp {
     addField(fieldData = null) {
         const container = document.getElementById('fields-container');
         const fieldId = Date.now();
+        const fieldNameValue = escapeHtml(fieldData?.name || '');
+        const typeOptions = this.getFieldTypeOptions(fieldData?.type, fieldData?.options);
         
         const fieldHtml = `
             <div class="field-item" data-field-id="${fieldId}">
                 <div class="field-row">
                     <div class="form-group">
                         <label>Field Name</label>
-                        <input type="text" name="field-name" value="${fieldData?.name || ''}" required>
+                        <input type="text" name="field-name" value="${fieldNameValue}" required>
                     </div>
                     <div class="form-group">
                         <label>Field Type</label>
@@ -800,7 +936,7 @@ class AdminApp {
                         Unique
                     </label>
                     <div class="field-type-options" id="field-options-${fieldId}">
-                        ${this.getFieldTypeOptions(fieldData?.type, fieldData?.options)}
+                        ${typeOptions}
                     </div>
                 </div>
             </div>
@@ -810,41 +946,52 @@ class AdminApp {
     }
 
     getFieldTypeOptions(fieldType, options = {}) {
+        const safeOptions = options || {};
         switch (fieldType) {
             case 'relation':
+                const targetCollection = escapeHtml(safeOptions?.targetCollection || '');
                 return `
                     <div class="form-group">
                         <label>Target Collection</label>
-                        <input type="text" name="target-collection" value="${options?.targetCollection || ''}" placeholder="users">
+                        <input type="text" name="target-collection" value="${targetCollection}" placeholder="users">
                     </div>
                 `;
             case 'file':
+                const maxSize = escapeHtml(
+                    safeOptions?.maxSize !== undefined && safeOptions?.maxSize !== null
+                        ? safeOptions.maxSize
+                        : 10
+                );
+                const allowedTypes = escapeHtml(safeOptions?.allowedTypes || '');
                 return `
                     <div class="form-group">
                         <label>Max Size (MB)</label>
-                        <input type="number" name="max-size" value="${options?.maxSize || 10}" min="1" max="100">
+                        <input type="number" name="max-size" value="${maxSize}" min="1" max="100">
                     </div>
                     <div class="form-group">
                         <label>Allowed Types</label>
-                        <input type="text" name="allowed-types" value="${options?.allowedTypes || ''}" placeholder="image/*, .pdf, .doc">
+                        <input type="text" name="allowed-types" value="${allowedTypes}" placeholder="image/*, .pdf, .doc">
                     </div>
                 `;
             case 'text':
+                const maxLength = escapeHtml(safeOptions?.maxLength || '');
                 return `
                     <div class="form-group">
                         <label>Max Length</label>
-                        <input type="number" name="max-length" value="${options?.maxLength || ''}" placeholder="255">
+                        <input type="number" name="max-length" value="${maxLength}" placeholder="255">
                     </div>
                 `;
             case 'number':
+                const minValue = escapeHtml(safeOptions?.minValue || '');
+                const maxValue = escapeHtml(safeOptions?.maxValue || '');
                 return `
                     <div class="form-group">
                         <label>Min Value</label>
-                        <input type="number" name="min-value" value="${options?.minValue || ''}" placeholder="0">
+                        <input type="number" name="min-value" value="${minValue}" placeholder="0">
                     </div>
                     <div class="form-group">
                         <label>Max Value</label>
-                        <input type="number" name="max-value" value="${options?.maxValue || ''}" placeholder="100">
+                        <input type="number" name="max-value" value="${maxValue}" placeholder="100">
                     </div>
                 `;
             default:
@@ -943,6 +1090,7 @@ class AdminApp {
         const responseElement = document.getElementById('api-response-body');
         
         try {
+            const targetUrl = this.normalizeApiUrl(url);
             const options = {
                 method: method,
                 headers: {
@@ -958,7 +1106,7 @@ class AdminApp {
                 options.body = body;
             }
             
-            const response = await fetch(url, options);
+            const response = await fetch(targetUrl, options);
             const responseData = await response.text();
             
             let formattedResponse;
@@ -975,11 +1123,57 @@ class AdminApp {
         }
     }
 
-    copyToken() {
-        const tokenElement = document.getElementById('jwt-token');
-        tokenElement.select();
-        document.execCommand('copy');
-        this.showNotification('Token copied to clipboard', 'success');
+    normalizeApiUrl(inputUrl) {
+        if (!inputUrl) {
+            throw new Error('API URL is required');
+        }
+
+        const baseOrigin = window.location.origin;
+        const apiBaseUrl = new URL(this.apiBase, baseOrigin);
+        let parsedUrl;
+
+        try {
+            parsedUrl = new URL(inputUrl, baseOrigin);
+        } catch {
+            throw new Error('Invalid API URL');
+        }
+
+        if (parsedUrl.origin !== apiBaseUrl.origin) {
+            throw new Error('Cross-origin requests are not allowed');
+        }
+
+        if (!parsedUrl.pathname.startsWith(apiBaseUrl.pathname)) {
+            throw new Error(`URL must start with ${apiBaseUrl.pathname}`);
+        }
+
+        return parsedUrl.href;
+    }
+
+    async copyToken() {
+        if (!this.token) {
+            this.showNotification('No token available to copy', 'error');
+            return;
+        }
+
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(this.token);
+            } else {
+                const fallbackArea = document.createElement('textarea');
+                fallbackArea.value = this.token;
+                fallbackArea.setAttribute('readonly', '');
+                fallbackArea.style.position = 'absolute';
+                fallbackArea.style.left = '-9999px';
+                document.body.appendChild(fallbackArea);
+                fallbackArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(fallbackArea);
+            }
+            this.showNotification('Token copied to clipboard', 'success');
+        } catch (error) {
+            console.error('Failed to copy token:', error);
+            this.showNotification('Failed to copy token', 'error');
+        }
     }
 
     async refreshAuthToken() {
@@ -1006,8 +1200,8 @@ class AdminApp {
             this.token = data.access_token;
             this.refreshToken = data.refresh_token;
             
-            localStorage.setItem('ferritedb_token', this.token);
-            localStorage.setItem('ferritedb_refresh_token', this.refreshToken);
+            sessionStorage.setItem('ferritedb_token', this.token);
+            sessionStorage.setItem('ferritedb_refresh_token', this.refreshToken);
             
             this.updateJwtDisplay();
             this.showNotification('Token refreshed successfully', 'success');
@@ -1020,9 +1214,30 @@ class AdminApp {
 
     updateJwtDisplay() {
         const tokenElement = document.getElementById('jwt-token');
-        if (tokenElement && this.token) {
-            tokenElement.value = this.token;
+        if (!tokenElement) {
+            return;
         }
+
+        if (!this.token) {
+            tokenElement.value = '';
+            tokenElement.placeholder = 'No token available';
+            return;
+        }
+
+        tokenElement.value = this.maskToken(this.token);
+    }
+
+    maskToken(token) {
+        if (!token) {
+            return '';
+        }
+
+        if (token.length <= 8) {
+            return '•'.repeat(token.length);
+        }
+
+        const visibleSuffix = token.slice(-4);
+        return `${'•'.repeat(token.length - 4)}${visibleSuffix}`;
     }
 
     decodeToken() {
@@ -1239,27 +1454,56 @@ class AdminApp {
         const section = sections[sectionId];
         if (!section) return;
         
+        const safeTitle = escapeHtml(section.title);
+        const safeDescription = escapeHtml(section.description);
+        const requestMethod = escapeHtml(section.request.method);
+        const requestUrl = escapeHtml(section.request.url);
+        const requestHeaders = section.request.headers
+            ? escapeHtml(Object.entries(section.request.headers).map(([k, v]) => `${k}: ${v}`).join('\n'))
+            : '';
+        const requestBody = section.request.body
+            ? escapeHtml(JSON.stringify(section.request.body, null, 2))
+            : '';
+        const responseBody = escapeHtml(JSON.stringify(section.response, null, 2));
+        const safeSectionId = escapeHtml(sectionId);
+
         docContent.innerHTML = `
             <div class="doc-section-content">
-                <h3>${section.title}</h3>
-                <p>${section.description}</p>
+                <h3>${safeTitle}</h3>
+                <p>${safeDescription}</p>
                 
                 <h4>Request</h4>
                 <div class="code-block">
-                    <pre>${section.request.method} ${section.request.url}
-${section.request.headers ? Object.entries(section.request.headers).map(([k, v]) => `${k}: ${v}`).join('\n') : ''}
+                    <pre>${requestMethod} ${requestUrl}
+${requestHeaders}
 
-${section.request.body ? JSON.stringify(section.request.body, null, 2) : ''}</pre>
+${requestBody}</pre>
                 </div>
                 
                 <h4>Response</h4>
                 <div class="code-block">
-                    <pre>${JSON.stringify(section.response, null, 2)}</pre>
+                    <pre>${responseBody}</pre>
                 </div>
                 
-                <button class="btn btn-primary" onclick="app.tryEndpoint('${sectionId}')">Try this endpoint</button>
+                <button class="btn btn-primary doc-try-endpoint" data-doc-endpoint="${safeSectionId}">Try this endpoint</button>
             </div>
         `;
+
+        this.bindDocumentationEvents(docContent);
+    }
+
+    bindDocumentationEvents(container) {
+        const buttons = container.querySelectorAll('.doc-try-endpoint');
+        buttons.forEach((button) => {
+            const endpointId = button.getAttribute('data-doc-endpoint');
+            if (!endpointId) {
+                return;
+            }
+
+            const clonedButton = button.cloneNode(true);
+            button.replaceWith(clonedButton);
+            clonedButton.addEventListener('click', () => this.tryEndpoint(endpointId));
+        });
     }
 
     tryEndpoint(sectionId) {
@@ -1540,14 +1784,15 @@ ${section.request.body ? JSON.stringify(section.request.body, null, 2) : ''}</pr
         const recordsModal = document.createElement('div');
         recordsModal.id = 'records-modal';
         recordsModal.className = 'modal large-modal';
+        const safeCollectionName = escapeHtml(collectionName);
         recordsModal.innerHTML = `
             <div class="modal-header">
-                <h3>${collectionName} Records</h3>
-                <button class="modal-close" onclick="app.hideModal()">×</button>
+                <h3>${safeCollectionName} Records</h3>
+                <button class="modal-close" data-records-action="close">×</button>
             </div>
             <div class="modal-body">
                 <div class="records-toolbar">
-                    <button class="btn btn-primary" onclick="app.createRecord('${collectionName}')">
+                    <button class="btn btn-primary" data-records-action="create" data-collection-name="${safeCollectionName}">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <line x1="12" y1="5" x2="12" y2="19"/>
                             <line x1="5" y1="12" x2="19" y2="12"/>
@@ -1556,7 +1801,7 @@ ${section.request.body ? JSON.stringify(section.request.body, null, 2) : ''}</pr
                     </button>
                     <div class="search-box">
                         <input type="text" placeholder="Search records..." id="records-search">
-                        <button class="btn btn-secondary" onclick="app.searchRecords('${collectionName}')">Search</button>
+                        <button class="btn btn-secondary" data-records-action="search" data-collection-name="${safeCollectionName}">Search</button>
                     </div>
                 </div>
                 <div class="records-grid" id="records-grid">
@@ -1570,9 +1815,35 @@ ${section.request.body ? JSON.stringify(section.request.body, null, 2) : ''}</pr
         
         modalOverlay.appendChild(recordsModal);
         this.showModal();
+        this.bindRecordsModalEvents(recordsModal, collectionName);
         
         // Load records for the collection
         this.loadRecordsForCollection(collectionName);
+    }
+
+    bindRecordsModalEvents(modalElement, collectionName) {
+        const actionButtons = modalElement.querySelectorAll('[data-records-action]');
+        actionButtons.forEach((button) => {
+            const action = button.getAttribute('data-records-action');
+            if (!action) {
+                return;
+            }
+
+            const clonedButton = button.cloneNode(true);
+            button.replaceWith(clonedButton);
+
+            switch (action) {
+                case 'create':
+                    clonedButton.addEventListener('click', () => this.createRecord(collectionName));
+                    break;
+                case 'search':
+                    clonedButton.addEventListener('click', () => this.searchRecords(collectionName));
+                    break;
+                case 'close':
+                    clonedButton.addEventListener('click', () => this.hideModal());
+                    break;
+            }
+        });
     }
 
     async loadRecordsForCollection(collectionName) {
@@ -1591,34 +1862,69 @@ ${section.request.body ? JSON.stringify(section.request.body, null, 2) : ''}</pr
             const collection = this.collectionsData?.find(c => c.name === collectionName);
             const fields = collection?.fields || [];
             
+            const safeCollectionNameAttr = escapeHtml(collectionName);
+            const headerRow = fields.map(field => `<th>${escapeHtml(field.name)}</th>`).join('');
+            const bodyRows = mockRecords.map(record => {
+                const recordId = escapeHtml(record.id);
+                const cells = fields.map(field => {
+                    const value = this.formatFieldValue(record[field.name], field.type);
+                    return `<td>${value}</td>`;
+                }).join('');
+
+                return `
+                    <tr data-record-id="${recordId}">
+                        ${cells}
+                        <td>
+                            <button class="btn btn-sm btn-secondary record-action-btn" data-record-action="edit" data-record-id="${recordId}" data-collection-name="${safeCollectionNameAttr}">Edit</button>
+                            <button class="btn btn-sm btn-secondary record-action-btn" data-record-action="delete" data-record-id="${recordId}" data-collection-name="${safeCollectionNameAttr}">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
             recordsGrid.innerHTML = `
                 <table class="data-table">
                     <thead>
                         <tr>
-                            ${fields.map(field => `<th>${field.name}</th>`).join('')}
+                            ${headerRow}
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${mockRecords.map(record => `
-                            <tr>
-                                ${fields.map(field => `
-                                    <td>${this.formatFieldValue(record[field.name], field.type)}</td>
-                                `).join('')}
-                                <td>
-                                    <button class="btn btn-sm btn-secondary" onclick="app.editRecord('${collectionName}', '${record.id}')">Edit</button>
-                                    <button class="btn btn-sm btn-secondary" onclick="app.deleteRecord('${collectionName}', '${record.id}')">Delete</button>
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${bodyRows}
                     </tbody>
                 </table>
             `;
+
+            this.bindRecordActionButtons(recordsGrid, collectionName);
             
         } catch (error) {
             console.error('Failed to load records:', error);
             recordsGrid.innerHTML = '<div class="error-state">Failed to load records</div>';
         }
+    }
+
+    bindRecordActionButtons(container, collectionName) {
+        const buttons = container.querySelectorAll('.record-action-btn');
+        buttons.forEach((button) => {
+            const action = button.getAttribute('data-record-action');
+            if (!action) {
+                return;
+            }
+
+            const clonedButton = button.cloneNode(true);
+            button.replaceWith(clonedButton);
+            const recordId = clonedButton.getAttribute('data-record-id');
+
+            switch (action) {
+                case 'edit':
+                    clonedButton.addEventListener('click', () => this.editRecord(collectionName, recordId));
+                    break;
+                case 'delete':
+                    clonedButton.addEventListener('click', () => this.deleteRecord(collectionName, recordId));
+                    break;
+            }
+        });
     }
 
     generateMockRecords(collectionName) {
@@ -1647,20 +1953,31 @@ ${section.request.body ? JSON.stringify(section.request.body, null, 2) : ''}</pr
     }
 
     formatFieldValue(value, fieldType) {
-        if (value === null || value === undefined) return '-';
-        
+        if (value === null || value === undefined) {
+            return '-';
+        }
+
+        let formattedValue;
+
         switch (fieldType) {
             case 'boolean':
-                return value ? '✓' : '✗';
+                formattedValue = value ? '✓' : '✗';
+                break;
             case 'datetime':
-                return new Date(value).toLocaleString();
+                formattedValue = this.formatDate(value, { dateStyle: 'medium', timeStyle: 'short' });
+                break;
             case 'date':
-                return new Date(value).toLocaleDateString();
+                formattedValue = this.formatDate(value, { dateStyle: 'medium' });
+                break;
             case 'json':
-                return typeof value === 'object' ? JSON.stringify(value) : value;
+                formattedValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+                break;
             default:
-                return String(value);
+                formattedValue = String(value);
+                break;
         }
+
+        return escapeHtml(formattedValue);
     }
 
     createRecord(collectionName) {
