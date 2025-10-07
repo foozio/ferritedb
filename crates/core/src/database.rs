@@ -36,7 +36,10 @@ impl Database {
             .connect_with(connect_options)
             .await?;
 
-        info!("Database connection established: {}", database_url);
+        info!(
+            "Database connection established: {}",
+            mask_password_in_uri(database_url)
+        );
 
         Ok(Self { pool })
     }
@@ -81,6 +84,32 @@ impl Clone for Database {
     }
 }
 
+/// Replace any password present in the authority section of a URI with a mask.
+fn mask_password_in_uri(uri: &str) -> String {
+    const MASK: &str = "****";
+
+    if let Some(scheme_end) = uri.find("://") {
+        let user_info_start = scheme_end + 3;
+
+        if user_info_start < uri.len() {
+            if let Some(at_rel) = uri[user_info_start..].find('@') {
+                let at_index = user_info_start + at_rel;
+                if let Some(colon_rel) = uri[user_info_start..at_index].find(':') {
+                    let colon_index = user_info_start + colon_rel;
+
+                    let mut masked = String::with_capacity(uri.len());
+                    masked.push_str(&uri[..colon_index + 1]);
+                    masked.push_str(MASK);
+                    masked.push_str(&uri[at_index..]);
+                    return masked;
+                }
+            }
+        }
+    }
+
+    uri.to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,5 +148,26 @@ mod tests {
         assert!(result.is_ok());
         
         db.close().await;
+    }
+
+    #[test]
+    fn test_mask_password_in_uri_with_credentials() {
+        let uri = "postgresql://user:supersecret@localhost:5432/db";
+        let masked = super::mask_password_in_uri(uri);
+        assert_eq!(masked, "postgresql://user:****@localhost:5432/db");
+    }
+
+    #[test]
+    fn test_mask_password_in_uri_without_password() {
+        let uri = "postgresql://user@localhost/db";
+        let masked = super::mask_password_in_uri(uri);
+        assert_eq!(masked, uri);
+    }
+
+    #[test]
+    fn test_mask_password_in_uri_sqlite() {
+        let uri = "sqlite:data/ferritedb.db";
+        let masked = super::mask_password_in_uri(uri);
+        assert_eq!(masked, uri);
     }
 }
