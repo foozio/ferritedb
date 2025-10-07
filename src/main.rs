@@ -745,10 +745,11 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), FerriteDbEr
     info!("  - users (built-in authentication collection)");
     info!("  - posts (example content collection with relations)");
     info!("👥 Created demo users:");
-    info!("  - admin@ferritedb.dev (admin) - password: admin123");
-    info!("  - alice@example.com (user) - password: password123");
-    info!("  - bob@example.com (user) - password: password123");
-    info!("  - carol@example.com (user) - password: password123");
+    info!("  - admin@ferritedb.dev (admin)");
+    info!("  - alice@example.com (user)");
+    info!("  - bob@example.com (user)");
+    info!("  - carol@example.com (user)");
+    info!("🔒 Demo credentials use development-only passwords. Rotate or recreate these accounts before any production deployment.");
     info!("📝 Created example posts with various statuses and ownership");
     info!("");
     info!("🚀 You can now start the server with: ferritedb serve");
