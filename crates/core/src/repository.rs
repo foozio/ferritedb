@@ -201,7 +201,18 @@ impl CollectionRepository {
 
     /// Create a new collection
     pub async fn create(&self, request: CreateCollectionRequest) -> CoreResult<Collection> {
-        let collection = Collection::new(request.name, request.collection_type.unwrap_or(CollectionType::Base));
+        let collection_type = request.collection_type.unwrap_or(CollectionType::Base);
+        let mut schema = request.schema.clone();
+        let rules = request.rules.clone();
+
+        let mut collection = Collection::new(request.name.clone(), collection_type)
+            .with_rules(rules)
+            .with_schema(schema.clone());
+
+        for field in collection.schema_json.fields.iter_mut() {
+            field.collection_id = collection.id;
+        }
+        schema = collection.schema_json.clone();
 
         let mut tx = self.pool.begin().await?;
 
@@ -230,10 +241,10 @@ impl CollectionRepository {
         .await?;
 
         // Insert collection fields from schema
-        for field in &request.schema.fields {
+        for field in &schema.fields {
             let field_id = field.id.to_string();
             let field_type_json = serde_json::to_string(&field.field_type)?;
-            let options_json = field.options_json.as_ref().map(|o| serde_json::to_string(o)).transpose()?;
+            let options_json = field.options_json.as_ref().map(serde_json::to_string).transpose()?;
 
             sqlx::query(
                 r#"
@@ -494,8 +505,8 @@ impl CollectionRepository {
             // Insert new fields
             for field in &schema.fields {
                 let field_id = field.id.to_string();
-                let field_type_json = serde_json::to_string(&field.field_type)?;
-                let options_json = field.options_json.as_ref().map(|o| serde_json::to_string(o)).transpose()?;
+        let field_type_json = serde_json::to_string(&field.field_type)?;
+        let options_json = field.options_json.as_ref().map(serde_json::to_string).transpose()?;
 
                 sqlx::query(
                     r#"
@@ -624,9 +635,15 @@ mod tests {
     use crate::models::{CreateUserRequest, UserRole};
     use sqlx::SqlitePool;
 
+    async fn setup_test_pool() -> SqlitePool {
+        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        sqlx::migrate!("../../migrations").run(&pool).await.unwrap();
+        pool
+    }
+
     #[tokio::test]
     async fn test_create_user() {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = setup_test_pool().await;
         let repo = UserRepository::new(pool);
 
         let request = CreateUserRequest {
@@ -646,7 +663,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_user_by_email() {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = setup_test_pool().await;
         let repo = UserRepository::new(pool);
 
         let request = CreateUserRequest {
@@ -668,7 +685,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_user_by_id() {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = setup_test_pool().await;
         let repo = UserRepository::new(pool);
 
         let request = CreateUserRequest {
@@ -690,7 +707,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_user_verification() {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = setup_test_pool().await;
         let repo = UserRepository::new(pool);
 
         let request = CreateUserRequest {
@@ -712,7 +729,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_update_user_role() {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = setup_test_pool().await;
         let repo = UserRepository::new(pool);
 
         let request = CreateUserRequest {
@@ -734,7 +751,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_users() {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = setup_test_pool().await;
         let repo = UserRepository::new(pool);
 
         let request = CreateUserRequest {
@@ -757,7 +774,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_user() {
-        let pool = SqlitePool::connect("sqlite::memory:").await.unwrap();
+        let pool = setup_test_pool().await;
         let repo = UserRepository::new(pool);
 
         let request = CreateUserRequest {
@@ -774,30 +791,5 @@ mod tests {
 
         assert!(deleted);
         assert!(repo.find_by_id(user.id).await.unwrap().is_none());
-    }
-}
-
-// Implement the server trait for UserRepository
-#[cfg(feature = "server")]
-#[axum::async_trait]
-impl crate::server::routes::UserRepository for UserRepository {
-    async fn find_by_email(&self, email: &str) -> Result<Option<crate::models::User>, Box<dyn std::error::Error + Send + Sync>> {
-        match self.find_by_email(email).await {
-            Ok(user) => Ok(user),
-            Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
-        }
-    }
-    
-    async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<crate::models::User>, Box<dyn std::error::Error + Send + Sync>> {
-        match self.find_by_id(id).await {
-            Ok(user) => Ok(user),
-            Err(e) => Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>),
-        }
-    }
-    
-    async fn create(&self, user: &crate::models::User) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        // For now, we'll implement a simplified version that just returns Ok
-        // In a real implementation, you would save the user to the database
-        Ok(())
     }
 }

@@ -17,6 +17,18 @@ use crate::{
     middleware::AuthUser,
 };
 
+#[axum::async_trait]
+pub trait FileCollectionService: Send + Sync {
+    async fn get_collection(&self, name: &str) -> ferritedb_core::CoreResult<Option<Collection>>;
+}
+
+#[axum::async_trait]
+pub trait FileRecordService: Send + Sync {
+    async fn get_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>>;
+    async fn update_record(&self, collection_name: &str, record_id: Uuid, data: Value) -> ferritedb_core::CoreResult<Record>;
+    async fn delete_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<bool>;
+}
+
 /// File upload response
 #[derive(Debug, Serialize)]
 pub struct FileUploadResponse {
@@ -48,15 +60,15 @@ impl FileMetadata {
 pub struct FileAppState {
     pub storage_backend: Arc<dyn StorageBackend>,
     pub storage_config: StorageConfig,
-    pub collection_service: Arc<crate::routes::MockCollectionService>,
-    pub record_service: Arc<crate::routes::MockRecordService>,
+    pub collection_service: Arc<dyn FileCollectionService>,
+    pub record_service: Arc<dyn FileRecordService>,
 }
 
 /// Upload a file to a specific collection record field
 pub async fn upload_file(
     State(state): State<FileAppState>,
     Path((collection_name, record_id, field_name)): Path<(String, String, String)>,
-    auth_user: AuthUser,
+    _auth_user: AuthUser,
     mut multipart: Multipart,
 ) -> ServerResult<Json<FileUploadResponse>> {
     // Parse record ID
@@ -72,7 +84,7 @@ pub async fn upload_file(
         .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
 
     // Validate record exists
-    let mut record = state
+    let _record = state
         .record_service
         .get_record(&collection_name, record_id)
         .await
@@ -173,7 +185,7 @@ pub async fn upload_file(
 pub async fn serve_file(
     State(state): State<FileAppState>,
     Path((collection_name, record_id, field_name)): Path<(String, String, String)>,
-    auth_user: AuthUser,
+    _auth_user: AuthUser,
 ) -> ServerResult<Response> {
     // Parse record ID
     let record_id = Uuid::parse_str(&record_id)
@@ -257,7 +269,7 @@ pub async fn serve_file(
 pub async fn delete_file(
     State(state): State<FileAppState>,
     Path((collection_name, record_id, field_name)): Path<(String, String, String)>,
-    auth_user: AuthUser,
+    _auth_user: AuthUser,
 ) -> ServerResult<Json<Value>> {
     // Parse record ID
     let record_id = Uuid::parse_str(&record_id)
@@ -406,6 +418,28 @@ fn get_file_metadata_from_record(record: &Record, field_name: &str) -> ServerRes
 
     serde_json::from_value(field_value.clone())
         .map_err(|e| ServerError::BadRequest(format!("Invalid file metadata: {}", e)))
+}
+
+#[axum::async_trait]
+impl FileCollectionService for crate::routes::MockCollectionService {
+    async fn get_collection(&self, name: &str) -> ferritedb_core::CoreResult<Option<Collection>> {
+        crate::routes::MockCollectionService::get_collection(self, name).await
+    }
+}
+
+#[axum::async_trait]
+impl FileRecordService for crate::routes::MockRecordService {
+    async fn get_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>> {
+        crate::routes::MockRecordService::get_record(self, collection_name, record_id).await
+    }
+
+    async fn update_record(&self, collection_name: &str, record_id: Uuid, data: Value) -> ferritedb_core::CoreResult<Record> {
+        crate::routes::MockRecordService::update_record(self, collection_name, record_id, data).await
+    }
+
+    async fn delete_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<bool> {
+        crate::routes::MockRecordService::delete_record(self, collection_name, record_id).await
+    }
 }
 
 #[cfg(test)]

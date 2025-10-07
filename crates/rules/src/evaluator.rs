@@ -179,7 +179,7 @@ impl ExpressionEvaluator {
         }
     }
     
-    fn access_member(object: &Value, property: &str, context: &EvaluationContext) -> RuleResult<Value> {
+    fn access_member(object: &Value, property: &str, _context: &EvaluationContext) -> RuleResult<Value> {
         match object {
             Value::Object(map) => {
                 Ok(map.get(property).cloned().unwrap_or(Value::Null))
@@ -429,9 +429,9 @@ impl ExpressionEvaluator {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| Self::values_equal(x, y))
             }
             (Value::Object(a), Value::Object(b)) => {
-                a.len() == b.len() && a.iter().all(|(k, v)| {
-                    b.get(k).map_or(false, |v2| Self::values_equal(v, v2))
-                })
+                a.len() == b.len()
+                    && a.iter()
+                        .all(|(k, v)| b.get(k).map(|v2| Self::values_equal(v, v2)).unwrap_or(false))
             }
             _ => false,
         }

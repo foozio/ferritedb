@@ -5,7 +5,7 @@ use axum::{
     response::Response,
 };
 use std::{collections::HashMap, sync::Arc, time::Duration};
-use tracing::{debug, warn};
+use tracing::warn;
 
 /// Security configuration for headers and cookies
 #[derive(Debug, Clone)]
@@ -317,7 +317,7 @@ impl Default for IpSecurityConfig {
 }
 
 /// Extract real IP address from request
-pub fn extract_real_ip(headers: &HeaderMap, config: &IpSecurityConfig) -> Option<String> {
+pub fn extract_real_ip(headers: &HeaderMap, _config: &IpSecurityConfig) -> Option<String> {
     // Check X-Forwarded-For header (if from trusted proxy)
     if let Some(forwarded_for) = headers.get("x-forwarded-for") {
         if let Ok(forwarded_str) = forwarded_for.to_str() {

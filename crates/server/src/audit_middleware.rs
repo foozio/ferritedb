@@ -6,17 +6,13 @@ use axum::{
 };
 use ferritedb_core::{
     audit::{AuditAction, AuditContext, AuditLogger},
-    pii::{PiiRedactor, redact_log_message},
+    pii::PiiRedactor,
 };
 use serde_json::Value;
 use std::sync::Arc;
-use tracing::{debug, error, info, warn};
-use uuid::Uuid;
+use tracing::{debug, error, warn};
 
-use crate::{
-    middleware::{AuthUser, RequestId, extract_real_ip, IpSecurityConfig},
-    ServerError,
-};
+use crate::middleware::{extract_real_ip, AuthUser, IpSecurityConfig, RequestId};
 
 /// Audit middleware configuration
 #[derive(Debug, Clone)]
@@ -74,7 +70,7 @@ pub struct AuditMiddlewareState {
 pub async fn audit_logging_middleware(
     State(state): State<Arc<AuditMiddlewareState>>,
     headers: HeaderMap,
-    mut request: Request,
+    request: Request,
     next: Next,
 ) -> Response {
     if !state.config.enabled {
@@ -272,10 +268,10 @@ fn extract_resource_info(path: &str) -> (String, Option<String>) {
     let parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
     
     match parts.as_slice() {
-        ["api", "collections", collection_name, "records", record_id] => {
+        ["api", "collections", _collection_name, "records", record_id] => {
             ("record".to_string(), Some(record_id.to_string()))
         }
-        ["api", "collections", collection_name, "records"] => {
+        ["api", "collections", _collection_name, "records"] => {
             ("record".to_string(), None)
         }
         ["api", "collections", collection_name] => {

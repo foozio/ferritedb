@@ -214,12 +214,12 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| FerriteDbError::Core(e))?;
+    .map_err(FerriteDbError::Core)?;
 
     match action {
         MigrateCommands::Run => {
             info!("Running migrations...");
-            database.migrate().await.map_err(|e| FerriteDbError::Core(e))?;
+            database.migrate().await.map_err(FerriteDbError::Core)?;
             info!("✅ Migrations completed successfully");
         }
         MigrateCommands::Revert => {
@@ -286,7 +286,7 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
             }
 
             // Check database health
-            database.health_check().await.map_err(|e| FerriteDbError::Core(e))?;
+            database.health_check().await.map_err(FerriteDbError::Core)?;
             info!("💚 Database connection is healthy");
         }
     }
@@ -304,10 +304,10 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| FerriteDbError::Core(e))?;
+    .map_err(FerriteDbError::Core)?;
 
     // Ensure migrations are run
-    database.migrate().await.map_err(|e| FerriteDbError::Core(e))?;
+    database.migrate().await.map_err(FerriteDbError::Core)?;
 
     let user_repo = UserRepository::new(database.pool().clone());
     let auth_service = AuthService::new(config.auth.clone())
@@ -318,7 +318,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
             info!("Creating admin user: {}", email);
             
             // Check if user already exists
-            if let Some(_existing) = user_repo.find_by_email(&email).await.map_err(|e| FerriteDbError::Core(e))? {
+            if let Some(_existing) = user_repo.find_by_email(&email).await.map_err(FerriteDbError::Core)? {
                 error!("❌ User with email '{}' already exists", email);
                 return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
                     format!("User with email '{}' already exists", email)
@@ -334,7 +334,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 
                 // Read password from stdin (note: this will be visible, in production you'd use a proper password input)
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).map_err(|e| FerriteDbError::Io(e))?;
+                io::stdin().read_line(&mut input).map_err(FerriteDbError::Io)?;
                 input.trim().to_string()
             };
 
@@ -357,7 +357,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 verified: true,
             };
 
-            let user = user_repo.create(create_request, password_hash).await.map_err(|e| FerriteDbError::Core(e))?;
+            let user = user_repo.create(create_request, password_hash).await.map_err(FerriteDbError::Core)?;
             
             info!("✅ Admin user created successfully:");
             info!("  ID: {}", user.id);
@@ -368,7 +368,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
         AdminCommands::List => {
             info!("Listing users...");
             
-            let users = user_repo.list(100, 0).await.map_err(|e| FerriteDbError::Core(e))?;
+            let users = user_repo.list(100, 0).await.map_err(FerriteDbError::Core)?;
             
             if users.is_empty() {
                 info!("📋 No users found");
@@ -394,9 +394,9 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
             
             // Try to parse as UUID first, then fall back to email
             let user_to_delete = if let Ok(user_id) = uuid::Uuid::parse_str(&user) {
-                user_repo.find_by_id(user_id).await.map_err(|e| FerriteDbError::Core(e))?
+                user_repo.find_by_id(user_id).await.map_err(FerriteDbError::Core)?
             } else {
-                user_repo.find_by_email(&user).await.map_err(|e| FerriteDbError::Core(e))?
+                user_repo.find_by_email(&user).await.map_err(FerriteDbError::Core)?
             };
 
             if let Some(user_record) = user_to_delete {
@@ -405,11 +405,11 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 io::stdout().flush().unwrap();
                 
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).map_err(|e| FerriteDbError::Io(e))?;
+                io::stdin().read_line(&mut input).map_err(FerriteDbError::Io)?;
                 let confirmation = input.trim().to_lowercase();
                 
                 if confirmation == "y" || confirmation == "yes" {
-                    let deleted = user_repo.delete(user_record.id).await.map_err(|e| FerriteDbError::Core(e))?;
+                    let deleted = user_repo.delete(user_record.id).await.map_err(FerriteDbError::Core)?;
                     
                     if deleted {
                         info!("✅ User '{}' deleted successfully", user_record.email);
@@ -456,14 +456,14 @@ async fn import_command(
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| FerriteDbError::Core(e))?;
+    .map_err(FerriteDbError::Core)?;
 
     let collection_repo = CollectionRepository::new(database.pool().clone());
     let collection_service = CollectionService::new(collection_repo.clone());
     let record_service = RecordService::new(database.pool().clone(), collection_service);
 
     // Check if collection exists
-    let _collection_record = collection_repo.find_by_name(&collection).await.map_err(|e| FerriteDbError::Core(e))?;
+    let _collection_record = collection_repo.find_by_name(&collection).await.map_err(FerriteDbError::Core)?;
     let _collection_record = match _collection_record {
         Some(c) => c,
         None => {
@@ -475,7 +475,7 @@ async fn import_command(
     };
 
     // Read and parse file
-    let file_content = fs::read_to_string(&file).map_err(|e| FerriteDbError::Io(e))?;
+    let file_content = fs::read_to_string(&file).map_err(FerriteDbError::Io)?;
     
     let records: Vec<serde_json::Value> = if file.extension().and_then(|s| s.to_str()) == Some("csv") {
         // Parse CSV
@@ -573,14 +573,14 @@ async fn export_command(
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| FerriteDbError::Core(e))?;
+    .map_err(FerriteDbError::Core)?;
 
     let collection_repo = CollectionRepository::new(database.pool().clone());
     let collection_service = CollectionService::new(collection_repo.clone());
     let record_service = RecordService::new(database.pool().clone(), collection_service);
 
     // Check if collection exists
-    let collection_record = collection_repo.find_by_name(&collection).await.map_err(|e| FerriteDbError::Core(e))?;
+    let collection_record = collection_repo.find_by_name(&collection).await.map_err(FerriteDbError::Core)?;
     let _collection_record = match collection_record {
         Some(c) => c,
         None => {
@@ -594,7 +594,7 @@ async fn export_command(
     // Get all records from collection
     info!("📤 Fetching records from collection '{}'...", collection);
     let records = record_service.list_records(&collection, 1000, 0).await
-        .map_err(|e| FerriteDbError::Core(e))?;
+        .map_err(FerriteDbError::Core)?;
 
     info!("📤 Found {} records to export", records.len());
 
@@ -626,7 +626,7 @@ async fn export_command(
             format!("Failed to serialize records: {}", e)
         )))?;
 
-    fs::write(&output_file, json_output).map_err(|e| FerriteDbError::Io(e))?;
+    fs::write(&output_file, json_output).map_err(FerriteDbError::Io)?;
 
     info!("✅ Export completed:");
     info!("  📤 Exported {} records", records_json.len());
@@ -651,7 +651,7 @@ async fn gen_jwt_command(
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| FerriteDbError::Core(e))?;
+    .map_err(FerriteDbError::Core)?;
 
     let user_repo = UserRepository::new(database.pool().clone());
     
@@ -664,9 +664,9 @@ async fn gen_jwt_command(
 
     // Find user by ID or email
     let user_record = if let Ok(user_id) = uuid::Uuid::parse_str(&user) {
-        user_repo.find_by_id(user_id).await.map_err(|e| FerriteDbError::Core(e))?
+        user_repo.find_by_id(user_id).await.map_err(FerriteDbError::Core)?
     } else {
-        user_repo.find_by_email(&user).await.map_err(|e| FerriteDbError::Core(e))?
+        user_repo.find_by_email(&user).await.map_err(FerriteDbError::Core)?
     };
 
     let user_record = match user_record {
@@ -720,10 +720,10 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), FerriteDbEr
         config.database.connection_timeout,
     )
     .await
-    .map_err(|e| FerriteDbError::Core(e))?;
+    .map_err(FerriteDbError::Core)?;
 
     // Ensure migrations are run
-    database.migrate().await.map_err(|e| FerriteDbError::Core(e))?;
+    database.migrate().await.map_err(FerriteDbError::Core)?;
 
     // Create auth service
     let auth_service = AuthService::new(config.auth.clone())
@@ -738,7 +738,7 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), FerriteDbEr
     }
 
     // Initialize examples
-    seed_service.initialize_examples().await.map_err(|e| FerriteDbError::Core(e))?;
+    seed_service.initialize_examples().await.map_err(FerriteDbError::Core)?;
 
     info!("✅ Example collections and seed data initialized successfully!");
     info!("📋 Created collections:");

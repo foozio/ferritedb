@@ -49,8 +49,8 @@ tempfile.workspace = true
 [features]
 default = []
 oauth2 = ["ferritedb-core/oauth2", "ferritedb-server/oauth2"]
-s3-storage = ["ferritedb-storage/s3", "ferritedb-server/s3-storage"]
-image-transforms = ["ferritedb-storage/image-transforms", "ferritedb-server/image-transforms"]
+s3-storage = ["ferritedb-core/s3", "ferritedb-storage/s3", "ferritedb-server/s3-storage"]
+image-transforms = ["ferritedb-core/image-transforms", "ferritedb-storage/image-transforms", "ferritedb-server/image-transforms"]
 metrics = ["ferritedb-server/metrics"]
 server = ["ferritedb-core/server", "ferritedb-server/server"]
 

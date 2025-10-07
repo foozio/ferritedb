@@ -74,7 +74,7 @@ fn test_migrate_run_command() {
     
     // Run migration
     let output = Command::new(ferritedb_binary())
-        .args(&["--config", config_path.to_str().unwrap(), "migrate", "run"])
+        .args(["--config", config_path.to_str().unwrap(), "migrate", "run"])
         .output()
         .expect("Failed to execute ferritedb migrate run");
     
@@ -108,13 +108,13 @@ fn test_migrate_status_command() {
     
     // First run migrations
     let _output = Command::new(ferritedb_binary())
-        .args(&["--config", config_path.to_str().unwrap(), "migrate", "run"])
+        .args(["--config", config_path.to_str().unwrap(), "migrate", "run"])
         .output()
         .expect("Failed to execute ferritedb migrate run");
     
     // Check migration status
     let output = Command::new(ferritedb_binary())
-        .args(&["--config", config_path.to_str().unwrap(), "migrate", "status"])
+        .args(["--config", config_path.to_str().unwrap(), "migrate", "status"])
         .output()
         .expect("Failed to execute ferritedb migrate status");
     
@@ -145,7 +145,7 @@ fn test_admin_create_command() {
     
     // Create admin user with password provided via command line
     let output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
             "admin@example.com",
@@ -181,7 +181,7 @@ fn test_admin_list_command() {
     
     // First create an admin user
     let _create_output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
             "admin@example.com",
@@ -192,7 +192,7 @@ fn test_admin_list_command() {
     
     // List users
     let output = Command::new(ferritedb_binary())
-        .args(&["--config", config_path.to_str().unwrap(), "admin", "list"])
+        .args(["--config", config_path.to_str().unwrap(), "admin", "list"])
         .output()
         .expect("Failed to execute ferritedb admin list");
     
@@ -223,7 +223,7 @@ fn test_gen_jwt_command() {
     
     // First create an admin user
     let _create_output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
             "admin@example.com",
@@ -234,7 +234,7 @@ fn test_gen_jwt_command() {
     
     // Generate JWT for the user
     let output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "gen-jwt",
             "admin@example.com",
@@ -292,7 +292,7 @@ fn test_import_export_json_data() {
     // This test demonstrates the command structure
     
     let output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "import",
             "posts",
@@ -330,7 +330,7 @@ fn test_import_csv_data() {
     std::fs::write(&import_file, csv_data).unwrap();
     
     let output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "import",
             "posts",
@@ -362,7 +362,7 @@ fn test_export_nonexistent_collection() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     let output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "export",
             "nonexistent_collection"
@@ -394,7 +394,7 @@ fn test_gen_jwt_nonexistent_user() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
     
     let output = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "gen-jwt",
             "nonexistent@example.com"
@@ -427,7 +427,7 @@ fn test_admin_create_duplicate_user() {
     
     // Create first admin user
     let _output1 = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
             "admin@example.com",
@@ -438,7 +438,7 @@ fn test_admin_create_duplicate_user() {
     
     // Try to create the same user again
     let output2 = Command::new(ferritedb_binary())
-        .args(&[
+        .args([
             "--config", config_path.to_str().unwrap(),
             "admin", "create",
             "admin@example.com",
@@ -473,13 +473,13 @@ fn test_migrate_revert_command() {
     
     // First run migrations
     let _output = Command::new(ferritedb_binary())
-        .args(&["--config", config_path.to_str().unwrap(), "migrate", "run"])
+        .args(["--config", config_path.to_str().unwrap(), "migrate", "run"])
         .output()
         .expect("Failed to execute ferritedb migrate run");
     
     // Try to revert migration
     let output = Command::new(ferritedb_binary())
-        .args(&["--config", config_path.to_str().unwrap(), "migrate", "revert"])
+        .args(["--config", config_path.to_str().unwrap(), "migrate", "revert"])
         .output()
         .expect("Failed to execute ferritedb migrate revert");
     

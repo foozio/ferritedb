@@ -227,36 +227,34 @@ impl AuthService {
             )));
         }
 
-        // For development, only check minimum length
-        // In production, you might want to enable these checks
-        // let has_upper = password.chars().any(|c| c.is_uppercase());
-        // let has_lower = password.chars().any(|c| c.is_lowercase());
-        // let has_digit = password.chars().any(|c| c.is_ascii_digit());
-        // let has_special = password.chars().any(|c| !c.is_alphanumeric());
+        let has_upper = password.chars().any(|c| c.is_uppercase());
+        let has_lower = password.chars().any(|c| c.is_lowercase());
+        let has_digit = password.chars().any(|c| c.is_ascii_digit());
+        let has_special = password.chars().any(|c| !c.is_alphanumeric());
 
-        // if !has_upper {
-        //     return Err(AuthError::WeakPassword(
-        //         "Password must contain at least one uppercase letter".to_string(),
-        //     ));
-        // }
+        if !has_upper {
+            return Err(AuthError::WeakPassword(
+                "Password must contain at least one uppercase letter".to_string(),
+            ));
+        }
 
-        // if !has_lower {
-        //     return Err(AuthError::WeakPassword(
-        //         "Password must contain at least one lowercase letter".to_string(),
-        //     ));
-        // }
+        if !has_lower {
+            return Err(AuthError::WeakPassword(
+                "Password must contain at least one lowercase letter".to_string(),
+            ));
+        }
 
-        // if !has_digit {
-        //     return Err(AuthError::WeakPassword(
-        //         "Password must contain at least one digit".to_string(),
-        //     ));
-        // }
+        if !has_digit {
+            return Err(AuthError::WeakPassword(
+                "Password must contain at least one digit".to_string(),
+            ));
+        }
 
-        // if !has_special {
-        //     return Err(AuthError::WeakPassword(
-        //         "Password must contain at least one special character".to_string(),
-        //     ));
-        // }
+        if !has_special {
+            return Err(AuthError::WeakPassword(
+                "Password must contain at least one special character".to_string(),
+            ));
+        }
 
         Ok(())
     }

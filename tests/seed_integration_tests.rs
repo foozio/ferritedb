@@ -30,7 +30,7 @@ async fn test_seed_command_integration() {
 
     // Build the binary first (in a real CI environment, this would be pre-built)
     let build_output = Command::new("cargo")
-        .args(&["build", "--bin", "ferritedb"])
+        .args(["build", "--bin", "ferritedb"])
         .output()
         .expect("Failed to build ferritedb binary");
 
@@ -43,7 +43,7 @@ async fn test_seed_command_integration() {
 
     // Run the seed command
     let output = Command::new("target/debug/ferritedb")
-        .args(&[
+        .args([
             "seed",
             "--config",
             &format!(
@@ -125,7 +125,7 @@ jwt_secret = "test-secret-for-integration-test"
 
     // Run seed command first time
     let output1 = Command::new("target/debug/ferritedb")
-        .args(&["seed"])
+        .args(["seed"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
@@ -139,7 +139,7 @@ jwt_secret = "test-secret-for-integration-test"
 
     // Run seed command second time
     let output2 = Command::new("target/debug/ferritedb")
-        .args(&["seed"])
+        .args(["seed"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
@@ -171,7 +171,7 @@ async fn test_server_with_seeded_data() {
 
     // First, seed the data
     let seed_output = Command::new("target/debug/ferritedb")
-        .args(&["seed"])
+        .args(["seed"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
@@ -185,7 +185,7 @@ async fn test_server_with_seeded_data() {
 
     // Start the server in the background
     let mut server_process = Command::new("target/debug/ferritedb")
-        .args(&["serve", "--port", "8093"])
+        .args(["serve", "--port", "8093"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .spawn()
@@ -244,7 +244,7 @@ async fn test_collections_created_with_proper_schema() {
 
     // Run seed command
     let output = Command::new("target/debug/ferritedb")
-        .args(&["seed"])
+        .args(["seed"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
@@ -317,7 +317,7 @@ async fn test_admin_user_can_authenticate() {
 
     // Run seed command
     let output = Command::new("target/debug/ferritedb")
-        .args(&["seed"])
+        .args(["seed"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret-key")
         .output()
@@ -385,7 +385,7 @@ async fn test_demo_users_have_correct_passwords() {
 
     // Run seed command
     let output = Command::new("target/debug/ferritedb")
-        .args(&["seed"])
+        .args(["seed"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret-key")
         .output()
@@ -442,7 +442,7 @@ async fn test_seed_with_force_flag() {
 
     // Run seed command with force flag
     let output = Command::new("target/debug/ferritedb")
-        .args(&["seed", "--force"])
+        .args(["seed", "--force"])
         .env("FERRITEDB_DATABASE_URL", &database_url)
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
@@ -468,7 +468,7 @@ async fn test_seed_with_force_flag() {
 #[test]
 fn test_seed_command_in_help() {
     let output = Command::new("target/debug/ferritedb")
-        .args(&["--help"])
+        .args(["--help"])
         .output()
         .expect("Failed to get help");
 
@@ -486,7 +486,7 @@ fn test_seed_command_in_help() {
 async fn test_seed_command_database_error() {
     // Try to seed with an invalid database path
     let output = Command::new("target/debug/ferritedb")
-        .args(&["seed"])
+        .args(["seed"])
         .env("FERRITEDB_DATABASE_URL", "sqlite:/invalid/path/test.db")
         .env("FERRITEDB_AUTH_JWT_SECRET", "test-secret")
         .output()
@@ -509,7 +509,7 @@ async fn test_seed_command_database_error() {
 /// Helper function to check if a binary exists and is executable
 fn binary_exists() -> bool {
     Command::new("target/debug/ferritedb")
-        .args(&["--version"])
+        .args(["--version"])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
@@ -521,7 +521,7 @@ async fn test_binary_availability() {
     if !binary_exists() {
         // Try to build the binary
         let build_output = Command::new("cargo")
-            .args(&["build", "--bin", "ferritedb"])
+            .args(["build", "--bin", "ferritedb"])
             .output()
             .expect("Failed to build ferritedb binary");
 

@@ -702,8 +702,8 @@ mod tests {
     use tempfile::tempdir;
 
     async fn setup_test_db() -> Database {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();

@@ -24,7 +24,7 @@ use tracing::{info, Level};
 use crate::{
     middleware::{rate_limit_middleware, request_id_middleware, SecurityConfig, ValidationConfig, security_headers_middleware, input_validation_middleware, request_size_limit_middleware},
     realtime::RealtimeManager,
-    routes::{create_router, AppState, MockCollectionService, MockRecordService, MockUserRepository},
+    routes::{create_router, AppState, MockCollectionService, MockRecordService},
     ServerError, ServerResult,
 };
 
@@ -56,7 +56,8 @@ impl Server {
             AuthService::new(config.auth.clone())
                 .map_err(|e| ServerError::Internal(format!("Auth service initialization failed: {}", e)))?
         );
-        let user_repository = Arc::new(ferritedb_core::UserRepository::new(db_pool.clone()));
+        let user_repository: Arc<dyn crate::routes::UserRepository> =
+            Arc::new(ferritedb_core::UserRepository::new(db_pool.clone()));
         let collection_service = Arc::new(MockCollectionService);
         let record_service = Arc::new(MockRecordService);
         let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
@@ -69,7 +70,7 @@ impl Server {
                         path: config.storage.local.base_path.clone(),
                     }
                 }
-                #[cfg(feature = "s3")]
+                #[cfg(feature = "s3-storage")]
                 ferritedb_core::config::StorageBackend::S3 => {
                     ferritedb_storage::StorageType::S3 {
                         bucket: config.storage.s3.bucket.clone(),
@@ -102,7 +103,7 @@ impl Server {
             .map_err(|e| ServerError::Internal(format!("Storage initialization failed: {}", e)))?;
 
         // Initialize realtime manager
-        let realtime_manager = RealtimeManager::new(auth_service.clone(), rule_engine.clone());
+        let realtime_manager = RealtimeManager::new(rule_engine.clone());
 
         // Create application state
         let app_state = AppState {

@@ -173,7 +173,7 @@ impl std::fmt::Display for FieldType {
 }
 
 /// Field options for additional configuration
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct FieldOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub min_length: Option<usize>,
@@ -193,21 +193,6 @@ pub struct FieldOptions {
     pub custom: HashMap<String, serde_json::Value>,
 }
 
-impl Default for FieldOptions {
-    fn default() -> Self {
-        Self {
-            min_length: None,
-            max_length: None,
-            min_value: None,
-            max_value: None,
-            pattern: None,
-            enum_values: None,
-            default_value: None,
-            custom: HashMap::new(),
-        }
-    }
-}
-
 /// Audit log entry for administrative actions
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, FromRow)]
 pub struct AuditLog {
@@ -224,25 +209,13 @@ pub struct AuditLog {
 }
 
 /// Access rules for collections
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, Default)]
 pub struct AccessRules {
     pub list_rule: Option<String>,
     pub view_rule: Option<String>,
     pub create_rule: Option<String>,
     pub update_rule: Option<String>,
     pub delete_rule: Option<String>,
-}
-
-impl Default for AccessRules {
-    fn default() -> Self {
-        Self {
-            list_rule: None,
-            view_rule: None,
-            create_rule: None,
-            update_rule: None,
-            delete_rule: None,
-        }
-    }
 }
 
 /// Record data structure for dynamic collections

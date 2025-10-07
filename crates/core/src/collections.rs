@@ -1,13 +1,16 @@
 use crate::{
     models::{
-        Collection, CollectionSchema, CollectionType, CreateCollectionRequest, 
-        CreateFieldRequest, Field, FieldOptions, FieldType, UpdateCollectionRequest
+        Collection, CollectionSchema, CreateCollectionRequest, CreateFieldRequest, Field,
+        FieldOptions, FieldType, UpdateCollectionRequest,
     },
     repository::CollectionRepository,
     CoreError, CoreResult,
 };
 use serde_json::{json, Value};
 use uuid::Uuid;
+
+#[cfg(test)]
+use crate::models::CollectionType;
 
 /// Service for managing collections and their schemas
 #[derive(Clone)]
@@ -26,7 +29,7 @@ impl CollectionService {
         self.validate_collection_name(&request.name)?;
         
         // Check if collection already exists
-        if let Some(_) = self.repository.find_by_name(&request.name).await? {
+        if self.repository.find_by_name(&request.name).await?.is_some() {
             return Err(CoreError::CollectionAlreadyExists(request.name));
         }
 
@@ -208,9 +211,22 @@ impl CollectionService {
         sql.push_str("    id TEXT PRIMARY KEY,\n");
         
         // Dynamic fields based on schema
+        let mut foreign_keys = Vec::new();
         for field in &collection.schema_json.fields {
             let column_def = self.field_to_sql_column(field)?;
             sql.push_str(&format!("    {},\n", column_def));
+
+            if let FieldType::Relation { target_collection, .. } = &field.field_type {
+                let target_table = self.get_table_name(target_collection);
+                foreign_keys.push(format!(
+                    "    FOREIGN KEY ({}) REFERENCES {}(id)",
+                    field.name, target_table
+                ));
+            }
+        }
+
+        for fk in foreign_keys {
+            sql.push_str(&format!("{},\n", fk));
         }
         
         // Standard timestamp fields
@@ -457,7 +473,7 @@ impl CollectionService {
             FieldType::Json => "TEXT", // Store as JSON string
             FieldType::Date => "DATE",
             FieldType::DateTime => "DATETIME",
-            FieldType::Relation { target_collection, .. } => "TEXT", // Store as UUID string
+            FieldType::Relation { .. } => "TEXT", // Store as UUID string
             FieldType::File { .. } => "TEXT", // Store file metadata as JSON
         };
 
@@ -469,12 +485,6 @@ impl CollectionService {
 
         if field.unique_constraint {
             column_def.push_str(" UNIQUE");
-        }
-
-        // Add foreign key constraint for relations
-        if let FieldType::Relation { target_collection, .. } = &field.field_type {
-            let target_table = self.get_table_name(target_collection);
-            column_def.push_str(&format!(", FOREIGN KEY ({}) REFERENCES {}(id)", field.name, target_table));
         }
 
         Ok(column_def)
@@ -596,8 +606,8 @@ mod tests {
     use tempfile::tempdir;
 
     async fn setup_test_db() -> (Database, CollectionService) {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();

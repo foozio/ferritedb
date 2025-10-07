@@ -1,18 +1,17 @@
 use crate::{
     models::{
-        AccessRules, Collection, CollectionSchema, CollectionType, CreateCollectionRequest,
+        AccessRules, CollectionSchema, CollectionType, CreateCollectionRequest,
         CreateUserRequest, Field, FieldOptions, FieldType, User, UserRole,
     },
     repository::{CollectionRepository, UserRepository},
     collections::CollectionService,
     records::RecordService,
     schema_manager::SchemaManager,
-    auth::{AuthService, AuthError},
+    auth::AuthService,
     CoreError, CoreResult, DatabasePool,
 };
-use serde_json::{json, Value};
-use std::collections::HashMap;
-use tracing::{info, warn};
+use serde_json::json;
+use tracing::info;
 use uuid::Uuid;
 
 /// Service for creating example collections and seed data
@@ -20,11 +19,9 @@ use uuid::Uuid;
 pub struct SeedService {
     collection_repo: CollectionRepository,
     user_repo: UserRepository,
-    collection_service: CollectionService,
     record_service: RecordService,
     schema_manager: SchemaManager,
     auth_service: AuthService,
-    pool: DatabasePool,
 }
 
 impl SeedService {
@@ -45,11 +42,9 @@ impl SeedService {
         Self {
             collection_repo,
             user_repo,
-            collection_service,
             record_service,
             schema_manager,
             auth_service,
-            pool,
         }
     }
 
@@ -73,7 +68,7 @@ impl SeedService {
     /// Create the built-in users collection with standard fields
     async fn create_users_collection(&self) -> CoreResult<()> {
         // Check if users collection already exists
-        if let Some(_) = self.collection_repo.find_by_name("users").await? {
+        if self.collection_repo.find_by_name("users").await?.is_some() {
             info!("Users collection already exists, skipping creation");
             return Ok(());
         }
@@ -180,7 +175,7 @@ impl SeedService {
     /// Create example posts collection with proper relations and rules
     async fn create_posts_collection(&self) -> CoreResult<()> {
         // Check if posts collection already exists
-        if let Some(_) = self.collection_repo.find_by_name("posts").await? {
+        if self.collection_repo.find_by_name("posts").await?.is_some() {
             info!("Posts collection already exists, skipping creation");
             return Ok(());
         }
@@ -338,10 +333,6 @@ impl SeedService {
                 let password_hash = self.auth_service.hash_password(&user_password)
                     .map_err(|e| CoreError::Authentication(e.to_string()))?;
 
-                let names: Vec<&str> = name.split(' ').collect();
-                let first_name = names.first().unwrap_or(&"");
-                let last_name = names.get(1).unwrap_or(&"");
-
                 let user_request = CreateUserRequest {
                     email: email.to_string(),
                     password: user_password,
@@ -462,8 +453,8 @@ mod tests {
     use tempfile::tempdir;
 
     async fn setup_test_service() -> (Database, SeedService) {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();

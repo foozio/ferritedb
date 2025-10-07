@@ -1,7 +1,6 @@
 use std::env;
 use std::process::Command;
 use std::{fs, path::Path};
-use serde_yaml;
 
 /// Tests for CI/CD pipeline configuration and functionality
 /// 
@@ -127,7 +126,7 @@ fn test_project_documentation_exists() {
         assert!(Path::new(doc).exists(), "{} should exist", doc);
         
         let content = fs::read_to_string(doc)
-            .expect(&format!("Failed to read {}", doc));
+            .unwrap_or_else(|_| panic!("Failed to read {}", doc));
         
         assert!(!content.trim().is_empty(), "{} should not be empty", doc);
     }
@@ -172,7 +171,7 @@ fn test_docker_files_exist() {
         assert!(Path::new(file).exists(), "{} should exist", file);
         
         let content = fs::read_to_string(file)
-            .expect(&format!("Failed to read {}", file));
+            .unwrap_or_else(|_| panic!("Failed to read {}", file));
         
         assert!(!content.trim().is_empty(), "{} should not be empty", file);
     }
@@ -213,22 +212,22 @@ fn test_ci_workflow_jobs() {
     // Check for required jobs
     let required_jobs = ["test", "security", "build"];
     for job in &required_jobs {
-        assert!(jobs.contains_key(&serde_yaml::Value::String(job.to_string())), 
+        assert!(jobs.contains_key(serde_yaml::Value::String(job.to_string())), 
                 "CI should have {} job", job);
     }
 
     // Check test job configuration
-    if let Some(test_job) = jobs.get(&serde_yaml::Value::String("test".to_string())) {
+    if let Some(test_job) = jobs.get(serde_yaml::Value::String("test".to_string())) {
         let steps = test_job["steps"].as_sequence()
             .expect("Test job should have steps");
 
         let has_checkout = steps.iter().any(|step| {
-            step["uses"].as_str().map_or(false, |uses| uses.contains("checkout"))
+            matches!(step["uses"].as_str(), Some(uses) if uses.contains("checkout"))
         });
         assert!(has_checkout, "Test job should checkout code");
 
         let has_rust_setup = steps.iter().any(|step| {
-            step["uses"].as_str().map_or(false, |uses| uses.contains("rust-toolchain"))
+            matches!(step["uses"].as_str(), Some(uses) if uses.contains("rust-toolchain"))
         });
         assert!(has_rust_setup, "Test job should set up Rust toolchain");
     }
@@ -246,14 +245,14 @@ fn test_release_workflow_configuration() {
     let on_config = release_yaml["on"].as_mapping()
         .expect("Release workflow should have trigger configuration");
 
-    assert!(on_config.contains_key(&serde_yaml::Value::String("push".to_string())), 
+    assert!(on_config.contains_key(serde_yaml::Value::String("push".to_string())), 
             "Release workflow should trigger on push");
 
     // Check for multi-platform builds
     let jobs = release_yaml["jobs"].as_mapping()
         .expect("Release workflow should have jobs");
 
-    if let Some(build_job) = jobs.get(&serde_yaml::Value::String("build-release".to_string())) {
+    if let Some(build_job) = jobs.get(serde_yaml::Value::String("build-release".to_string())) {
         let strategy = build_job.get("strategy");
         if let Some(strategy) = strategy {
             let matrix = strategy.get("matrix");
@@ -274,7 +273,7 @@ fn test_local_ci_simulation() {
 
     // Test cargo fmt check
     let fmt_output = Command::new("cargo")
-        .args(&["fmt", "--all", "--", "--check"])
+        .args(["fmt", "--all", "--", "--check"])
         .output()
         .expect("Failed to run cargo fmt");
 
@@ -283,7 +282,7 @@ fn test_local_ci_simulation() {
 
     // Test cargo clippy
     let clippy_output = Command::new("cargo")
-        .args(&["clippy", "--all-targets", "--", "-D", "warnings"])
+        .args(["clippy", "--all-targets", "--", "-D", "warnings"])
         .output()
         .expect("Failed to run cargo clippy");
 
@@ -293,7 +292,7 @@ fn test_local_ci_simulation() {
 
     // Test cargo check
     let check_output = Command::new("cargo")
-        .args(&["check", "--all-targets"])
+        .args(["check", "--all-targets"])
         .output()
         .expect("Failed to run cargo check");
 
@@ -306,13 +305,13 @@ fn test_local_ci_simulation() {
 fn test_security_audit_configuration() {
     // Check if cargo-audit is available (optional)
     let audit_check = Command::new("cargo")
-        .args(&["audit", "--version"])
+        .args(["audit", "--version"])
         .output();
 
     if audit_check.is_ok() && audit_check.unwrap().status.success() {
         // Run security audit if available
         let audit_output = Command::new("cargo")
-            .args(&["audit"])
+            .args(["audit"])
             .output()
             .expect("Failed to run cargo audit");
 
@@ -380,28 +379,28 @@ fn test_full_ci_pipeline_simulation() {
     
     // 1. Code formatting
     let fmt_result = Command::new("cargo")
-        .args(&["fmt", "--all", "--", "--check"])
+        .args(["fmt", "--all", "--", "--check"])
         .status()
         .expect("Failed to run cargo fmt");
     assert!(fmt_result.success(), "Formatting check failed");
 
     // 2. Linting
     let clippy_result = Command::new("cargo")
-        .args(&["clippy", "--all-targets", "--", "-D", "warnings"])
+        .args(["clippy", "--all-targets", "--", "-D", "warnings"])
         .status()
         .expect("Failed to run cargo clippy");
     assert!(clippy_result.success(), "Linting failed");
 
     // 3. Testing
     let test_result = Command::new("cargo")
-        .args(&["test", "--all"])
+        .args(["test", "--all"])
         .status()
         .expect("Failed to run tests");
     assert!(test_result.success(), "Tests failed");
 
     // 4. Build
     let build_result = Command::new("cargo")
-        .args(&["build", "--release"])
+        .args(["build", "--release"])
         .status()
         .expect("Failed to build release");
     assert!(build_result.success(), "Release build failed");

@@ -1,11 +1,9 @@
 use axum::{
-    body::Body,
     extract::{Request, State},
     http::{header, HeaderMap, Method, StatusCode},
     middleware::Next,
     response::Response,
 };
-use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, sync::Arc};
 use tracing::{debug, warn};
 
@@ -79,15 +77,11 @@ pub async fn input_validation_middleware(
     }
 
     // Validate headers
-    if let Err(status) = validate_headers(request.headers(), &config) {
-        return Err(status);
-    }
+    validate_headers(request.headers(), &config)?;
 
     // Validate content type for body-containing methods
     if matches!(request.method(), &Method::POST | &Method::PATCH | &Method::PUT) {
-        if let Err(status) = validate_content_type(request.headers(), &config) {
-            return Err(status);
-        }
+        validate_content_type(request.headers(), &config)?;
     }
 
     // Check for suspicious patterns in path

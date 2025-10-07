@@ -45,7 +45,7 @@ fn create_test_app_state() -> AppState {
     let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new("/tmp/ferritedb_admin_test".into()))
         as Arc<dyn ferritedb_storage::StorageBackend>;
 
-    let realtime_manager = RealtimeManager::new(auth_service.clone(), rule_engine.clone());
+    let realtime_manager = RealtimeManager::new(rule_engine.clone());
 
     AppState {
         auth_service,

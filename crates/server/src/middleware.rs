@@ -113,7 +113,7 @@ pub async fn optional_auth_middleware(
 
 /// Admin-only middleware that requires admin role
 pub async fn admin_middleware(
-    mut request: Request,
+    request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
     // Check if user is authenticated and is admin

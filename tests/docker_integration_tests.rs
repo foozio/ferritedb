@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::process::Command;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -19,7 +21,7 @@ use serde_json::json;
 async fn test_docker_container_build_and_health() {
     // Build the Docker image
     let build_output = Command::new("docker")
-        .args(&["build", "-t", "ferritedb:test", "."])
+        .args(["build", "-t", "ferritedb:test", "."])
         .output()
         .expect("Failed to execute docker build");
 
@@ -31,7 +33,7 @@ async fn test_docker_container_build_and_health() {
 
     // Start the container
     let run_output = Command::new("docker")
-        .args(&[
+        .args([
             "run",
             "-d",
             "--name", "ferritedb-test",
@@ -78,11 +80,11 @@ async fn test_docker_container_build_and_health() {
 
     // Cleanup: Stop and remove container
     let _ = Command::new("docker")
-        .args(&["stop", &container_id])
+        .args(["stop", &container_id])
         .output();
     
     let _ = Command::new("docker")
-        .args(&["rm", &container_id])
+        .args(["rm", &container_id])
         .output();
 }
 
@@ -91,7 +93,7 @@ async fn test_docker_container_build_and_health() {
 async fn test_docker_container_api_functionality() {
     // Start container with test configuration
     let run_output = Command::new("docker")
-        .args(&[
+        .args([
             "run",
             "-d",
             "--name", "ferritedb-api-test",
@@ -114,7 +116,7 @@ async fn test_docker_container_api_functionality() {
 
     // Test admin user creation via API
     let register_response = client
-        .post(&format!("{}/api/auth/register", base_url))
+        .post(format!("{}/api/auth/register", base_url))
         .json(&json!({
             "email": "admin@test.com",
             "password": "test123456",
@@ -129,7 +131,7 @@ async fn test_docker_container_api_functionality() {
 
     // Test login
     let login_response = client
-        .post(&format!("{}/api/auth/login", base_url))
+        .post(format!("{}/api/auth/login", base_url))
         .json(&json!({
             "email": "admin@test.com",
             "password": "test123456"
@@ -146,7 +148,7 @@ async fn test_docker_container_api_functionality() {
 
     // Test collection creation
     let collection_response = client
-        .post(&format!("{}/api/collections", base_url))
+        .post(format!("{}/api/collections", base_url))
         .header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "name": "test_collection",
@@ -174,7 +176,7 @@ async fn test_docker_container_api_functionality() {
 
     // Test record creation
     let record_response = client
-        .post(&format!("{}/api/collections/test_collection/records", base_url))
+        .post(format!("{}/api/collections/test_collection/records", base_url))
         .header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "title": "Test Record",
@@ -189,11 +191,11 @@ async fn test_docker_container_api_functionality() {
 
     // Cleanup
     let _ = Command::new("docker")
-        .args(&["stop", &container_id])
+        .args(["stop", &container_id])
         .output();
     
     let _ = Command::new("docker")
-        .args(&["rm", &container_id])
+        .args(["rm", &container_id])
         .output();
 }
 
@@ -202,7 +204,7 @@ async fn test_docker_container_api_functionality() {
 async fn test_docker_compose_development_setup() {
     // Test docker-compose development setup
     let compose_up = Command::new("docker-compose")
-        .args(&["-f", "docker-compose.dev.yml", "up", "-d", "ferritedb-dev"])
+        .args(["-f", "docker-compose.dev.yml", "up", "-d", "ferritedb-dev"])
         .output()
         .expect("Failed to run docker-compose up");
 
@@ -240,7 +242,7 @@ async fn test_docker_compose_development_setup() {
 
     // Cleanup
     let _ = Command::new("docker-compose")
-        .args(&["-f", "docker-compose.dev.yml", "down", "-v"])
+        .args(["-f", "docker-compose.dev.yml", "down", "-v"])
         .output();
 }
 
@@ -249,7 +251,7 @@ async fn test_docker_compose_development_setup() {
 async fn test_docker_container_graceful_shutdown() {
     // Start container
     let run_output = Command::new("docker")
-        .args(&[
+        .args([
             "run",
             "-d",
             "--name", "ferritedb-shutdown-test",
@@ -277,7 +279,7 @@ async fn test_docker_container_graceful_shutdown() {
 
     // Send SIGTERM to container (graceful shutdown)
     let stop_output = Command::new("docker")
-        .args(&["stop", &container_id])
+        .args(["stop", &container_id])
         .output()
         .expect("Failed to stop container");
 
@@ -285,7 +287,7 @@ async fn test_docker_container_graceful_shutdown() {
 
     // Verify container stopped cleanly
     let inspect_output = Command::new("docker")
-        .args(&["inspect", &container_id, "--format", "{{.State.ExitCode}}"])
+        .args(["inspect", &container_id, "--format", "{{.State.ExitCode}}"])
         .output()
         .expect("Failed to inspect container");
 
@@ -295,7 +297,7 @@ async fn test_docker_container_graceful_shutdown() {
 
     // Cleanup
     let _ = Command::new("docker")
-        .args(&["rm", &container_id])
+        .args(["rm", &container_id])
         .output();
 }
 
@@ -304,7 +306,7 @@ async fn test_docker_container_graceful_shutdown() {
 async fn test_docker_volume_persistence() {
     // Create a named volume
     let volume_create = Command::new("docker")
-        .args(&["volume", "create", "ferritedb-test-data"])
+        .args(["volume", "create", "ferritedb-test-data"])
         .output()
         .expect("Failed to create volume");
 
@@ -312,7 +314,7 @@ async fn test_docker_volume_persistence() {
 
     // Start container with volume
     let run_output = Command::new("docker")
-        .args(&[
+        .args([
             "run",
             "-d",
             "--name", "ferritedb-persistence-test",
@@ -347,16 +349,16 @@ async fn test_docker_volume_persistence() {
 
     // Stop container
     let _ = Command::new("docker")
-        .args(&["stop", &container_id])
+        .args(["stop", &container_id])
         .output();
 
     let _ = Command::new("docker")
-        .args(&["rm", &container_id])
+        .args(["rm", &container_id])
         .output();
 
     // Start new container with same volume
     let run_output2 = Command::new("docker")
-        .args(&[
+        .args([
             "run",
             "-d",
             "--name", "ferritedb-persistence-test-2",
@@ -389,22 +391,22 @@ async fn test_docker_volume_persistence() {
 
     // Cleanup
     let _ = Command::new("docker")
-        .args(&["stop", &container_id2])
+        .args(["stop", &container_id2])
         .output();
 
     let _ = Command::new("docker")
-        .args(&["rm", &container_id2])
+        .args(["rm", &container_id2])
         .output();
 
     let _ = Command::new("docker")
-        .args(&["volume", "rm", "ferritedb-test-data"])
+        .args(["volume", "rm", "ferritedb-test-data"])
         .output();
 }
 
 /// Helper function to check if Docker is available
 fn docker_available() -> bool {
     Command::new("docker")
-        .args(&["--version"])
+        .args(["--version"])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
@@ -413,7 +415,7 @@ fn docker_available() -> bool {
 /// Helper function to check if docker-compose is available
 fn docker_compose_available() -> bool {
     Command::new("docker-compose")
-        .args(&["--version"])
+        .args(["--version"])
         .output()
         .map(|output| output.status.success())
         .unwrap_or(false)
@@ -431,7 +433,7 @@ fn test_docker_prerequisites() {
 async fn test_docker_security_configuration() {
     // Start container and check security settings
     let run_output = Command::new("docker")
-        .args(&[
+        .args([
             "run",
             "-d",
             "--name", "ferritedb-security-test",
@@ -447,7 +449,7 @@ async fn test_docker_security_configuration() {
 
     // Check that container runs as non-root user
     let user_check = Command::new("docker")
-        .args(&["exec", &container_id, "whoami"])
+        .args(["exec", &container_id, "whoami"])
         .output()
         .expect("Failed to check user");
 
@@ -457,7 +459,7 @@ async fn test_docker_security_configuration() {
 
     // Check file permissions
     let permissions_check = Command::new("docker")
-        .args(&["exec", &container_id, "ls", "-la", "/app/data"])
+        .args(["exec", &container_id, "ls", "-la", "/app/data"])
         .output()
         .expect("Failed to check permissions");
 
@@ -465,11 +467,11 @@ async fn test_docker_security_configuration() {
 
     // Cleanup
     let _ = Command::new("docker")
-        .args(&["stop", &container_id])
+        .args(["stop", &container_id])
         .output();
 
     let _ = Command::new("docker")
-        .args(&["rm", &container_id])
+        .args(["rm", &container_id])
         .output();
 }
 
@@ -481,7 +483,7 @@ mod test_helpers {
     pub async fn setup_test_environment() {
         // Ensure test image is built
         let build_output = Command::new("docker")
-            .args(&["build", "-t", "ferritedb:test", "."])
+            .args(["build", "-t", "ferritedb:test", "."])
             .output()
             .expect("Failed to build test image");
 
@@ -492,13 +494,13 @@ mod test_helpers {
     pub async fn cleanup_test_environment() {
         // Remove any leftover test containers
         let _ = Command::new("docker")
-            .args(&["ps", "-aq", "--filter", "name=ferritedb-*-test"])
+            .args(["ps", "-aq", "--filter", "name=ferritedb-*-test"])
             .output()
             .and_then(|output| {
                 let container_ids = String::from_utf8_lossy(&output.stdout);
                 if !container_ids.trim().is_empty() {
                     Command::new("docker")
-                        .args(&["rm", "-f"])
+                        .args(["rm", "-f"])
                         .args(container_ids.trim().split('\n'))
                         .output()
                 } else {
@@ -508,13 +510,13 @@ mod test_helpers {
 
         // Remove test volumes
         let _ = Command::new("docker")
-            .args(&["volume", "ls", "-q", "--filter", "name=ferritedb-test-*"])
+            .args(["volume", "ls", "-q", "--filter", "name=ferritedb-test-*"])
             .output()
             .and_then(|output| {
                 let volume_names = String::from_utf8_lossy(&output.stdout);
                 if !volume_names.trim().is_empty() {
                     Command::new("docker")
-                        .args(&["volume", "rm"])
+                        .args(["volume", "rm"])
                         .args(volume_names.trim().split('\n'))
                         .output()
                 } else {

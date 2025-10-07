@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc, time::{Duration, SystemTime, UNIX_EPOCH}};
 use tokio::sync::RwLock;
 use tracing::{debug, warn};
-use uuid::Uuid;
 
 /// CSRF token configuration
 #[derive(Debug, Clone)]
@@ -67,7 +66,6 @@ impl SameSite {
 /// CSRF token store entry
 #[derive(Debug, Clone)]
 struct CsrfToken {
-    token: String,
     created_at: u64,
     session_id: Option<String>,
 }
@@ -96,7 +94,6 @@ impl CsrfTokenStore {
             .as_secs();
 
         let csrf_token = CsrfToken {
-            token: token.clone(),
             created_at: now,
             session_id,
         };
@@ -177,7 +174,7 @@ impl CsrfTokenStore {
 pub async fn csrf_protection_middleware(
     State(csrf_store): State<Arc<CsrfTokenStore>>,
     headers: HeaderMap,
-    mut request: Request,
+    request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
     let method = request.method().clone();
@@ -230,7 +227,7 @@ fn generate_secure_token() -> String {
     let mut bytes = [0u8; 32];
     OsRng.fill_bytes(&mut bytes);
     use base64::{Engine as _, engine::general_purpose};
-    general_purpose::URL_SAFE_NO_PAD.encode(&bytes)
+    general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
 /// Extract CSRF token from cookies

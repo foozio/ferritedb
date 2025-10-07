@@ -1,8 +1,12 @@
-use crate::{CoreError, CoreResult};
-use sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite, SqlitePool};
+use crate::CoreResult;
+use sqlx::{
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
+    Pool, Sqlite, SqlitePool,
+};
 use std::path::Path;
 use std::time::Duration;
-use tracing::{info, warn};
+use std::str::FromStr;
+use tracing::info;
 
 pub type DatabasePool = Pool<Sqlite>;
 
@@ -21,19 +25,15 @@ impl Database {
             }
         }
 
+        let connect_options = SqliteConnectOptions::from_str(database_url)?
+            .create_if_missing(true)
+            .foreign_keys(true)
+            .journal_mode(SqliteJournalMode::Wal);
+
         let pool = SqlitePoolOptions::new()
             .max_connections(max_connections)
             .acquire_timeout(Duration::from_secs(connection_timeout))
-            .connect(database_url)
-            .await?;
-
-        // Enable foreign key constraints and WAL mode for better performance
-        sqlx::query("PRAGMA foreign_keys = ON")
-            .execute(&pool)
-            .await?;
-        
-        sqlx::query("PRAGMA journal_mode = WAL")
-            .execute(&pool)
+            .connect_with(connect_options)
             .await?;
 
         info!("Database connection established: {}", database_url);
@@ -88,8 +88,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_database_creation() {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();
@@ -102,8 +102,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_database_migrations() {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test_migrate.db");
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test_migrate.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();

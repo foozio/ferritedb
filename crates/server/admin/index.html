@@ -44,9 +44,14 @@
             <!-- Navigation -->
             <nav class="navbar">
                 <div class="navbar-brand">
-                    <h1>FerriteDB Admin</h1>
+                    <div class="brand-mark">FD</div>
+                    <div class="brand-copy">
+                        <h1>FerriteDB</h1>
+                        <span class="brand-subtitle">Admin Console</span>
+                    </div>
                 </div>
                 <div class="navbar-controls">
+                    <span class="environment-pill">Development</span>
                     <button id="theme-toggle" class="btn btn-ghost" title="Toggle theme" aria-label="Toggle dark/light theme">
                         <svg class="theme-icon sun-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <circle cx="12" cy="12" r="5"/>
@@ -72,6 +77,10 @@
 
             <!-- Sidebar -->
             <aside class="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-title">Navigation</div>
+                    <p class="sidebar-description">Manage your data and configuration.</p>
+                </div>
                 <nav class="sidebar-nav">
                     <a href="#dashboard" class="nav-item active" data-page="dashboard">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

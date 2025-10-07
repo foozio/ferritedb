@@ -1,13 +1,11 @@
 use axum::{
     extract::State,
-    http::StatusCode,
-    response::{Html, IntoResponse, Response},
+    response::{Html, IntoResponse},
     routing::get,
     Json, Router,
 };
-use ferritedb_core::{Collection, Field, FieldType, UserRole};
+use ferritedb_core::{Collection, Field, FieldType};
 use serde_json::{json, Value};
-use std::collections::HashMap;
 
 /// OpenAPI specification generator for FerriteDB
 pub struct OpenApiGenerator {

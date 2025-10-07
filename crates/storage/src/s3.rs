@@ -13,6 +13,11 @@ pub struct S3Storage {
 
 impl S3Storage {
     pub fn new(client: Client, bucket: String, region: String) -> Self {
+        debug!(
+            "Initializing S3 storage client for bucket '{}' in region '{}'",
+            bucket, region
+        );
+
         Self {
             client,
             bucket,
@@ -71,7 +76,10 @@ impl StorageBackend for S3Storage {
         let key = self.validate_key(path)?;
         let content_type = self.detect_content_type(path);
         
-        debug!("Storing object in S3: bucket={}, key={}", self.bucket, key);
+        debug!(
+            "Storing object in S3: bucket={}, region={}, key={}",
+            self.bucket, self.region, key
+        );
         
         let mut put_request = self
             .client
@@ -101,7 +109,10 @@ impl StorageBackend for S3Storage {
     async fn retrieve(&self, path: &str) -> StorageResult<Vec<u8>> {
         let key = self.validate_key(path)?;
         
-        debug!("Retrieving object from S3: bucket={}, key={}", self.bucket, key);
+        debug!(
+            "Retrieving object from S3: bucket={}, region={}, key={}",
+            self.bucket, self.region, key
+        );
         
         let result = self
             .client

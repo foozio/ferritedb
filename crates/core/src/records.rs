@@ -489,10 +489,10 @@ impl RecordService {
         
         for sort_field in sort.split(',') {
             let sort_field = sort_field.trim();
-            let (field_name, direction) = if sort_field.starts_with('-') {
-                (&sort_field[1..], "DESC")
-            } else if sort_field.starts_with('+') {
-                (&sort_field[1..], "ASC")
+            let (field_name, direction) = if let Some(name) = sort_field.strip_prefix('-') {
+                (name, "DESC")
+            } else if let Some(name) = sort_field.strip_prefix('+') {
+                (name, "ASC")
             } else {
                 (sort_field, "ASC")
             };
@@ -536,17 +536,10 @@ impl RecordService {
                     Ok(Value::Null)
                 }
             }
-            FieldType::Json => {
-                if let Ok(s) = row.try_get::<Option<String>, _>(field.name.as_str()) {
-                    if let Some(json_str) = s {
-                        serde_json::from_str(&json_str).map_err(CoreError::from)
-                    } else {
-                        Ok(Value::Null)
-                    }
-                } else {
-                    Ok(Value::Null)
-                }
-            }
+            FieldType::Json => match row.try_get::<Option<String>, _>(field.name.as_str()) {
+                Ok(Some(json_str)) => serde_json::from_str(&json_str).map_err(CoreError::from),
+                Ok(None) | Err(_) => Ok(Value::Null),
+            },
             FieldType::Date | FieldType::DateTime | FieldType::Relation { .. } | FieldType::File { .. } => {
                 if let Ok(s) = row.try_get::<Option<String>, _>(field.name.as_str()) {
                     Ok(s.map(Value::String).unwrap_or(Value::Null))
@@ -566,8 +559,8 @@ mod tests {
     use tempfile::tempdir;
 
     async fn setup_test_services() -> (Database, CollectionService, RecordService) {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();

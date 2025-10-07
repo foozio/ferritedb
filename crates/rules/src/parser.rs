@@ -142,7 +142,12 @@ impl RuleParser {
                         let operator = match first.as_str() {
                             "!" => UnaryOperator::Not,
                             "-" => UnaryOperator::Negate,
-                            _ => return Err(RuleError::Parse(format!("Unknown unary operator: {}", first.as_str()))),
+                            _ => {
+                                return Err(RuleError::Parse(format!(
+                                    "Unknown unary operator: {}",
+                                    first.as_str()
+                                )))
+                            }
                         };
                         let operand = Self::build_ast(inner.next().unwrap())?;
                         Ok(AstNode::UnaryOp {
@@ -150,7 +155,10 @@ impl RuleParser {
                             operand: Box::new(operand),
                         })
                     }
-                    _ => return Err(RuleError::Parse(format!("Unexpected rule in unary_expr: {:?}", first.as_rule()))),
+                    _ => Err(RuleError::Parse(format!(
+                        "Unexpected rule in unary_expr: {:?}",
+                        first.as_rule()
+                    ))),
                 }
             }
             

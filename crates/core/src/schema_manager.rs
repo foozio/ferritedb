@@ -34,6 +34,7 @@ impl SchemaManager {
 
         // Create the dynamic table
         let create_sql = self.collection_service.generate_create_table_sql(collection)?;
+        dbg!(&create_sql);
         sqlx::query(&create_sql).execute(&mut *tx).await?;
 
         // Create indexes for unique fields
@@ -92,13 +93,13 @@ impl SchemaManager {
         for change in schema_changes {
             match change {
                 SchemaChange::AddField(field) => {
-                    self.add_column_to_table(&new_collection.name, &field, &mut tx).await?;
+                    self.add_column_to_table(&new_collection.name, field.as_ref(), &mut tx).await?;
                 }
                 SchemaChange::RemoveField(field_name) => {
                     self.remove_column_from_table(&new_collection.name, &field_name, &mut tx).await?;
                 }
-                SchemaChange::ModifyField(old_field, new_field) => {
-                    self.modify_column_in_table(&new_collection.name, &old_field, &new_field, &mut tx).await?;
+                SchemaChange::ModifyField { old, new } => {
+                    self.modify_column_in_table(&new_collection.name, old.as_ref(), new.as_ref(), &mut tx).await?;
                 }
                 SchemaChange::RecreateTable => {
                     // For complex changes, recreate the entire table
@@ -153,8 +154,8 @@ impl SchemaManager {
 
         // Check for standard columns
         let required_columns = ["id", "created_at", "updated_at"];
-        for col in &required_columns {
-            if !existing_columns.contains(&col.to_string()) {
+        for &col in &required_columns {
+            if !existing_columns.contains(col) {
                 return Ok(false);
             }
         }
@@ -220,43 +221,46 @@ impl SchemaManager {
     ) -> CoreResult<Vec<SchemaChange>> {
         let mut changes = Vec::new();
 
-        let old_fields: std::collections::HashMap<String, &Field> = old_collection
+        let old_fields: std::collections::HashMap<String, Field> = old_collection
             .schema_json
             .fields
             .iter()
-            .map(|f| (f.name.clone(), f))
+            .map(|f| (f.name.clone(), f.clone()))
             .collect();
 
-        let new_fields: std::collections::HashMap<String, &Field> = new_collection
+        let new_fields: std::collections::HashMap<String, Field> = new_collection
             .schema_json
             .fields
             .iter()
-            .map(|f| (f.name.clone(), f))
+            .map(|f| (f.name.clone(), f.clone()))
             .collect();
 
         // Check for added fields
-        for (name, field) in &new_fields {
-            if !old_fields.contains_key(name) {
-                changes.push(SchemaChange::AddField((*field).clone()));
+        for field in new_fields.values() {
+            if !old_fields.contains_key(&field.name) {
+                changes.push(SchemaChange::AddField(Box::new(field.clone())));
             }
         }
 
         // Check for removed fields
-        for (name, _) in &old_fields {
+        for name in old_fields.keys() {
             if !new_fields.contains_key(name) {
                 changes.push(SchemaChange::RemoveField(name.clone()));
             }
         }
 
         // Check for modified fields
-        for (name, new_field) in &new_fields {
-            if let Some(old_field) = old_fields.get(name) {
+        for new_field in new_fields.values() {
+            if let Some(old_field) = old_fields.get(&new_field.name) {
                 if self.field_changed(old_field, new_field) {
                     // For complex field changes, we might need to recreate the table
                     if self.requires_table_recreation(old_field, new_field) {
                         return Ok(vec![SchemaChange::RecreateTable]);
                     } else {
-                        changes.push(SchemaChange::ModifyField((*old_field).clone(), (*new_field).clone()));
+                        changes.push(SchemaChange::ModifyField {
+                            old: Box::new(old_field.clone()),
+                            new: Box::new(new_field.clone()),
+                        });
                     }
                 }
             }
@@ -364,7 +368,7 @@ impl SchemaManager {
         sqlx::query(&create_sql).execute(&mut **tx).await?;
 
         // Copy compatible data from old table to new table
-        self.copy_compatible_data(&old_collection, &new_collection, &old_table_name, &temp_table_name, tx).await?;
+        self.copy_compatible_data(old_collection, new_collection, &old_table_name, &temp_table_name, tx).await?;
 
         // Drop old table
         let drop_old_sql = format!("DROP TABLE {}", old_table_name);
@@ -386,22 +390,22 @@ impl SchemaManager {
         tx: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
     ) -> CoreResult<()> {
         // Find common fields between old and new schema
-        let old_fields: std::collections::HashMap<String, &Field> = old_collection
+        let old_fields: std::collections::HashMap<String, Field> = old_collection
             .schema_json
             .fields
             .iter()
-            .map(|f| (f.name.clone(), f))
+            .map(|f| (f.name.clone(), f.clone()))
             .collect();
 
-        let new_fields: std::collections::HashMap<String, &Field> = new_collection
+        let new_fields: std::collections::HashMap<String, Field> = new_collection
             .schema_json
             .fields
             .iter()
-            .map(|f| (f.name.clone(), f))
+            .map(|f| (f.name.clone(), f.clone()))
             .collect();
 
         let mut common_fields = Vec::new();
-        for (name, _) in &new_fields {
+        for name in new_fields.keys() {
             if old_fields.contains_key(name) {
                 common_fields.push(name.clone());
             }
@@ -456,9 +460,9 @@ impl SchemaManager {
 
 #[derive(Debug, Clone)]
 enum SchemaChange {
-    AddField(Field),
+    AddField(Box<Field>),
     RemoveField(String),
-    ModifyField(Field, Field),
+    ModifyField { old: Box<Field>, new: Box<Field> },
     RecreateTable,
 }
 
@@ -470,8 +474,8 @@ mod tests {
     use uuid::Uuid;
 
     async fn setup_test_services() -> (Database, CollectionService, RecordService, SchemaManager) {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();

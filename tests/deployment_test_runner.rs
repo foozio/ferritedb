@@ -1,3 +1,5 @@
+#![allow(dead_code, clippy::expect_fun_call)]
+
 use std::process::Command;
 use std::env;
 
@@ -39,7 +41,7 @@ fn test_deployment_script_executable() {
 fn test_run_deployment_tests_quick() {
     // Run the deployment test script in quick mode
     let output = Command::new("./scripts/test-deployment.sh")
-        .args(&["--quick"])
+        .args(["--quick"])
         .output()
         .expect("Failed to execute deployment test script");
 
@@ -80,7 +82,7 @@ fn test_run_full_deployment_tests() {
 fn test_docker_prerequisites() {
     // Check if Docker is available
     let docker_check = Command::new("docker")
-        .args(&["--version"])
+        .args(["--version"])
         .output();
 
     match docker_check {
@@ -95,7 +97,7 @@ fn test_docker_prerequisites() {
 
     // Check if docker-compose is available
     let compose_check = Command::new("docker-compose")
-        .args(&["--version"])
+        .args(["--version"])
         .output();
 
     match compose_check {
@@ -308,7 +310,7 @@ mod integration_helpers {
     /// Helper to check if a command is available
     pub fn command_available(cmd: &str) -> bool {
         Command::new(cmd)
-            .args(&["--version"])
+            .args(["--version"])
             .output()
             .map(|output| output.status.success())
             .unwrap_or(false)

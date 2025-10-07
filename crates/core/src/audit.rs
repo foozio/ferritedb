@@ -126,6 +126,7 @@ impl AuditLogger {
     }
 
     /// Log an audit event
+    #[allow(clippy::too_many_arguments)]
     pub async fn log(
         &self,
         action: AuditAction,
@@ -215,9 +216,9 @@ impl AuditLogger {
         let mut query = "SELECT * FROM audit_log WHERE 1=1".to_string();
         let mut params: Vec<String> = Vec::new();
 
-        if user_id.is_some() {
+        if let Some(user_id) = user_id {
             query.push_str(" AND user_id = ?");
-            params.push(user_id.unwrap().to_string());
+            params.push(user_id.to_string());
         }
 
         if let Some(action) = action {
@@ -282,6 +283,7 @@ impl AuditLogger {
     }
 
     /// Create audit entry from database values
+    #[allow(clippy::too_many_arguments)]
     fn create_audit_entry_from_values(
         &self,
         id: String,
@@ -456,14 +458,16 @@ macro_rules! audit_log {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+    use crate::Database;
 
-    async fn create_test_db() -> Pool<Sqlite> {
-        let temp_dir = tempdir().unwrap();
-        let db_path = temp_dir.path().join("test.db");
+    async fn create_test_db() -> Database {
+        let db_dir = tempdir().unwrap().into_path();
+        let db_path = db_dir.join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
         
-        let pool = sqlx::SqlitePool::connect(&database_url).await.unwrap();
-        
+        let db = Database::new(&database_url, 5, 30).await.unwrap();
+        let pool = db.pool().clone();
+
         // Create audit_log table with request_id column
         sqlx::query(
             r#"
@@ -485,13 +489,13 @@ mod tests {
         .await
         .unwrap();
         
-        pool
+        db
     }
 
     #[tokio::test]
     async fn test_audit_logging() {
-        let pool = create_test_db().await;
-        let logger = AuditLogger::new(pool, true);
+        let db = create_test_db().await;
+        let logger = AuditLogger::new(db.pool().clone(), true);
         
         let user_id = Uuid::new_v4();
         let context = AuditContext::new()
@@ -525,6 +529,8 @@ mod tests {
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].action.as_str(), "user_login");
         assert_eq!(logs[0].user_id, Some(user_id));
+
+        db.close().await;
     }
 
     #[tokio::test]

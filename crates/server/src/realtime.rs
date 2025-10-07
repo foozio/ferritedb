@@ -6,10 +6,7 @@ use axum::{
     http::StatusCode,
     response::Response,
 };
-use ferritedb_core::{
-    auth::{AuthService, Claims},
-    models::{User, UserRole},
-};
+use ferritedb_core::models::UserRole;
 use ferritedb_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -20,7 +17,7 @@ use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{error::ServerError, middleware::AuthUser, routes::AppState};
+use crate::{middleware::AuthUser, routes::AppState};
 
 /// WebSocket connection query parameters for authentication
 #[derive(Debug, Deserialize)]
@@ -119,22 +116,19 @@ pub struct Connection {
 pub struct RealtimeManager {
     connections: Arc<RwLock<HashMap<Uuid, Connection>>>,
     event_sender: broadcast::Sender<RealtimeEvent>,
-    auth_service: Arc<AuthService>,
     rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
 }
 
 impl RealtimeManager {
     /// Create a new realtime manager
     pub fn new(
-        auth_service: Arc<AuthService>,
         rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
     ) -> Self {
-        let (event_sender, _) = broadcast::channel(1000);
+        let (event_sender, _) = broadcast::channel::<RealtimeEvent>(1000);
         
         Self {
             connections: Arc::new(RwLock::new(HashMap::new())),
             event_sender,
-            auth_service,
             rule_engine,
         }
     }
@@ -304,19 +298,39 @@ impl RealtimeManager {
     ) {
         debug!("Broadcasting event for collection: {}", event.collection);
         
-        let connections = self.connections.read().unwrap();
+        let connection_snapshots: Vec<(Uuid, mpsc::UnboundedSender<ServerMessage>, Vec<Subscription>)> = {
+            let connections = self.connections.read().unwrap();
+            connections
+                .values()
+                .map(|connection| {
+                    (
+                        connection.id,
+                        connection.sender.clone(),
+                        connection
+                            .subscriptions
+                            .values()
+                            .cloned()
+                            .collect::<Vec<Subscription>>(),
+                    )
+                })
+                .collect()
+        };
+
         let mut sent_count = 0;
 
-        for connection in connections.values() {
-            for subscription in connection.subscriptions.values() {
-                if self.should_send_event(&event, subscription, collection_service).await {
+        for (connection_id, sender, subscriptions) in connection_snapshots {
+            for subscription in subscriptions {
+                if self
+                    .should_send_event(&event, &subscription, collection_service)
+                    .await
+                {
                     let server_message = ServerMessage::Event {
                         subscription_id: subscription.id.clone(),
                         event: event.clone(),
                     };
 
-                    if let Err(e) = connection.sender.send(server_message) {
-                        warn!("Failed to send event to connection {}: {}", connection.id, e);
+                    if let Err(e) = sender.send(server_message) {
+                        warn!("Failed to send event to connection {}: {}", connection_id, e);
                     } else {
                         sent_count += 1;
                     }
@@ -373,10 +387,7 @@ pub async fn websocket_handler(
     };
 
     // Create realtime manager if not already in state
-    let realtime_manager = RealtimeManager::new(
-        state.auth_service.clone(),
-        state.rule_engine.clone(),
-    );
+    let realtime_manager = RealtimeManager::new(state.rule_engine.clone());
 
     Ok(ws.on_upgrade(move |socket| {
         handle_websocket(socket, auth_user, realtime_manager, state)
@@ -642,8 +653,9 @@ mod tests {
         let rule_engine = Arc::new(std::sync::Mutex::new(MockRuleEngine::new()));
         
         // Create a simple manager for testing
-        let (event_sender, _) = broadcast::channel(1000);
-        let connections = Arc::new(RwLock::new(HashMap::new()));
+        let (event_sender, _) = broadcast::channel::<RealtimeEvent>(1000);
+        let connections: Arc<RwLock<HashMap<Uuid, Connection>>> =
+            Arc::new(RwLock::new(HashMap::new()));
         
         // Test that we can create the basic structure
         assert!(connections.read().unwrap().is_empty());

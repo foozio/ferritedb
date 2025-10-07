@@ -1,25 +1,13 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct CoreConfig {
     pub server: ServerConfig,
     pub database: DatabaseConfig,
     pub auth: AuthConfig,
     pub storage: StorageConfig,
     pub features: FeatureFlags,
-}
-
-impl Default for CoreConfig {
-    fn default() -> Self {
-        Self {
-            server: ServerConfig::default(),
-            database: DatabaseConfig::default(),
-            auth: AuthConfig::default(),
-            storage: StorageConfig::default(),
-            features: FeatureFlags::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -168,7 +156,7 @@ impl Default for S3StorageConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct FeatureFlags {
     #[cfg(feature = "oauth2")]
     pub oauth2: bool,
@@ -179,20 +167,4 @@ pub struct FeatureFlags {
     pub multi_tenant: bool,
     pub full_text_search: bool,
     pub metrics: bool,
-}
-
-impl Default for FeatureFlags {
-    fn default() -> Self {
-        Self {
-            #[cfg(feature = "oauth2")]
-            oauth2: false,
-            #[cfg(feature = "s3")]
-            s3_storage: false,
-            #[cfg(feature = "image-transforms")]
-            image_transforms: false,
-            multi_tenant: false,
-            full_text_search: false,
-            metrics: false,
-        }
-    }
 }

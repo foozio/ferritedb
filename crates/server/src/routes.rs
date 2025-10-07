@@ -1,9 +1,8 @@
 use axum::{
-    body::Body,
     extract::{FromRequestParts, Path, Query, State},
     http::{request::Parts, StatusCode, Uri},
     response::{Html, Json, Response},
-    routing::{delete, get, patch, post},
+    routing::{get, post},
     Router,
 };
 use ferritedb_core::{
@@ -11,13 +10,13 @@ use ferritedb_core::{
         AuthService, AuthToken, LoginRequest, LoginResponse, RefreshTokenRequest, RegisterRequest,
         RegisterResponse, UserResponse,
     },
-    models::{User, UserRole, Record},
-    CollectionService, RecordService,
+    models::{CreateUserRequest, Record, User, UserRole},
+    UserRepository as CoreUserRepository,
 };
 use ferritedb_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::{collections::HashMap, error::Error};
 use uuid::Uuid;
 
 /// Query parameters for listing records
@@ -74,9 +73,9 @@ pub struct UpdateRecordRequest {
 // Temporary trait for UserRepository until repository module is fixed
 #[axum::async_trait]
 pub trait UserRepository: Send + Sync {
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<User>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn create(&self, user: &User) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn find_by_email(&self, email: &str) -> Result<Option<User>, Box<dyn Error + Send + Sync>>;
+    async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<User>, Box<dyn Error + Send + Sync>>;
+    async fn create(&self, request: CreateUserRequest, password_hash: String) -> Result<User, Box<dyn Error + Send + Sync>>;
 }
 
 // Mock implementations for testing
@@ -85,17 +84,45 @@ pub struct MockCollectionService;
 pub struct MockRecordService;
 
 #[axum::async_trait]
+impl UserRepository for CoreUserRepository {
+    async fn find_by_email(&self, email: &str) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
+        CoreUserRepository::find_by_email(self, email)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
+    }
+
+    async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
+        CoreUserRepository::find_by_id(self, id)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
+    }
+
+    async fn create(&self, request: CreateUserRequest, password_hash: String) -> Result<User, Box<dyn Error + Send + Sync>> {
+        CoreUserRepository::create(self, request, password_hash)
+            .await
+            .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
+    }
+}
+
+#[axum::async_trait]
 impl UserRepository for MockUserRepository {
-    async fn find_by_email(&self, _email: &str) -> Result<Option<User>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn find_by_email(&self, _email: &str) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
         Ok(None)
     }
     
-    async fn find_by_id(&self, _id: uuid::Uuid) -> Result<Option<User>, Box<dyn std::error::Error + Send + Sync>> {
+    async fn find_by_id(&self, _id: uuid::Uuid) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
         Ok(None)
     }
     
-    async fn create(&self, _user: &User) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        Ok(())
+    async fn create(&self, request: CreateUserRequest, password_hash: String) -> Result<User, Box<dyn Error + Send + Sync>> {
+        let CreateUserRequest { email, role, verified, .. } = request;
+        let mut user = User::new(
+            email,
+            password_hash,
+            role.unwrap_or(UserRole::User),
+        );
+        user.verified = verified;
+        Ok(user)
     }
 }
 
@@ -167,7 +194,7 @@ use std::sync::Arc;
 
 use crate::{
     error::{ServerError, ServerResult},
-    files::{FileAppState, FileMetadata, delete_file as delete_file_handler, serve_file as serve_file_handler, upload_file as upload_file_handler},
+    files::{FileAppState, FileCollectionService, FileMetadata, FileRecordService, delete_file as delete_file_handler, serve_file as serve_file_handler, upload_file as upload_file_handler},
     middleware::AuthUser,
     realtime::{websocket_handler, RealtimeManager},
 };
@@ -193,7 +220,7 @@ where
 #[derive(Clone)]
 pub struct AppState {
     pub auth_service: Arc<AuthService>,
-    pub user_repository: Arc<ferritedb_core::UserRepository>,
+    pub user_repository: Arc<dyn UserRepository>,
     pub collection_service: Arc<MockCollectionService>,
     pub record_service: Arc<MockRecordService>,
     pub rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
@@ -217,6 +244,7 @@ pub fn create_router(state: AppState) -> Router {
         .layer(from_fn_with_state(state.auth_service.clone(), auth_middleware));
 
     // Public routes
+    #[allow(unused_mut)]
     let mut public_routes = Router::new()
         .route("/auth/login", post(login))
         .route("/auth/register", post(register))
@@ -224,8 +252,7 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(health_check))
         .route("/healthz", get(health_check))
         .route("/readyz", get(readiness_check));
-    
-    // Add metrics endpoint if feature is enabled
+
     #[cfg(feature = "metrics")]
     {
         public_routes = public_routes.route("/metrics", get(metrics));
@@ -452,39 +479,6 @@ fn rule_error_to_server_error(rule_error: ferritedb_rules::RuleError) -> ServerE
     }
 }
 
-/// Helper function to filter record fields based on permissions
-async fn filter_record_fields(
-    record: &mut Record,
-    collection: &ferritedb_core::models::Collection,
-    user: &ferritedb_rules::evaluator::User,
-    rule_engine: &mut RuleEngine,
-) -> ServerResult<()> {
-    // For each field in the record, check if the user has read access
-    let mut filtered_data = HashMap::new();
-    
-    for (field_name, field_value) in &record.data {
-        // Check if there's a field-level read rule
-        // For now, we'll use a simple convention: if a field has a read rule,
-        // it should be in the format "field_name_read_rule"
-        let field_read_rule = format!("user.role == \"admin\" || record.owner_id == user.id");
-        
-        let record_data = serde_json::to_value(&record.data)
-            .map_err(|e| ServerError::Internal(format!("Failed to serialize record: {}", e)))?;
-        
-        let context = EvaluationContext::new()
-            .with_user(user.clone())
-            .with_record(record_data)
-            .with_request(RequestContext::default());
-        
-        // For now, allow all fields if user has view access to the record
-        // In a more sophisticated implementation, each field could have its own read rule
-        filtered_data.insert(field_name.clone(), field_value.clone());
-    }
-    
-    record.data = filtered_data;
-    Ok(())
-}
-
 /// List records from a collection with pagination and filtering
 async fn list_records(
     State(state): State<AppState>,
@@ -541,7 +535,7 @@ async fn list_records(
 
     // Calculate pagination
     let page = query.page.max(1);
-    let per_page = query.per_page.max(1).min(500);
+    let per_page = query.per_page.clamp(1, 500);
     let offset = (page - 1) * per_page;
 
     // Parse field selection
@@ -574,20 +568,12 @@ async fn list_records(
 
     let total_pages = (total_items + per_page - 1) / per_page;
 
-    // Apply field-level filtering to each record
-    let mut filtered_records = records;
-    for record in &mut filtered_records {
-        // For now, just allow all fields - proper field filtering will be implemented later
-        // This avoids the MutexGuard Send issue
-        // filter_record_fields(record, &collection, &user, &mut rule_engine).await?;
-    }
-
     Ok(Json(ListRecordsResponse {
         page,
         per_page,
         total_items,
         total_pages,
-        items: filtered_records,
+        items: records,
     }))
 }
 
@@ -739,12 +725,8 @@ async fn get_record(
     }
 
     // Apply field-level filtering
-    let mut filtered_record = record;
     // For now, just return the record as-is - proper field filtering will be implemented later
-    // This avoids the MutexGuard Send issue
-    // filter_record_fields(&mut filtered_record, &collection, &user, &mut rule_engine).await?;
-
-    Ok(Json(filtered_record))
+    Ok(Json(record))
 }
 
 /// Update a record by ID
@@ -950,8 +932,8 @@ async fn upload_file(
     let file_state = FileAppState {
         storage_backend: state.storage_backend.clone(),
         storage_config: state.storage_config.clone(),
-        collection_service: state.collection_service.clone(),
-        record_service: state.record_service.clone(),
+        collection_service: state.collection_service.clone() as Arc<dyn FileCollectionService>,
+        record_service: state.record_service.clone() as Arc<dyn FileRecordService>,
     };
     
     upload_file_handler(State(file_state), path, auth_user, multipart).await
@@ -966,8 +948,8 @@ async fn serve_file(
     let file_state = FileAppState {
         storage_backend: state.storage_backend.clone(),
         storage_config: state.storage_config.clone(),
-        collection_service: state.collection_service.clone(),
-        record_service: state.record_service.clone(),
+        collection_service: state.collection_service.clone() as Arc<dyn FileCollectionService>,
+        record_service: state.record_service.clone() as Arc<dyn FileRecordService>,
     };
     
     serve_file_handler(State(file_state), path, auth_user).await
@@ -982,8 +964,8 @@ async fn delete_file(
     let file_state = FileAppState {
         storage_backend: state.storage_backend.clone(),
         storage_config: state.storage_config.clone(),
-        collection_service: state.collection_service.clone(),
-        record_service: state.record_service.clone(),
+        collection_service: state.collection_service.clone() as Arc<dyn FileCollectionService>,
+        record_service: state.record_service.clone() as Arc<dyn FileRecordService>,
     };
     
     delete_file_handler(State(file_state), path, auth_user).await
@@ -1088,7 +1070,7 @@ mod tests {
         )) as Arc<dyn ferritedb_storage::StorageBackend>;
         let storage_config = ferritedb_storage::StorageConfig::default();
 
-        let realtime_manager = RealtimeManager::new(auth_service.clone(), rule_engine.clone());
+        let realtime_manager = RealtimeManager::new(rule_engine.clone());
 
         AppState {
             auth_service,
