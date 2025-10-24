@@ -2,9 +2,9 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::error::RuleResult;
+use crate::evaluator::User;
 use crate::evaluator::{EvaluationContext, ExpressionEvaluator};
 use crate::parser::{AstNode, RuleParser};
-use crate::evaluator::User;
 
 /// Main rules engine for evaluating access control expressions
 #[derive(Debug, Clone)]
@@ -20,7 +20,7 @@ impl RuleEngine {
             ast_cache: HashMap::new(),
         }
     }
-    
+
     /// Create a new rules engine with pre-validated rules
     pub fn with_rules(rules: &[&str]) -> RuleResult<Self> {
         let engine = Self::new();
@@ -29,7 +29,7 @@ impl RuleEngine {
         }
         Ok(engine)
     }
-    
+
     /// Evaluate a rule expression in the given context
     pub fn evaluate(&mut self, rule: &str, context: &EvaluationContext) -> RuleResult<bool> {
         // Handle empty or whitespace-only rules (default deny)
@@ -37,7 +37,7 @@ impl RuleEngine {
         if rule.is_empty() {
             return Ok(false);
         }
-        
+
         // Get or parse the AST
         let ast = if let Some(cached_ast) = self.ast_cache.get(rule) {
             cached_ast.clone()
@@ -46,10 +46,10 @@ impl RuleEngine {
             self.ast_cache.insert(rule.to_string(), parsed_ast.clone());
             parsed_ast
         };
-        
+
         // Evaluate the AST
         let result = ExpressionEvaluator::evaluate(&ast, context)?;
-        
+
         // Convert result to boolean
         match result {
             Value::Bool(b) => Ok(b),
@@ -60,27 +60,27 @@ impl RuleEngine {
             Value::Object(obj) => Ok(!obj.is_empty()),
         }
     }
-    
+
     /// Validate rule syntax without evaluating
     pub fn validate_syntax(&self, rule: &str) -> RuleResult<()> {
         let rule = rule.trim();
         if rule.is_empty() {
             return Ok(());
         }
-        
+
         RuleParser::validate_syntax(rule)
     }
-    
+
     /// Clear the AST cache (useful for memory management)
     pub fn clear_cache(&mut self) {
         self.ast_cache.clear();
     }
-    
+
     /// Get the number of cached ASTs
     pub fn cache_size(&self) -> usize {
         self.ast_cache.len()
     }
-    
+
     /// Evaluate a collection rule for a specific operation
     pub fn evaluate_collection_rule(
         &mut self,
@@ -95,7 +95,7 @@ impl RuleEngine {
             Ok(false)
         }
     }
-    
+
     /// Batch validate multiple rules and return detailed error information
     pub fn validate_rules(&self, rules: &[(&str, &str)]) -> Vec<(String, RuleResult<()>)> {
         rules
@@ -103,7 +103,7 @@ impl RuleEngine {
             .map(|(name, rule)| (name.to_string(), self.validate_syntax(rule)))
             .collect()
     }
-    
+
     /// Check if a rule would allow access (returns true if rule passes or no rule exists)
     pub fn check_access(
         &mut self,
@@ -115,7 +115,7 @@ impl RuleEngine {
             None => Ok(false), // Default deny
         }
     }
-    
+
     /// Evaluate a rule with just a user context (no record)
     pub fn evaluate_user_rule(&mut self, rule: &str, user: Option<&User>) -> RuleResult<bool> {
         let mut context = EvaluationContext::new();
@@ -124,7 +124,7 @@ impl RuleEngine {
         }
         self.evaluate(rule, &context)
     }
-    
+
     /// Evaluate a rule with user and record context
     pub fn evaluate_record_rule(
         &mut self,
@@ -141,9 +141,13 @@ impl RuleEngine {
         }
         self.evaluate(rule, &context)
     }
-    
+
     /// Evaluate multiple rules with OR logic (any rule passes)
-    pub fn evaluate_any(&mut self, rules: &[&str], context: &EvaluationContext) -> RuleResult<bool> {
+    pub fn evaluate_any(
+        &mut self,
+        rules: &[&str],
+        context: &EvaluationContext,
+    ) -> RuleResult<bool> {
         for rule in rules {
             if self.evaluate(rule, context)? {
                 return Ok(true);
@@ -151,9 +155,13 @@ impl RuleEngine {
         }
         Ok(false)
     }
-    
+
     /// Evaluate multiple rules with AND logic (all rules must pass)
-    pub fn evaluate_all(&mut self, rules: &[&str], context: &EvaluationContext) -> RuleResult<bool> {
+    pub fn evaluate_all(
+        &mut self,
+        rules: &[&str],
+        context: &EvaluationContext,
+    ) -> RuleResult<bool> {
         for rule in rules {
             if !self.evaluate(rule, context)? {
                 return Ok(false);
@@ -190,7 +198,7 @@ impl CollectionRules {
             delete_rule: None,
         }
     }
-    
+
     /// Create collection rules that allow public read access
     pub fn public_read() -> Self {
         Self {
@@ -201,7 +209,7 @@ impl CollectionRules {
             delete_rule: None,
         }
     }
-    
+
     /// Create collection rules for user-owned resources
     pub fn user_owned() -> Self {
         Self {
@@ -212,7 +220,7 @@ impl CollectionRules {
             delete_rule: Some("record.owner_id == user.id || user.role == \"admin\"".to_string()),
         }
     }
-    
+
     /// Create collection rules that allow all operations for authenticated users
     pub fn authenticated_users() -> Self {
         let rule = "@request.auth.id != ''".to_string();
@@ -224,7 +232,7 @@ impl CollectionRules {
             delete_rule: Some(rule),
         }
     }
-    
+
     /// Create collection rules that allow all operations for admin users only
     pub fn admin_only() -> Self {
         let rule = "user.role == \"admin\"".to_string();
@@ -236,18 +244,21 @@ impl CollectionRules {
             delete_rule: Some(rule),
         }
     }
-    
+
     /// Create collection rules for a typical blog post scenario
     pub fn blog_post_rules() -> Self {
         Self {
             list_rule: Some("record.published == true || user.role == \"admin\"".to_string()),
-            view_rule: Some("record.published == true || record.owner_id == user.id || user.role == \"admin\"".to_string()),
+            view_rule: Some(
+                "record.published == true || record.owner_id == user.id || user.role == \"admin\""
+                    .to_string(),
+            ),
             create_rule: Some("user.id != ''".to_string()),
             update_rule: Some("record.owner_id == user.id || user.role == \"admin\"".to_string()),
             delete_rule: Some("user.role == \"admin\"".to_string()),
         }
     }
-    
+
     /// Validate all rules in the collection
     pub fn validate(&self, engine: &RuleEngine) -> RuleResult<()> {
         if let Some(rule) = &self.list_rule {
@@ -267,11 +278,11 @@ impl CollectionRules {
         }
         Ok(())
     }
-    
+
     /// Validate all rules and return detailed results
     pub fn validate_detailed(&self, engine: &RuleEngine) -> Vec<(String, RuleResult<()>)> {
         let mut results = Vec::new();
-        
+
         if let Some(rule) = &self.list_rule {
             results.push(("list_rule".to_string(), engine.validate_syntax(rule)));
         }
@@ -287,10 +298,10 @@ impl CollectionRules {
         if let Some(rule) = &self.delete_rule {
             results.push(("delete_rule".to_string(), engine.validate_syntax(rule)));
         }
-        
+
         results
     }
-    
+
     /// Check if any rules are defined
     pub fn has_rules(&self) -> bool {
         self.list_rule.is_some()
@@ -299,11 +310,11 @@ impl CollectionRules {
             || self.update_rule.is_some()
             || self.delete_rule.is_some()
     }
-    
+
     /// Get all defined rules as a vector
     pub fn get_all_rules(&self) -> Vec<(&str, &str)> {
         let mut rules = Vec::new();
-        
+
         if let Some(rule) = &self.list_rule {
             rules.push(("list_rule", rule.as_str()));
         }
@@ -319,7 +330,7 @@ impl CollectionRules {
         if let Some(rule) = &self.delete_rule {
             rules.push(("delete_rule", rule.as_str()));
         }
-        
+
         rules
     }
 }
@@ -373,17 +384,11 @@ mod tests {
     use serde_json::json;
 
     fn create_test_user() -> User {
-        User::new(
-            "test@example.com".to_string(),
-            UserRole::User,
-        )
+        User::new("test@example.com".to_string(), UserRole::User)
     }
 
     fn create_admin_user() -> User {
-        User::new(
-            "admin@example.com".to_string(),
-            UserRole::Admin,
-        )
+        User::new("admin@example.com".to_string(), UserRole::Admin)
     }
 
     #[test]
@@ -395,13 +400,15 @@ mod tests {
     #[test]
     fn test_validate_syntax() {
         let engine = RuleEngine::new();
-        
+
         // Valid rules
         assert!(engine.validate_syntax("user.role == \"admin\"").is_ok());
         assert!(engine.validate_syntax("record.published == true").is_ok());
-        assert!(engine.validate_syntax("user.role in [\"admin\", \"moderator\"]").is_ok());
+        assert!(engine
+            .validate_syntax("user.role in [\"admin\", \"moderator\"]")
+            .is_ok());
         assert!(engine.validate_syntax("").is_ok()); // Empty rule is valid
-        
+
         // Invalid rules
         assert!(engine.validate_syntax("user.role ==").is_err());
         assert!(engine.validate_syntax("== \"admin\"").is_err());
@@ -413,14 +420,14 @@ mod tests {
         let mut engine = RuleEngine::new();
         let user = create_admin_user();
         let context = EvaluationContext::new().with_user(user);
-        
+
         // Simple equality check
         let result = engine.evaluate("user.role == \"admin\"", &context).unwrap();
         assert!(result);
-        
+
         let result = engine.evaluate("user.role == \"user\"", &context).unwrap();
         assert!(!result);
-        
+
         // Check cache
         assert_eq!(engine.cache_size(), 2);
     }
@@ -429,11 +436,11 @@ mod tests {
     fn test_evaluate_empty_rule() {
         let mut engine = RuleEngine::new();
         let context = EvaluationContext::new();
-        
+
         // Empty rule should default to deny
         let result = engine.evaluate("", &context).unwrap();
         assert!(!result);
-        
+
         let result = engine.evaluate("   ", &context).unwrap();
         assert!(!result);
     }
@@ -442,13 +449,17 @@ mod tests {
     fn test_evaluate_user_rule() {
         let mut engine = RuleEngine::new();
         let user = create_admin_user();
-        
-        let result = engine.evaluate_user_rule("user.role == \"admin\"", Some(&user)).unwrap();
+
+        let result = engine
+            .evaluate_user_rule("user.role == \"admin\"", Some(&user))
+            .unwrap();
         assert!(result);
-        
-        let result = engine.evaluate_user_rule("user.role == \"user\"", Some(&user)).unwrap();
+
+        let result = engine
+            .evaluate_user_rule("user.role == \"user\"", Some(&user))
+            .unwrap();
         assert!(!result);
-        
+
         // No user context
         let result = engine.evaluate_user_rule("user.role == \"admin\"", None);
         assert!(result.is_err());
@@ -463,19 +474,15 @@ mod tests {
             "owner_id": user.id.to_string(),
             "published": true
         });
-        
-        let result = engine.evaluate_record_rule(
-            "record.owner_id == user.id",
-            Some(&user),
-            Some(&record),
-        ).unwrap();
+
+        let result = engine
+            .evaluate_record_rule("record.owner_id == user.id", Some(&user), Some(&record))
+            .unwrap();
         assert!(result);
-        
-        let result = engine.evaluate_record_rule(
-            "record.published == true",
-            None,
-            Some(&record),
-        ).unwrap();
+
+        let result = engine
+            .evaluate_record_rule("record.published == true", None, Some(&record))
+            .unwrap();
         assert!(result);
     }
 
@@ -484,17 +491,17 @@ mod tests {
         let mut engine = RuleEngine::new();
         let user = create_admin_user();
         let context = EvaluationContext::new().with_user(user);
-        
+
         let rules = vec!["user.role == \"user\"", "user.role == \"admin\""];
-        
+
         // Any rule passes (OR logic)
         let result = engine.evaluate_any(&rules, &context).unwrap();
         assert!(result);
-        
+
         // All rules must pass (AND logic)
         let result = engine.evaluate_all(&rules, &context).unwrap();
         assert!(!result);
-        
+
         let rules = vec!["user.role == \"admin\"", "user.verified == false"];
         let result = engine.evaluate_all(&rules, &context).unwrap();
         assert!(result);
@@ -505,10 +512,10 @@ mod tests {
         let rules = CollectionRules::new();
         assert!(rules.list_rule.is_none());
         assert!(rules.view_rule.is_none());
-        
+
         let rules = CollectionRules::admin_only();
         assert_eq!(rules.list_rule, Some("user.role == \"admin\"".to_string()));
-        
+
         let rules = CollectionRules::blog_post_rules();
         assert!(rules.list_rule.is_some());
         assert!(rules.view_rule.is_some());
@@ -520,10 +527,10 @@ mod tests {
     #[test]
     fn test_collection_rules_validation() {
         let engine = RuleEngine::new();
-        
+
         let rules = CollectionRules::blog_post_rules();
         assert!(rules.validate(&engine).is_ok());
-        
+
         let mut invalid_rules = CollectionRules::new();
         invalid_rules.list_rule = Some("invalid syntax ==".to_string());
         assert!(invalid_rules.validate(&engine).is_err());
@@ -532,13 +539,13 @@ mod tests {
     #[test]
     fn test_rule_operation() {
         let rules = CollectionRules::blog_post_rules();
-        
+
         assert!(RuleOperation::List.get_rule(&rules).is_some());
         assert!(RuleOperation::View.get_rule(&rules).is_some());
         assert!(RuleOperation::Create.get_rule(&rules).is_some());
         assert!(RuleOperation::Update.get_rule(&rules).is_some());
         assert!(RuleOperation::Delete.get_rule(&rules).is_some());
-        
+
         assert_eq!(RuleOperation::List.to_string(), "list");
         assert_eq!(RuleOperation::Create.to_string(), "create");
     }
@@ -547,14 +554,14 @@ mod tests {
     fn test_cache_management() {
         let mut engine = RuleEngine::new();
         let context = EvaluationContext::new();
-        
+
         // Evaluate some rules to populate cache
         let _ = engine.evaluate("true", &context);
         let _ = engine.evaluate("false", &context);
         let _ = engine.evaluate("42 > 10", &context);
-        
+
         assert_eq!(engine.cache_size(), 3);
-        
+
         engine.clear_cache();
         assert_eq!(engine.cache_size(), 0);
     }
@@ -562,20 +569,20 @@ mod tests {
     #[test]
     fn test_rule_validation_and_integration() {
         let engine = RuleEngine::new();
-        
+
         // Test rule validation
         let rules = vec![
             ("valid_rule", "user.role == \"admin\""),
             ("invalid_rule", "user.role =="),
             ("another_valid", "record.published == true"),
         ];
-        
+
         let results = engine.validate_rules(&rules);
         assert_eq!(results.len(), 3);
         assert!(results[0].1.is_ok());
         assert!(results[1].1.is_err());
         assert!(results[2].1.is_ok());
-        
+
         // Test collection rule evaluation
         let mut engine = RuleEngine::new();
         let rules = CollectionRules::user_owned();
@@ -585,70 +592,72 @@ mod tests {
             "owner_id": user.id.to_string(),
             "title": "Test Record"
         });
-        
-        let context = EvaluationContext::new()
-            .with_user(user)
-            .with_record(record);
-        
+
+        let context = EvaluationContext::new().with_user(user).with_record(record);
+
         // Test view operation (should pass - user owns record)
-        let result = engine.evaluate_collection_rule(&rules, RuleOperation::View, &context).unwrap();
+        let result = engine
+            .evaluate_collection_rule(&rules, RuleOperation::View, &context)
+            .unwrap();
         assert!(result);
-        
+
         // Test delete operation (should pass - user owns record)
-        let result = engine.evaluate_collection_rule(&rules, RuleOperation::Delete, &context).unwrap();
+        let result = engine
+            .evaluate_collection_rule(&rules, RuleOperation::Delete, &context)
+            .unwrap();
         assert!(result);
     }
-    
+
     #[test]
     fn test_collection_rules_patterns() {
         let engine = RuleEngine::new();
-        
+
         // Test public read rules
         let public_rules = CollectionRules::public_read();
         assert!(public_rules.list_rule.is_some());
         assert!(public_rules.view_rule.is_some());
         assert!(public_rules.create_rule.is_none());
-        
+
         // Test user owned rules
         let user_rules = CollectionRules::user_owned();
         assert!(user_rules.has_rules());
         assert_eq!(user_rules.get_all_rules().len(), 5);
-        
+
         // Test validation
         assert!(public_rules.validate(&engine).is_ok());
         assert!(user_rules.validate(&engine).is_ok());
-        
+
         // Test detailed validation
         let results = user_rules.validate_detailed(&engine);
         assert_eq!(results.len(), 5);
         assert!(results.iter().all(|(_, result)| result.is_ok()));
     }
-    
+
     #[test]
     fn test_access_control_helpers() {
         let mut engine = RuleEngine::new();
         let context = EvaluationContext::new();
-        
+
         // Test check_access with no rule (should deny)
         let result = engine.check_access(None, &context).unwrap();
         assert!(!result);
-        
+
         // Test check_access with always true rule
         let result = engine.check_access(Some("true"), &context).unwrap();
         assert!(result);
-        
+
         // Test check_access with always false rule
         let result = engine.check_access(Some("false"), &context).unwrap();
         assert!(!result);
     }
-    
+
     #[test]
     fn test_engine_with_prevalidated_rules() {
         // Test creating engine with valid rules
         let valid_rules = vec!["user.role == \"admin\"", "record.published == true"];
         let engine = RuleEngine::with_rules(&valid_rules);
         assert!(engine.is_ok());
-        
+
         // Test creating engine with invalid rules
         let invalid_rules = vec!["user.role == \"admin\"", "invalid syntax =="];
         let engine = RuleEngine::with_rules(&invalid_rules);
@@ -659,31 +668,32 @@ mod tests {
     fn test_edge_cases_and_error_handling() {
         let mut engine = RuleEngine::new();
         let context = EvaluationContext::new();
-        
+
         // Test empty rule evaluation
         let result = engine.evaluate("", &context).unwrap();
         assert!(!result); // Empty rule should deny
-        
+
         // Test whitespace-only rule
         let result = engine.evaluate("   \t\n  ", &context).unwrap();
         assert!(!result); // Whitespace-only rule should deny
-        
+
         // Test invalid syntax
         let result = engine.evaluate("invalid syntax ==", &context);
         assert!(result.is_err());
-        
+
         // Test rule with missing context
         let result = engine.evaluate("user.role == \"admin\"", &context);
         assert!(result.is_err()); // Should fail because no user in context
-        
+
         // Test complex nested expressions
         let user = create_admin_user();
         let context = EvaluationContext::new().with_user(user);
-        
-        let complex_rule = "(user.role == \"admin\" || user.role == \"moderator\") && user.verified == false";
+
+        let complex_rule =
+            "(user.role == \"admin\" || user.role == \"moderator\") && user.verified == false";
         let result = engine.evaluate(complex_rule, &context).unwrap();
         assert!(result); // Admin user with verified=false should pass
-        
+
         // Test function calls with edge cases
         let record = json!({
             "tags": [],
@@ -691,41 +701,43 @@ mod tests {
             "content": null
         });
         let context = EvaluationContext::new().with_record(record);
-        
+
         let result = engine.evaluate("size(record.tags) == 0", &context).unwrap();
         assert!(result);
-        
-        let result = engine.evaluate("size(record.title) == 0", &context).unwrap();
+
+        let result = engine
+            .evaluate("size(record.title) == 0", &context)
+            .unwrap();
         assert!(result);
     }
-    
+
     #[test]
     fn test_rule_caching_behavior() {
         let mut engine = RuleEngine::new();
         let context = EvaluationContext::new();
-        
+
         // Test that rules are cached
         assert_eq!(engine.cache_size(), 0);
-        
+
         let _ = engine.evaluate("true", &context);
         assert_eq!(engine.cache_size(), 1);
-        
+
         let _ = engine.evaluate("false", &context);
         assert_eq!(engine.cache_size(), 2);
-        
+
         // Same rule should not increase cache size
         let _ = engine.evaluate("true", &context);
         assert_eq!(engine.cache_size(), 2);
-        
+
         // Clear cache
         engine.clear_cache();
         assert_eq!(engine.cache_size(), 0);
     }
-    
+
     #[test]
     fn test_various_rule_syntaxes() {
         let engine = RuleEngine::new();
-        
+
         // Test various valid syntaxes
         let valid_rules = vec![
             "true",
@@ -742,11 +754,15 @@ mod tests {
             "@request.method == \"GET\"",
             "(user.role == \"admin\" || record.owner_id == user.id) && record.published == true",
         ];
-        
+
         for rule in valid_rules {
-            assert!(engine.validate_syntax(rule).is_ok(), "Rule should be valid: {}", rule);
+            assert!(
+                engine.validate_syntax(rule).is_ok(),
+                "Rule should be valid: {}",
+                rule
+            );
         }
-        
+
         // Test various invalid syntaxes
         let invalid_rules = vec![
             "user.role ==",
@@ -758,9 +774,13 @@ mod tests {
             "|| user.role == \"admin\"",
             "user.role === \"admin\"", // Triple equals not supported
         ];
-        
+
         for rule in invalid_rules {
-            assert!(engine.validate_syntax(rule).is_err(), "Rule should be invalid: {}", rule);
+            assert!(
+                engine.validate_syntax(rule).is_err(),
+                "Rule should be invalid: {}",
+                rule
+            );
         }
     }
 
@@ -769,68 +789,68 @@ mod tests {
         let mut engine = RuleEngine::new();
         let admin = create_admin_user();
         let user = create_test_user();
-        
+
         let published_post = json!({
             "id": "post-1",
             "title": "Published Post",
             "published": true,
             "owner_id": user.id.to_string()
         });
-        
+
         let draft_post = json!({
             "id": "post-2",
             "title": "Draft Post",
             "published": false,
             "owner_id": user.id.to_string()
         });
-        
+
         let rules = CollectionRules::blog_post_rules();
-        
+
         // Test list rule: published posts or admin
         let list_rule = rules.list_rule.as_ref().unwrap();
-        
+
         // Regular user can see published posts
         let context = EvaluationContext::new()
             .with_user(user.clone())
             .with_record(published_post.clone());
         assert!(engine.evaluate(list_rule, &context).unwrap());
-        
+
         // Regular user cannot see draft posts
         let context = EvaluationContext::new()
             .with_user(user.clone())
             .with_record(draft_post.clone());
         assert!(!engine.evaluate(list_rule, &context).unwrap());
-        
+
         // Admin can see all posts
         let context = EvaluationContext::new()
             .with_user(admin.clone())
             .with_record(draft_post.clone());
         assert!(engine.evaluate(list_rule, &context).unwrap());
-        
+
         // Test update rule: owner or admin
         let update_rule = rules.update_rule.as_ref().unwrap();
-        
+
         // Owner can update their own posts
         let context = EvaluationContext::new()
             .with_user(user.clone())
             .with_record(published_post.clone());
         assert!(engine.evaluate(update_rule, &context).unwrap());
-        
+
         // Admin can update any posts
         let context = EvaluationContext::new()
             .with_user(admin.clone())
             .with_record(published_post.clone());
         assert!(engine.evaluate(update_rule, &context).unwrap());
-        
+
         // Test delete rule: admin only
         let delete_rule = rules.delete_rule.as_ref().unwrap();
-        
+
         // Owner cannot delete their own posts
         let context = EvaluationContext::new()
             .with_user(user.clone())
             .with_record(published_post.clone());
         assert!(!engine.evaluate(delete_rule, &context).unwrap());
-        
+
         // Admin can delete any posts
         let context = EvaluationContext::new()
             .with_user(admin.clone())

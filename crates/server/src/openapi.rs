@@ -505,7 +505,12 @@ impl OpenApiGenerator {
             });
 
             // File upload/download endpoints for collections with file fields
-            if collection.schema_json.fields.iter().any(|f| matches!(f.field_type, FieldType::File { .. })) {
+            if collection
+                .schema_json
+                .fields
+                .iter()
+                .any(|f| matches!(f.field_type, FieldType::File { .. }))
+            {
                 paths[format!("/api/files/{}/{{recordId}}/{{fieldName}}", collection_name)] = json!({
                     "post": {
                         "tags": [tag_name.clone()],
@@ -765,7 +770,7 @@ impl OpenApiGenerator {
         // Generate schemas for each collection
         for collection in collections {
             let collection_name = &collection.name;
-            
+
             // Record schema
             let mut record_properties = json!({
                 "id": {
@@ -785,13 +790,17 @@ impl OpenApiGenerator {
                 }
             });
 
-            let mut required_fields = vec!["id".to_string(), "created_at".to_string(), "updated_at".to_string()];
+            let mut required_fields = vec![
+                "id".to_string(),
+                "created_at".to_string(),
+                "updated_at".to_string(),
+            ];
 
             // Add collection fields
             for field in &collection.schema_json.fields {
                 let field_schema = self.field_to_json_schema(field);
                 record_properties[&field.name] = field_schema;
-                
+
                 if field.required {
                     required_fields.push(field.name.clone());
                 }
@@ -810,7 +819,7 @@ impl OpenApiGenerator {
             for field in &collection.schema_json.fields {
                 let field_schema = self.field_to_json_schema(field);
                 create_properties[&field.name] = field_schema;
-                
+
                 if field.required {
                     create_required.push(field.name.clone());
                 }
@@ -860,7 +869,9 @@ impl OpenApiGenerator {
                 "type": "string",
                 "format": "date-time"
             }),
-            FieldType::Relation { target_collection, .. } => json!({
+            FieldType::Relation {
+                target_collection, ..
+            } => json!({
                 "type": "string",
                 "format": "uuid",
                 "description": format!("Reference to {} collection", target_collection)
@@ -908,7 +919,7 @@ impl OpenApiGenerator {
             json!({
                 "name": "Health",
                 "description": "Health check and monitoring endpoints"
-            })
+            }),
         ];
 
         for collection in collections {
@@ -923,9 +934,7 @@ impl OpenApiGenerator {
 }
 
 /// Handler for serving OpenAPI specification
-pub async fn openapi_spec_handler(
-    State(collections): State<Vec<Collection>>,
-) -> impl IntoResponse {
+pub async fn openapi_spec_handler(State(collections): State<Vec<Collection>>) -> impl IntoResponse {
     let generator = OpenApiGenerator::new("http://localhost:8090".to_string());
     let spec = generator.generate_spec(&collections);
     Json(spec)
@@ -1043,7 +1052,7 @@ mod tests {
 
     fn create_test_collection() -> Collection {
         let mut schema = CollectionSchema::new();
-        
+
         schema.add_field(
             Field::new(Uuid::new_v4(), "title".to_string(), FieldType::Text)
                 .required()
@@ -1051,63 +1060,69 @@ mod tests {
                     min_length: Some(1),
                     max_length: Some(255),
                     ..Default::default()
-                })
+                }),
         );
 
-        schema.add_field(
-            Field::new(Uuid::new_v4(), "content".to_string(), FieldType::Text)
-        );
+        schema.add_field(Field::new(
+            Uuid::new_v4(),
+            "content".to_string(),
+            FieldType::Text,
+        ));
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "published".to_string(), FieldType::Boolean)
-                .with_options(FieldOptions {
+            Field::new(Uuid::new_v4(), "published".to_string(), FieldType::Boolean).with_options(
+                FieldOptions {
                     default_value: Some(json!(false)),
                     ..Default::default()
-                })
+                },
+            ),
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "author_id".to_string(), FieldType::Relation {
-                target_collection: "users".to_string(),
-                cascade_delete: false,
-            })
-            .required()
+            Field::new(
+                Uuid::new_v4(),
+                "author_id".to_string(),
+                FieldType::Relation {
+                    target_collection: "users".to_string(),
+                    cascade_delete: false,
+                },
+            )
+            .required(),
         );
 
-        Collection::new("posts".to_string(), CollectionType::Base)
-            .with_schema(schema)
+        Collection::new("posts".to_string(), CollectionType::Base).with_schema(schema)
     }
 
     #[test]
     fn test_openapi_spec_generation() {
         let generator = OpenApiGenerator::new("http://localhost:8090".to_string());
         let collections = vec![create_test_collection()];
-        
+
         let spec = generator.generate_spec(&collections);
-        
+
         // Verify basic structure
         assert_eq!(spec["openapi"], "3.1.0");
         assert_eq!(spec["info"]["title"], "FerriteDB API");
         assert_eq!(spec["info"]["version"], "1.0.0");
-        
+
         // Verify server configuration
         assert_eq!(spec["servers"][0]["url"], "http://localhost:8090");
-        
+
         // Verify authentication endpoints exist
         assert!(spec["paths"]["/api/auth/login"].is_object());
         assert!(spec["paths"]["/api/auth/register"].is_object());
         assert!(spec["paths"]["/api/auth/refresh"].is_object());
-        
+
         // Verify collection endpoints exist
         assert!(spec["paths"]["/api/collections/posts/records"].is_object());
         assert!(spec["paths"]["/api/collections/posts/records/{id}"].is_object());
-        
+
         // Verify schemas exist
         assert!(spec["components"]["schemas"]["ErrorResponse"].is_object());
         assert!(spec["components"]["schemas"]["AuthToken"].is_object());
         assert!(spec["components"]["schemas"]["postsRecord"].is_object());
         assert!(spec["components"]["schemas"]["CreatepostsRequest"].is_object());
-        
+
         // Verify security scheme
         assert!(spec["components"]["securitySchemes"]["bearerAuth"].is_object());
     }
@@ -1115,23 +1130,20 @@ mod tests {
     #[test]
     fn test_field_to_json_schema() {
         let generator = OpenApiGenerator::new("http://localhost:8090".to_string());
-        
+
         // Test text field with options
-        let text_field = Field::new(
-            Uuid::new_v4(),
-            "title".to_string(),
-            FieldType::Text
-        ).with_options(FieldOptions {
-            min_length: Some(1),
-            max_length: Some(255),
-            ..Default::default()
-        });
-        
+        let text_field = Field::new(Uuid::new_v4(), "title".to_string(), FieldType::Text)
+            .with_options(FieldOptions {
+                min_length: Some(1),
+                max_length: Some(255),
+                ..Default::default()
+            });
+
         let schema = generator.field_to_json_schema(&text_field);
         assert_eq!(schema["type"], "string");
         assert_eq!(schema["minLength"], 1);
         assert_eq!(schema["maxLength"], 255);
-        
+
         // Test relation field
         let relation_field = Field::new(
             Uuid::new_v4(),
@@ -1139,24 +1151,21 @@ mod tests {
             FieldType::Relation {
                 target_collection: "users".to_string(),
                 cascade_delete: false,
-            }
+            },
         );
-        
+
         let schema = generator.field_to_json_schema(&relation_field);
         assert_eq!(schema["type"], "string");
         assert_eq!(schema["format"], "uuid");
         assert!(schema["description"].as_str().unwrap().contains("users"));
-        
+
         // Test boolean field with default
-        let bool_field = Field::new(
-            Uuid::new_v4(),
-            "published".to_string(),
-            FieldType::Boolean
-        ).with_options(FieldOptions {
-            default_value: Some(json!(false)),
-            ..Default::default()
-        });
-        
+        let bool_field = Field::new(Uuid::new_v4(), "published".to_string(), FieldType::Boolean)
+            .with_options(FieldOptions {
+                default_value: Some(json!(false)),
+                ..Default::default()
+            });
+
         let schema = generator.field_to_json_schema(&bool_field);
         assert_eq!(schema["type"], "boolean");
         assert_eq!(schema["default"], false);
@@ -1166,17 +1175,18 @@ mod tests {
     fn test_generate_tags() {
         let generator = OpenApiGenerator::new("http://localhost:8090".to_string());
         let collections = vec![create_test_collection()];
-        
+
         let tags = generator.generate_tags(&collections);
         let tags_array = tags.as_array().unwrap();
-        
+
         // Should have Authentication, Health, and posts Collection tags
         assert_eq!(tags_array.len(), 3);
-        
-        let tag_names: Vec<&str> = tags_array.iter()
+
+        let tag_names: Vec<&str> = tags_array
+            .iter()
             .map(|tag| tag["name"].as_str().unwrap())
             .collect();
-        
+
         assert!(tag_names.contains(&"Authentication"));
         assert!(tag_names.contains(&"Health"));
         assert!(tag_names.contains(&"posts Collection"));
@@ -1186,20 +1196,20 @@ mod tests {
     fn test_generate_schemas() {
         let generator = OpenApiGenerator::new("http://localhost:8090".to_string());
         let collections = vec![create_test_collection()];
-        
+
         let schemas = generator.generate_schemas(&collections);
-        
+
         // Verify common schemas
         assert!(schemas["ErrorResponse"].is_object());
         assert!(schemas["AuthToken"].is_object());
         assert!(schemas["LoginRequest"].is_object());
         assert!(schemas["User"].is_object());
-        
+
         // Verify collection-specific schemas
         assert!(schemas["postsRecord"].is_object());
         assert!(schemas["CreatepostsRequest"].is_object());
         assert!(schemas["UpdatepostsRequest"].is_object());
-        
+
         // Verify record schema has required fields
         let posts_record = &schemas["postsRecord"];
         let required = posts_record["required"].as_array().unwrap();
@@ -1208,7 +1218,7 @@ mod tests {
         assert!(required.contains(&json!("author_id")));
         assert!(required.contains(&json!("created_at")));
         assert!(required.contains(&json!("updated_at")));
-        
+
         // Verify create request doesn't have system fields
         let create_request = &schemas["CreatepostsRequest"];
         let properties = create_request["properties"].as_object().unwrap();

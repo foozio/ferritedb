@@ -34,13 +34,13 @@ impl Default for StorageType {
 pub struct StorageConfig {
     #[serde(flatten)]
     pub storage_type: StorageType,
-    
+
     /// Maximum file size in bytes (default: 10MB)
     pub max_file_size: u64,
-    
+
     /// Allowed file extensions (empty means all allowed)
     pub allowed_extensions: Vec<String>,
-    
+
     /// Blocked file extensions for security
     pub blocked_extensions: Vec<String>,
 }
@@ -77,10 +77,10 @@ impl StorageConfig {
                         StorageError::Backend(format!("Failed to create storage directory: {}", e))
                     })?;
                 }
-                
+
                 Ok(Arc::new(LocalStorage::new(path.clone())))
             }
-            
+
             #[cfg(feature = "s3")]
             StorageType::S3 {
                 bucket,
@@ -91,12 +91,12 @@ impl StorageConfig {
             } => {
                 let mut config_builder = aws_sdk_s3::config::Builder::new()
                     .region(aws_sdk_s3::config::Region::new(region.clone()));
-                
+
                 // Set custom endpoint if provided (for S3-compatible services like R2)
                 if let Some(endpoint_url) = endpoint {
                     config_builder = config_builder.endpoint_url(endpoint_url);
                 }
-                
+
                 // Set credentials if provided
                 if let (Some(access_key), Some(secret_key)) = (access_key_id, secret_access_key) {
                     let credentials = aws_sdk_s3::config::Credentials::new(
@@ -108,10 +108,10 @@ impl StorageConfig {
                     );
                     config_builder = config_builder.credentials_provider(credentials);
                 }
-                
+
                 let config = config_builder.build();
                 let client = aws_sdk_s3::Client::from_conf(config);
-                
+
                 Ok(Arc::new(S3Storage::new(
                     client,
                     bucket.clone(),
@@ -120,25 +120,25 @@ impl StorageConfig {
             }
         }
     }
-    
+
     /// Validate file extension against allowed/blocked lists
     pub fn is_file_allowed(&self, filename: &str) -> bool {
         let extension = std::path::Path::new(filename)
             .extension()
             .and_then(|ext| ext.to_str())
             .map(|ext| ext.to_lowercase());
-        
+
         if let Some(ext) = extension {
             // Check blocked extensions first
             if self.blocked_extensions.contains(&ext) {
                 return false;
             }
-            
+
             // If allowed extensions is empty, allow all (except blocked)
             if self.allowed_extensions.is_empty() {
                 return true;
             }
-            
+
             // Check if extension is in allowed list
             self.allowed_extensions.contains(&ext)
         } else {
@@ -146,7 +146,7 @@ impl StorageConfig {
             self.allowed_extensions.is_empty()
         }
     }
-    
+
     /// Check if file size is within limits
     pub fn is_size_allowed(&self, size: u64) -> bool {
         size <= self.max_file_size

@@ -1,10 +1,10 @@
 #![allow(dead_code, clippy::expect_fun_call)]
 
-use std::process::Command;
 use std::env;
+use std::process::Command;
 
 /// Test runner for deployment integration tests
-/// 
+///
 /// This module provides utilities for running deployment tests and
 /// validating the deployment infrastructure.
 
@@ -21,13 +21,12 @@ fn test_deployment_script_exists() {
 #[test]
 fn test_deployment_script_executable() {
     let script_path = "scripts/test-deployment.sh";
-    
+
     // Check if script is executable (Unix-like systems)
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        let metadata = std::fs::metadata(script_path)
-            .expect("Failed to get script metadata");
+        let metadata = std::fs::metadata(script_path).expect("Failed to get script metadata");
         let permissions = metadata.permissions();
         assert!(
             permissions.mode() & 0o111 != 0,
@@ -46,12 +45,21 @@ fn test_run_deployment_tests_quick() {
         .expect("Failed to execute deployment test script");
 
     if !output.status.success() {
-        eprintln!("Deployment test stdout: {}", String::from_utf8_lossy(&output.stdout));
-        eprintln!("Deployment test stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Deployment test stdout: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        eprintln!(
+            "Deployment test stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         panic!("Deployment tests failed");
     }
 
-    println!("Deployment tests output: {}", String::from_utf8_lossy(&output.stdout));
+    println!(
+        "Deployment tests output: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
 }
 
 #[test]
@@ -69,8 +77,14 @@ fn test_run_full_deployment_tests() {
         .expect("Failed to execute deployment test script");
 
     if !output.status.success() {
-        eprintln!("Deployment test stdout: {}", String::from_utf8_lossy(&output.stdout));
-        eprintln!("Deployment test stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!(
+            "Deployment test stdout: {}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        eprintln!(
+            "Deployment test stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         panic!("Full deployment tests failed");
     }
 
@@ -81,13 +95,14 @@ fn test_run_full_deployment_tests() {
 #[test]
 fn test_docker_prerequisites() {
     // Check if Docker is available
-    let docker_check = Command::new("docker")
-        .args(["--version"])
-        .output();
+    let docker_check = Command::new("docker").args(["--version"]).output();
 
     match docker_check {
         Ok(output) if output.status.success() => {
-            println!("Docker version: {}", String::from_utf8_lossy(&output.stdout));
+            println!(
+                "Docker version: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         _ => {
             println!("Docker not available - deployment tests will be skipped");
@@ -96,13 +111,14 @@ fn test_docker_prerequisites() {
     }
 
     // Check if docker-compose is available
-    let compose_check = Command::new("docker-compose")
-        .args(["--version"])
-        .output();
+    let compose_check = Command::new("docker-compose").args(["--version"]).output();
 
     match compose_check {
         Ok(output) if output.status.success() => {
-            println!("Docker Compose version: {}", String::from_utf8_lossy(&output.stdout));
+            println!(
+                "Docker Compose version: {}",
+                String::from_utf8_lossy(&output.stdout)
+            );
         }
         _ => {
             println!("Docker Compose not available - some deployment tests will be skipped");
@@ -128,9 +144,8 @@ fn test_deployment_configuration_files() {
             file
         );
 
-        let content = std::fs::read_to_string(file)
-            .expect(&format!("Failed to read {}", file));
-        
+        let content = std::fs::read_to_string(file).expect(&format!("Failed to read {}", file));
+
         assert!(
             !content.trim().is_empty(),
             "Deployment file {} should not be empty",
@@ -142,10 +157,7 @@ fn test_deployment_configuration_files() {
 /// Test GitHub Actions workflow files
 #[test]
 fn test_github_actions_workflows() {
-    let workflow_files = [
-        ".github/workflows/ci.yml",
-        ".github/workflows/release.yml",
-    ];
+    let workflow_files = [".github/workflows/ci.yml", ".github/workflows/release.yml"];
 
     for file in &workflow_files {
         assert!(
@@ -154,8 +166,7 @@ fn test_github_actions_workflows() {
             file
         );
 
-        let content = std::fs::read_to_string(file)
-            .expect(&format!("Failed to read {}", file));
+        let content = std::fs::read_to_string(file).expect(&format!("Failed to read {}", file));
 
         // Basic YAML validation
         assert!(content.contains("name:"), "Workflow should have a name");
@@ -169,11 +180,23 @@ fn test_github_actions_workflows() {
 fn test_project_documentation_completeness() {
     let required_docs = [
         ("README.md", vec!["# FerriteDB", "## 🚀 Quick Start"]),
-        ("CONTRIBUTING.md", vec!["# Contributing", "## Development Setup", "## Pull Request"]),
-        ("SECURITY.md", vec!["# Security Policy", "## Reporting", "## Supported Versions"]),
-        ("OPERATIONS.md", vec!["# Operations", "## Deployment", "## Monitoring"]),
+        (
+            "CONTRIBUTING.md",
+            vec!["# Contributing", "## Development Setup", "## Pull Request"],
+        ),
+        (
+            "SECURITY.md",
+            vec!["# Security Policy", "## Reporting", "## Supported Versions"],
+        ),
+        (
+            "OPERATIONS.md",
+            vec!["# Operations", "## Deployment", "## Monitoring"],
+        ),
         ("CHANGELOG.md", vec!["# Changelog", "[Unreleased]"]),
-        ("LICENSE", vec!["MIT License", "Permission is hereby granted"]),
+        (
+            "LICENSE",
+            vec!["MIT License", "Permission is hereby granted"],
+        ),
     ];
 
     for (file, required_sections) in &required_docs {
@@ -183,8 +206,7 @@ fn test_project_documentation_completeness() {
             file
         );
 
-        let content = std::fs::read_to_string(file)
-            .expect(&format!("Failed to read {}", file));
+        let content = std::fs::read_to_string(file).expect(&format!("Failed to read {}", file));
 
         for section in required_sections {
             assert!(
@@ -215,9 +237,8 @@ fn test_github_templates() {
             file
         );
 
-        let content = std::fs::read_to_string(file)
-            .expect(&format!("Failed to read {}", file));
-        
+        let content = std::fs::read_to_string(file).expect(&format!("Failed to read {}", file));
+
         assert!(
             !content.trim().is_empty(),
             "GitHub template {} should not be empty",
@@ -229,12 +250,10 @@ fn test_github_templates() {
 /// Validate Cargo.toml workspace configuration
 #[test]
 fn test_cargo_workspace_configuration() {
-    let cargo_toml = std::fs::read_to_string("Cargo.toml")
-        .expect("Failed to read Cargo.toml");
+    let cargo_toml = std::fs::read_to_string("Cargo.toml").expect("Failed to read Cargo.toml");
 
     // Parse as TOML to validate syntax
-    let parsed: toml::Value = toml::from_str(&cargo_toml)
-        .expect("Cargo.toml should be valid TOML");
+    let parsed: toml::Value = toml::from_str(&cargo_toml).expect("Cargo.toml should be valid TOML");
 
     // Check for workspace or package configuration
     assert!(
@@ -256,7 +275,7 @@ fn test_cargo_workspace_configuration() {
 fn test_workspace_crates_configuration() {
     let crate_dirs = [
         "crates/core",
-        "crates/server", 
+        "crates/server",
         "crates/storage",
         "crates/rules",
         "crates/sdk-rs",
@@ -264,7 +283,7 @@ fn test_workspace_crates_configuration() {
 
     for crate_dir in &crate_dirs {
         let cargo_toml_path = format!("{}/Cargo.toml", crate_dir);
-        
+
         if std::path::Path::new(&cargo_toml_path).exists() {
             let content = std::fs::read_to_string(&cargo_toml_path)
                 .expect(&format!("Failed to read {}", cargo_toml_path));
@@ -336,6 +355,9 @@ mod integration_helpers {
             }
         }
 
-        Err(format!("Service at {} did not become ready within {} seconds", url, timeout_secs))
+        Err(format!(
+            "Service at {} did not become ready within {} seconds",
+            url, timeout_secs
+        ))
     }
 }

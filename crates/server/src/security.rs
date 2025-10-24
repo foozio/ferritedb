@@ -31,19 +31,22 @@ pub struct SecurityConfig {
 impl Default for SecurityConfig {
     fn default() -> Self {
         let mut security_headers = HashMap::new();
-        
+
         // Prevent MIME type sniffing
         security_headers.insert("X-Content-Type-Options".to_string(), "nosniff".to_string());
-        
+
         // Prevent clickjacking
         security_headers.insert("X-Frame-Options".to_string(), "DENY".to_string());
-        
+
         // XSS protection (legacy, but still useful for older browsers)
         security_headers.insert("X-XSS-Protection".to_string(), "1; mode=block".to_string());
-        
+
         // Prevent Adobe Flash and PDF from loading
-        security_headers.insert("X-Permitted-Cross-Domain-Policies".to_string(), "none".to_string());
-        
+        security_headers.insert(
+            "X-Permitted-Cross-Domain-Policies".to_string(),
+            "none".to_string(),
+        );
+
         // Remove server information
         security_headers.insert("Server".to_string(), "FerriteDB".to_string());
 
@@ -59,14 +62,14 @@ impl Default for SecurityConfig {
                  frame-ancestors 'none'; \
                  base-uri 'self'; \
                  form-action 'self'"
-                .to_string()
+                    .to_string(),
             ),
             hsts_max_age: Some(31536000), // 1 year
             hsts_include_subdomains: true,
             hsts_preload: false,
             referrer_policy: Some("strict-origin-when-cross-origin".to_string()),
             permissions_policy: Some(
-                "camera=(), microphone=(), geolocation=(), payment=(), usb=()".to_string()
+                "camera=(), microphone=(), geolocation=(), payment=(), usb=()".to_string(),
             ),
             cookie_security: CookieSecurityConfig::default(),
         }
@@ -139,7 +142,10 @@ pub async fn security_headers_middleware(
     // Add Content Security Policy
     if let Some(csp) = &config.csp {
         if let Ok(csp_value) = HeaderValue::from_str(csp) {
-            headers.insert(header::HeaderName::from_static("content-security-policy"), csp_value);
+            headers.insert(
+                header::HeaderName::from_static("content-security-policy"),
+                csp_value,
+            );
         }
     }
 
@@ -152,23 +158,32 @@ pub async fn security_headers_middleware(
         if config.hsts_preload {
             hsts_value.push_str("; preload");
         }
-        
+
         if let Ok(hsts_header) = HeaderValue::from_str(&hsts_value) {
-            headers.insert(header::HeaderName::from_static("strict-transport-security"), hsts_header);
+            headers.insert(
+                header::HeaderName::from_static("strict-transport-security"),
+                hsts_header,
+            );
         }
     }
 
     // Add Referrer Policy
     if let Some(referrer_policy) = &config.referrer_policy {
         if let Ok(referrer_value) = HeaderValue::from_str(referrer_policy) {
-            headers.insert(header::HeaderName::from_static("referrer-policy"), referrer_value);
+            headers.insert(
+                header::HeaderName::from_static("referrer-policy"),
+                referrer_value,
+            );
         }
     }
 
     // Add Permissions Policy
     if let Some(permissions_policy) = &config.permissions_policy {
         if let Ok(permissions_value) = HeaderValue::from_str(permissions_policy) {
-            headers.insert(header::HeaderName::from_static("permissions-policy"), permissions_value);
+            headers.insert(
+                header::HeaderName::from_static("permissions-policy"),
+                permissions_value,
+            );
         }
     }
 
@@ -186,7 +201,10 @@ pub async fn request_size_limit_middleware(
         if let Ok(length_str) = content_length.to_str() {
             if let Ok(length) = length_str.parse::<usize>() {
                 if length > max_size {
-                    warn!("Request rejected: body too large ({} bytes, max: {})", length, max_size);
+                    warn!(
+                        "Request rejected: body too large ({} bytes, max: {})",
+                        length, max_size
+                    );
                     return Err(StatusCode::PAYLOAD_TOO_LARGE);
                 }
             }
@@ -267,9 +285,8 @@ impl CookieSecurityUtils {
         }
 
         // Check for valid characters (RFC 6265)
-        name.chars().all(|c| {
-            c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '!')
-        })
+        name.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | '!'))
     }
 
     /// Sanitize cookie value
@@ -361,7 +378,14 @@ fn ip_in_range(ip: &str, cidr: &str) -> bool {
     // This is a simplified implementation
     // In production, use a proper CIDR parsing library like `ipnet`
     if let Some((network, prefix)) = cidr.split_once('/') {
-        if ip.starts_with(network.split('.').take(prefix.parse::<usize>().unwrap_or(0) / 8).collect::<Vec<_>>().join(".").as_str()) {
+        if ip.starts_with(
+            network
+                .split('.')
+                .take(prefix.parse::<usize>().unwrap_or(0) / 8)
+                .collect::<Vec<_>>()
+                .join(".")
+                .as_str(),
+        ) {
             return true;
         }
     }
@@ -375,8 +399,9 @@ mod tests {
     #[test]
     fn test_secure_cookie_creation() {
         let config = CookieSecurityConfig::default();
-        let cookie = CookieSecurityUtils::create_secure_cookie("session", "abc123", &config, Some(3600));
-        
+        let cookie =
+            CookieSecurityUtils::create_secure_cookie("session", "abc123", &config, Some(3600));
+
         assert!(cookie.contains("session=abc123"));
         assert!(cookie.contains("HttpOnly"));
         assert!(cookie.contains("Secure"));
@@ -387,24 +412,44 @@ mod tests {
     #[test]
     fn test_cookie_name_validation() {
         let config = CookieSecurityConfig::default();
-        
-        assert!(CookieSecurityUtils::is_secure_cookie_name("__Secure-session", &config));
-        assert!(!CookieSecurityUtils::is_secure_cookie_name("session", &config));
-        assert!(!CookieSecurityUtils::is_secure_cookie_name("invalid name", &config));
+
+        assert!(CookieSecurityUtils::is_secure_cookie_name(
+            "__Secure-session",
+            &config
+        ));
+        assert!(!CookieSecurityUtils::is_secure_cookie_name(
+            "session", &config
+        ));
+        assert!(!CookieSecurityUtils::is_secure_cookie_name(
+            "invalid name",
+            &config
+        ));
     }
 
     #[test]
     fn test_cookie_value_sanitization() {
-        assert_eq!(CookieSecurityUtils::sanitize_cookie_value("abc123"), "abc123");
-        assert_eq!(CookieSecurityUtils::sanitize_cookie_value("abc;123"), "abc123");
-        assert_eq!(CookieSecurityUtils::sanitize_cookie_value("abc\"123"), "abc123");
-        assert_eq!(CookieSecurityUtils::sanitize_cookie_value("abc 123"), "abc123");
+        assert_eq!(
+            CookieSecurityUtils::sanitize_cookie_value("abc123"),
+            "abc123"
+        );
+        assert_eq!(
+            CookieSecurityUtils::sanitize_cookie_value("abc;123"),
+            "abc123"
+        );
+        assert_eq!(
+            CookieSecurityUtils::sanitize_cookie_value("abc\"123"),
+            "abc123"
+        );
+        assert_eq!(
+            CookieSecurityUtils::sanitize_cookie_value("abc 123"),
+            "abc123"
+        );
     }
 
     #[test]
     fn test_ip_blocking() {
         let config = IpSecurityConfig::default();
-        
+
         // Test blocked ranges
         assert!(is_ip_blocked("192.168.1.1", &config));
         assert!(is_ip_blocked("10.0.0.1", &config));

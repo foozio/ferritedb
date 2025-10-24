@@ -13,13 +13,13 @@ pub mod seed;
 
 pub use audit::{AuditAction, AuditContext, AuditLogEntry, AuditLogger};
 pub use auth::AuthService;
-pub use config::AuthConfig;
 pub use collections::CollectionService;
+pub use config::AuthConfig;
 pub use config::CoreConfig;
 pub use database::{Database, DatabasePool};
 pub use error::{CoreError, CoreResult};
 pub use models::*;
-pub use pii::{PiiRedactionConfig, PiiRedactor, PiiUtils, redact_log_message, redact_request_data};
+pub use pii::{redact_log_message, redact_request_data, PiiRedactionConfig, PiiRedactor, PiiUtils};
 pub use records::RecordService;
 pub use repository::{AuditLogRepository, CollectionRepository, UserRepository};
 pub use schema_manager::SchemaManager;

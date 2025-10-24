@@ -1,21 +1,21 @@
 use ferritedb_core::{
-    auth::AuthService,
-    config::AuthConfig,
-    models::{CreateUserRequest, UserRole},
-    seed::SeedService,
-    Database, UserRepository,
+    auth::AuthService, config::AuthConfig, models::UserRole, seed::SeedService, Database,
 };
 use serde_json::json;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 
 /// Integration tests for example collections and seed data
 #[tokio::test]
 async fn test_seed_service_initialization() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     let result = seed_service.initialize_examples().await;
-    assert!(result.is_ok(), "Failed to initialize examples: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Failed to initialize examples: {:?}",
+        result
+    );
 
     // Verify users collection was created
     let users_collection = seed_service
@@ -52,7 +52,7 @@ async fn test_seed_service_initialization() {
 
 #[tokio::test]
 async fn test_users_collection_schema() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -94,10 +94,7 @@ async fn test_users_collection_schema() {
     assert!(field_names.contains(&"avatar"), "Should have avatar field");
 
     // Verify field types and constraints
-    let email_field = users_collection
-        .schema_json
-        .get_field("email")
-        .unwrap();
+    let email_field = users_collection.schema_json.get_field("email").unwrap();
     assert!(email_field.required, "Email field should be required");
     assert!(
         email_field.unique_constraint,
@@ -126,7 +123,7 @@ async fn test_users_collection_schema() {
 
 #[tokio::test]
 async fn test_posts_collection_schema() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -148,8 +145,14 @@ async fn test_posts_collection_schema() {
         .collect();
 
     assert!(field_names.contains(&"title"), "Should have title field");
-    assert!(field_names.contains(&"content"), "Should have content field");
-    assert!(field_names.contains(&"excerpt"), "Should have excerpt field");
+    assert!(
+        field_names.contains(&"content"),
+        "Should have content field"
+    );
+    assert!(
+        field_names.contains(&"excerpt"),
+        "Should have excerpt field"
+    );
     assert!(
         field_names.contains(&"owner_id"),
         "Should have owner_id field"
@@ -170,16 +173,16 @@ async fn test_posts_collection_schema() {
     );
 
     // Verify relation field
-    let owner_field = posts_collection
-        .schema_json
-        .get_field("owner_id")
-        .unwrap();
+    let owner_field = posts_collection.schema_json.get_field("owner_id").unwrap();
     assert!(owner_field.required, "Owner field should be required");
     if let ferritedb_core::FieldType::Relation {
         target_collection, ..
     } = &owner_field.field_type
     {
-        assert_eq!(target_collection, "users", "Should reference users collection");
+        assert_eq!(
+            target_collection, "users",
+            "Should reference users collection"
+        );
     } else {
         panic!("Owner field should be a relation type");
     }
@@ -202,7 +205,7 @@ async fn test_posts_collection_schema() {
 
 #[tokio::test]
 async fn test_posts_collection_access_rules() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -267,7 +270,7 @@ async fn test_posts_collection_access_rules() {
 
 #[tokio::test]
 async fn test_demo_users_creation() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -285,11 +288,7 @@ async fn test_demo_users_creation() {
     assert!(admin_user.verified, "Admin user should be verified");
 
     // Verify demo users were created
-    let demo_emails = [
-        "alice@example.com",
-        "bob@example.com",
-        "carol@example.com",
-    ];
+    let demo_emails = ["alice@example.com", "bob@example.com", "carol@example.com"];
 
     for email in &demo_emails {
         let user = seed_service.user_repo.find_by_email(email).await.unwrap();
@@ -305,13 +304,17 @@ async fn test_demo_users_creation() {
 
 #[tokio::test]
 async fn test_demo_posts_creation() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
 
     // Check that demo posts were created
-    let posts_count = seed_service.record_service.count_records("posts").await.unwrap();
+    let posts_count = seed_service
+        .record_service
+        .count_records("posts")
+        .await
+        .unwrap();
     assert!(posts_count > 0, "Demo posts should be created");
 
     // Note: The actual record creation is simplified in the current implementation
@@ -326,7 +329,7 @@ async fn test_demo_posts_creation() {
 
 #[tokio::test]
 async fn test_idempotent_initialization() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples twice
     let result1 = seed_service.initialize_examples().await;
@@ -341,14 +344,20 @@ async fn test_idempotent_initialization() {
         .find_by_name("users")
         .await
         .unwrap();
-    assert!(users_collection.is_some(), "Users collection should still exist");
+    assert!(
+        users_collection.is_some(),
+        "Users collection should still exist"
+    );
 
     let posts_collection = seed_service
         .collection_repo
         .find_by_name("posts")
         .await
         .unwrap();
-    assert!(posts_collection.is_some(), "Posts collection should still exist");
+    assert!(
+        posts_collection.is_some(),
+        "Posts collection should still exist"
+    );
 
     // Verify users are not duplicated
     let admin_user = seed_service
@@ -363,7 +372,7 @@ async fn test_idempotent_initialization() {
 
 #[tokio::test]
 async fn test_collection_table_creation() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -380,7 +389,7 @@ async fn test_collection_table_creation() {
 
 #[tokio::test]
 async fn test_password_hashing() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -394,13 +403,13 @@ async fn test_password_hashing() {
         .unwrap();
 
     // Verify password is hashed (not plaintext)
-    assert_ne!(user.password_hash, "password123");
+    assert_ne!(user.password_hash, "Password123!");
     assert!(user.password_hash.starts_with("$argon2id$"));
 
     // Verify password can be verified
     let auth_service = create_test_auth_service();
     let is_valid = auth_service
-        .verify_password("password123", &user.password_hash)
+        .verify_password("Password123!", &user.password_hash)
         .unwrap();
     assert!(is_valid, "Password should be verifiable");
 
@@ -409,7 +418,7 @@ async fn test_password_hashing() {
 
 #[tokio::test]
 async fn test_field_validation_constraints() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -423,10 +432,7 @@ async fn test_field_validation_constraints() {
         .unwrap();
 
     // Verify email field has proper constraints
-    let email_field = users_collection
-        .schema_json
-        .get_field("email")
-        .unwrap();
+    let email_field = users_collection.schema_json.get_field("email").unwrap();
     if let Some(options) = &email_field.options_json {
         assert!(
             options.max_length.is_some(),
@@ -439,10 +445,7 @@ async fn test_field_validation_constraints() {
     }
 
     // Verify password field has minimum length
-    let password_field = users_collection
-        .schema_json
-        .get_field("password")
-        .unwrap();
+    let password_field = users_collection.schema_json.get_field("password").unwrap();
     if let Some(options) = &password_field.options_json {
         assert!(
             options.min_length.is_some(),
@@ -463,10 +466,7 @@ async fn test_field_validation_constraints() {
         .unwrap();
 
     // Verify title field constraints
-    let title_field = posts_collection
-        .schema_json
-        .get_field("title")
-        .unwrap();
+    let title_field = posts_collection.schema_json.get_field("title").unwrap();
     assert!(title_field.required, "Title should be required");
     if let Some(options) = &title_field.options_json {
         assert!(
@@ -484,7 +484,7 @@ async fn test_field_validation_constraints() {
 
 // Helper functions
 
-async fn setup_test_environment() -> (Database, SeedService) {
+async fn setup_test_environment() -> (TempDir, Database, SeedService) {
     let temp_dir = tempdir().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
@@ -495,7 +495,7 @@ async fn setup_test_environment() -> (Database, SeedService) {
     let auth_service = create_test_auth_service();
     let seed_service = SeedService::new(db.pool().clone(), auth_service);
 
-    (db, seed_service)
+    (temp_dir, db, seed_service)
 }
 
 fn create_test_auth_service() -> AuthService {
@@ -504,8 +504,8 @@ fn create_test_auth_service() -> AuthService {
         token_ttl: 3600,
         refresh_ttl: 86400,
         password_min_length: 8,
-        argon2_memory: 4096,     // Reduced for testing
-        argon2_iterations: 1,    // Reduced for testing
+        argon2_memory: 4096,  // Reduced for testing
+        argon2_iterations: 1, // Reduced for testing
         argon2_parallelism: 1,
     };
     AuthService::new(auth_config).unwrap()
@@ -527,7 +527,7 @@ async fn table_exists(db: &Database, table_name: &str) -> bool {
 
 #[tokio::test]
 async fn test_collection_json_schema_generation() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -574,7 +574,7 @@ async fn test_collection_json_schema_generation() {
 
 #[tokio::test]
 async fn test_file_field_configuration() {
-    let (db, seed_service) = setup_test_environment().await;
+    let (_temp_dir, db, seed_service) = setup_test_environment().await;
 
     // Initialize examples
     seed_service.initialize_examples().await.unwrap();
@@ -587,10 +587,7 @@ async fn test_file_field_configuration() {
         .unwrap()
         .unwrap();
 
-    let avatar_field = users_collection
-        .schema_json
-        .get_field("avatar")
-        .unwrap();
+    let avatar_field = users_collection.schema_json.get_field("avatar").unwrap();
 
     if let ferritedb_core::FieldType::File {
         max_size,

@@ -12,31 +12,31 @@ pub type ServerResult<T> = Result<T, ServerError>;
 pub enum ServerError {
     #[error("Core error: {0}")]
     Core(#[from] ferritedb_core::CoreError),
-    
+
     #[error("Authentication error: {0}")]
     Auth(#[from] ferritedb_core::auth::AuthError),
-    
+
     #[error("Bad request: {0}")]
     BadRequest(String),
-    
+
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
-    
+
     #[error("Forbidden: {0}")]
     Forbidden(String),
-    
+
     #[error("Not found: {0}")]
     NotFound(String),
-    
+
     #[error("Internal server error: {0}")]
     Internal(String),
-    
+
     #[error("HTTP error: {0}")]
     Http(String),
-    
+
     #[error("WebSocket error: {0}")]
     WebSocket(String),
-    
+
     #[error("Middleware error: {0}")]
     Middleware(String),
 }
@@ -61,9 +61,15 @@ impl IntoResponse for ServerError {
                 ferritedb_core::auth::AuthError::WeakPassword(msg) => {
                     (StatusCode::BAD_REQUEST, format!("Weak password: {}", msg))
                 }
-                _ => (StatusCode::INTERNAL_SERVER_ERROR, "Authentication error".to_string()),
+                _ => (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Authentication error".to_string(),
+                ),
             },
-            _ => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string()),
+            _ => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error".to_string(),
+            ),
         };
 
         let body = Json(json!({

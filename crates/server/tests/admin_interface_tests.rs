@@ -9,8 +9,10 @@ use ferritedb_core::{
 };
 use ferritedb_rules::RuleEngine;
 use ferritedb_server::{
-    routes::{create_router, AppState, MockCollectionService, MockRecordService, MockUserRepository},
     realtime::RealtimeManager,
+    routes::{
+        create_router, AppState, MockCollectionService, MockRecordService, MockUserRepository,
+    },
 };
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -28,7 +30,8 @@ fn create_test_app_state() -> AppState {
     };
 
     let auth_service = Arc::new(AuthService::new(auth_config).unwrap());
-    let user_repository = Arc::new(MockUserRepository) as Arc<dyn ferritedb_server::routes::UserRepository>;
+    let user_repository =
+        Arc::new(MockUserRepository) as Arc<dyn ferritedb_server::routes::UserRepository>;
     let collection_service = Arc::new(MockCollectionService);
     let record_service = Arc::new(MockRecordService);
     let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
@@ -42,8 +45,9 @@ fn create_test_app_state() -> AppState {
         blocked_extensions: vec![],
     };
 
-    let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new("/tmp/ferritedb_admin_test".into()))
-        as Arc<dyn ferritedb_storage::StorageBackend>;
+    let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new(
+        "/tmp/ferritedb_admin_test".into(),
+    )) as Arc<dyn ferritedb_storage::StorageBackend>;
 
     let realtime_manager = RealtimeManager::new(rule_engine.clone());
 
@@ -66,8 +70,11 @@ fn create_admin_jwt_token(auth_service: &AuthService) -> String {
         "hashed_password".to_string(),
         UserRole::Admin,
     );
-    
-    auth_service.generate_tokens(&admin_user).unwrap().access_token
+
+    auth_service
+        .generate_tokens(&admin_user)
+        .unwrap()
+        .access_token
 }
 
 #[tokio::test]
@@ -82,13 +89,15 @@ async fn test_admin_index_page_accessible() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Check that the response contains HTML content
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Verify it's the admin interface
     assert!(body_str.contains("FerriteDB Admin"));
     assert!(body_str.contains("login-screen"));
@@ -107,17 +116,19 @@ async fn test_admin_static_css_served() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Check content type
     let content_type = response.headers().get("content-type").unwrap();
     assert_eq!(content_type, "text/css");
-    
+
     // Check that the response contains CSS content
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Verify it's CSS content
     assert!(body_str.contains(":root"));
     assert!(body_str.contains("--primary-color"));
@@ -136,17 +147,19 @@ async fn test_admin_static_js_served() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Check content type
     let content_type = response.headers().get("content-type").unwrap();
     assert_eq!(content_type, "application/javascript");
-    
+
     // Check that the response contains JavaScript content
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Verify it's JavaScript content
     assert!(body_str.contains("class AdminApp"));
     assert!(body_str.contains("constructor()"));
@@ -165,7 +178,7 @@ async fn test_admin_static_file_not_found() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
 
@@ -188,7 +201,7 @@ async fn test_admin_authentication_flow() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     // Since we're using mock repositories, this will return unauthorized
     // In a real test with a proper database, we'd set up test users
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
@@ -207,13 +220,15 @@ async fn test_admin_health_check_integration() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::OK);
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
     let health_response: serde_json::Value = serde_json::from_str(&body_str).unwrap();
-    
+
     assert_eq!(health_response["status"], "ok");
     assert!(health_response["service"].as_str().unwrap() == "ferritedb");
 }
@@ -233,7 +248,7 @@ async fn test_admin_api_endpoints_with_auth() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     // Should return 404 since collection doesn't exist in mock, but auth should work
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }
@@ -251,7 +266,7 @@ async fn test_admin_api_endpoints_without_auth() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     // Should return unauthorized
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
@@ -271,7 +286,7 @@ async fn test_admin_interface_cors_headers() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     // Should handle CORS properly
     assert!(response.status().is_success() || response.status() == StatusCode::METHOD_NOT_ALLOWED);
 }
@@ -288,17 +303,19 @@ async fn test_admin_interface_content_security() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
+
     assert_eq!(response.status(), StatusCode::OK);
-    
+
     // Verify the HTML doesn't contain obvious security issues
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body_str = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Should not contain inline scripts (basic XSS protection)
     assert!(!body_str.contains("<script>alert"));
     assert!(!body_str.contains("javascript:"));
-    
+
     // Should contain proper meta tags
     assert!(body_str.contains("charset=\"UTF-8\""));
     assert!(body_str.contains("viewport"));
@@ -316,10 +333,12 @@ async fn test_admin_interface_responsive_design() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let css_content = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Check for responsive design elements
     assert!(css_content.contains("@media"));
     assert!(css_content.contains("max-width"));
@@ -338,16 +357,18 @@ async fn test_admin_interface_accessibility() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let html_content = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Check for basic accessibility features
     assert!(html_content.contains("lang=\"en\""));
     assert!(html_content.contains("<label"));
     assert!(html_content.contains("aria-"));
     assert!(html_content.contains("title="));
-    
+
     // Check for proper form structure
     assert!(html_content.contains("type=\"email\""));
     assert!(html_content.contains("type=\"password\""));
@@ -366,10 +387,12 @@ async fn test_admin_interface_theme_support() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let css_content = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Check for theme support
     assert!(css_content.contains(":root"));
     assert!(css_content.contains("[data-theme=\"dark\"]"));
@@ -390,10 +413,12 @@ async fn test_admin_interface_javascript_functionality() {
         .unwrap();
 
     let response = app.oneshot(request).await.unwrap();
-    
-    let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let js_content = String::from_utf8(body.to_vec()).unwrap();
-    
+
     // Check for key functionality
     assert!(js_content.contains("handleLogin"));
     assert!(js_content.contains("showAdminInterface"));
@@ -403,7 +428,7 @@ async fn test_admin_interface_javascript_functionality() {
     assert!(js_content.contains("validateRule"));
     assert!(js_content.contains("importData"));
     assert!(js_content.contains("exportData"));
-    
+
     // Check for proper error handling
     assert!(js_content.contains("try {"));
     assert!(js_content.contains("catch"));

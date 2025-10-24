@@ -4,8 +4,8 @@ use sqlx::{
     Pool, Sqlite, SqlitePool,
 };
 use std::path::Path;
-use std::time::Duration;
 use std::str::FromStr;
+use std::time::Duration;
 use tracing::info;
 
 pub type DatabasePool = Pool<Sqlite>;
@@ -16,7 +16,11 @@ pub struct Database {
 
 impl Database {
     /// Create a new database connection pool
-    pub async fn new(database_url: &str, max_connections: u32, connection_timeout: u64) -> CoreResult<Self> {
+    pub async fn new(
+        database_url: &str,
+        max_connections: u32,
+        connection_timeout: u64,
+    ) -> CoreResult<Self> {
         // Ensure the directory exists for SQLite file
         if database_url.starts_with("sqlite:") {
             let path = database_url.strip_prefix("sqlite:").unwrap_or(database_url);
@@ -52,20 +56,16 @@ impl Database {
     /// Run database migrations
     pub async fn migrate(&self) -> CoreResult<()> {
         info!("Running database migrations...");
-        
-        sqlx::migrate!("../../migrations")
-            .run(&self.pool)
-            .await?;
-        
+
+        sqlx::migrate!("../../migrations").run(&self.pool).await?;
+
         info!("Database migrations completed successfully");
         Ok(())
     }
 
     /// Check if the database is healthy
     pub async fn health_check(&self) -> CoreResult<()> {
-        sqlx::query("SELECT 1")
-            .execute(&self.pool)
-            .await?;
+        sqlx::query("SELECT 1").execute(&self.pool).await?;
         Ok(())
     }
 
@@ -113,40 +113,41 @@ fn mask_password_in_uri(uri: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
+    use tempfile::TempDir;
 
     #[tokio::test]
     async fn test_database_creation() {
-        let db_dir = tempdir().unwrap().into_path();
-        let db_path = db_dir.join("test.db");
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();
-        
+
         // Test health check
         db.health_check().await.unwrap();
-        
+
         db.close().await;
     }
 
     #[tokio::test]
     async fn test_database_migrations() {
-        let db_dir = tempdir().unwrap().into_path();
-        let db_path = db_dir.join("test_migrate.db");
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test_migrate.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();
-        
+
         // Run migrations
         db.migrate().await.unwrap();
-        
+
         // Verify tables exist
-        let result = sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
-            .fetch_one(db.pool())
-            .await;
-        
+        let result =
+            sqlx::query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+                .fetch_one(db.pool())
+                .await;
+
         assert!(result.is_ok());
-        
+
         db.close().await;
     }
 

@@ -85,7 +85,7 @@ impl Default for AuthConfig {
             token_ttl: 900,     // 15 minutes
             refresh_ttl: 86400, // 24 hours
             password_min_length: 8,
-            argon2_memory: 65536,    // 64MB
+            argon2_memory: 65536, // 64MB
             argon2_iterations: 3,
             argon2_parallelism: 4,
         }

@@ -13,9 +13,14 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 // Re-export security modules
-pub use crate::csrf::{CsrfConfig, CsrfTokenStore, csrf_protection_middleware, create_csrf_cookie, CsrfTokenResponse};
-pub use crate::security::{SecurityConfig, CookieSecurityConfig, security_headers_middleware, request_size_limit_middleware, CookieSecurityUtils, IpSecurityConfig, extract_real_ip, is_ip_blocked};
-pub use crate::validation::{ValidationConfig, input_validation_middleware, RequestSanitizer};
+pub use crate::csrf::{
+    create_csrf_cookie, csrf_protection_middleware, CsrfConfig, CsrfTokenResponse, CsrfTokenStore,
+};
+pub use crate::security::{
+    extract_real_ip, is_ip_blocked, request_size_limit_middleware, security_headers_middleware,
+    CookieSecurityConfig, CookieSecurityUtils, IpSecurityConfig, SecurityConfig,
+};
+pub use crate::validation::{input_validation_middleware, RequestSanitizer, ValidationConfig};
 
 /// Authentication state that gets added to request extensions
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -112,10 +117,7 @@ pub async fn optional_auth_middleware(
 }
 
 /// Admin-only middleware that requires admin role
-pub async fn admin_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn admin_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     // Check if user is authenticated and is admin
     let auth_user = request
         .extensions()
@@ -130,35 +132,31 @@ pub async fn admin_middleware(
 }
 
 /// Request ID middleware that adds correlation IDs to requests
-pub async fn request_id_middleware(
-    mut request: Request,
-    next: Next,
-) -> Response {
+pub async fn request_id_middleware(mut request: Request, next: Next) -> Response {
     use axum::http::HeaderName;
-    
+
     // Generate a unique request ID
     let request_id = Uuid::new_v4().to_string();
-    
+
     // Add request ID to request extensions for use in handlers
-    request.extensions_mut().insert(RequestId(request_id.clone()));
-    
+    request
+        .extensions_mut()
+        .insert(RequestId(request_id.clone()));
+
     // Run the request
     let mut response = next.run(request).await;
-    
+
     // Add request ID to response headers
     let header_name = HeaderName::from_static("x-request-id");
     if let Ok(header_value) = request_id.parse() {
         response.headers_mut().insert(header_name, header_value);
     }
-    
+
     response
 }
 
 /// Simple rate limiting middleware (basic implementation)
-pub async fn rate_limit_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn rate_limit_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     // TODO: Implement proper rate limiting with tower-governor when axum version conflict is resolved
     // For now, just pass through all requests
     Ok(next.run(request).await)
@@ -176,28 +174,25 @@ impl RequestId {
 
 /// Simple metrics middleware for request counting
 #[cfg(feature = "metrics")]
-pub async fn metrics_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn metrics_middleware(request: Request, next: Next) -> Response {
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::OnceLock;
-    
+
     static REQUEST_COUNTER: OnceLock<AtomicU64> = OnceLock::new();
-    
+
     let counter = REQUEST_COUNTER.get_or_init(|| AtomicU64::new(0));
     counter.fetch_add(1, Ordering::Relaxed);
-    
+
     let start = std::time::Instant::now();
     let response = next.run(request).await;
     let duration = start.elapsed();
-    
+
     // Log request metrics
     tracing::info!(
         method = %response.status(),
         duration_ms = duration.as_millis(),
         "Request completed"
     );
-    
+
     response
 }

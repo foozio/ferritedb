@@ -117,7 +117,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Execute command
     match cli.command {
-        Commands::Serve { host, port, database } => {
+        Commands::Serve {
+            host,
+            port,
+            database,
+        } => {
             info!("Starting FerriteDB server on {}:{}", host, port);
             serve_command(config, host, port, database).await?;
         }
@@ -160,7 +164,10 @@ fn init_tracing(debug: bool) {
 }
 
 async fn load_config(config_path: Option<&std::path::Path>) -> Result<CoreConfig, ConfigError> {
-    use figment::{Figment, providers::{Env, Format, Toml}};
+    use figment::{
+        providers::{Env, Format, Toml},
+        Figment,
+    };
 
     let mut figment = Figment::new();
 
@@ -192,21 +199,29 @@ async fn serve_command(
     config.database.url = format!("sqlite:{}", database.display());
 
     // Create and start the server
-    let server = ferritedb_server::Server::new(config)
-        .await
-        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::configuration(format!("Server initialization failed: {}", e))))?;
+    let server = ferritedb_server::Server::new(config).await.map_err(|e| {
+        FerriteDbError::Core(ferritedb_core::CoreError::configuration(format!(
+            "Server initialization failed: {}",
+            e
+        )))
+    })?;
 
-    server
-        .serve()
-        .await
-        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::configuration(format!("Server error: {}", e))))?;
+    server.serve().await.map_err(|e| {
+        FerriteDbError::Core(ferritedb_core::CoreError::configuration(format!(
+            "Server error: {}",
+            e
+        )))
+    })?;
 
     Ok(())
 }
 
-async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<(), FerriteDbError> {
+async fn migrate_command(
+    config: CoreConfig,
+    action: MigrateCommands,
+) -> Result<(), FerriteDbError> {
     use ferritedb_core::Database;
-    
+
     // Create database connection
     let database = Database::new(
         &config.database.url,
@@ -224,40 +239,47 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
         }
         MigrateCommands::Revert => {
             info!("Reverting last migration...");
-            
+
             // Get migration info
             let migration_info = sqlx::query_as::<_, (i64, String)>(
-                "SELECT version, description FROM _sqlx_migrations ORDER BY version DESC LIMIT 1"
+                "SELECT version, description FROM _sqlx_migrations ORDER BY version DESC LIMIT 1",
             )
             .fetch_optional(database.pool())
             .await
-            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string())))?;
+            .map_err(|e| {
+                FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string()))
+            })?;
 
             if let Some((version, description)) = migration_info {
                 info!("Found migration to revert: {} - {}", version, description);
-                
+
                 // Note: SQLx doesn't support automatic rollbacks, so we'll provide guidance
                 error!("❌ Automatic migration rollback is not supported by SQLx");
                 error!("To revert migration {}, you need to manually create a new migration that undoes the changes", version);
                 error!("Consider creating a new migration file with the reverse operations");
-                
-                return Err(FerriteDbError::Core(ferritedb_core::CoreError::Configuration(
-                    "Automatic rollback not supported. Create a new migration to undo changes.".to_string()
-                )));
+
+                return Err(FerriteDbError::Core(
+                    ferritedb_core::CoreError::Configuration(
+                        "Automatic rollback not supported. Create a new migration to undo changes."
+                            .to_string(),
+                    ),
+                ));
             } else {
                 info!("No migrations found to revert");
             }
         }
         MigrateCommands::Status => {
             info!("Checking migration status...");
-            
+
             // Check if migrations table exists
             let table_exists = sqlx::query_as::<_, (String,)>(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='_sqlx_migrations'",
             )
             .fetch_optional(database.pool())
             .await
-            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string())))?;
+            .map_err(|e| {
+                FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string()))
+            })?;
 
             if table_exists.is_none() {
                 info!("📋 No migrations have been run yet");
@@ -266,27 +288,31 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
 
             // Get applied migrations
             let migrations = sqlx::query_as::<_, (i64, String, String)>(
-                "SELECT version, description, installed_on FROM _sqlx_migrations ORDER BY version"
+                "SELECT version, description, installed_on FROM _sqlx_migrations ORDER BY version",
             )
             .fetch_all(database.pool())
             .await
-            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string())))?;
+            .map_err(|e| {
+                FerriteDbError::Core(ferritedb_core::CoreError::validation(e.to_string()))
+            })?;
 
             if migrations.is_empty() {
                 info!("📋 No migrations have been applied");
             } else {
                 info!("📋 Applied migrations:");
                 for (version, description, installed_on) in migrations {
-                    info!("  ✅ {} - {} (applied: {})", 
-                        version, 
-                        description,
-                        installed_on
+                    info!(
+                        "  ✅ {} - {} (applied: {})",
+                        version, description, installed_on
                     );
                 }
             }
 
             // Check database health
-            database.health_check().await.map_err(FerriteDbError::Core)?;
+            database
+                .health_check()
+                .await
+                .map_err(FerriteDbError::Core)?;
             info!("💚 Database connection is healthy");
         }
     }
@@ -294,9 +320,11 @@ async fn migrate_command(config: CoreConfig, action: MigrateCommands) -> Result<
 }
 
 async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), FerriteDbError> {
-    use ferritedb_core::{Database, UserRepository, auth::AuthService, CreateUserRequest, UserRole};
+    use ferritedb_core::{
+        auth::AuthService, CreateUserRequest, Database, UserRepository, UserRole,
+    };
     use std::io::{self, Write};
-    
+
     // Create database connection
     let database = Database::new(
         &config.database.url,
@@ -310,18 +338,23 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
     database.migrate().await.map_err(FerriteDbError::Core)?;
 
     let user_repo = UserRepository::new(database.pool().clone());
-    let auth_service = AuthService::new(config.auth.clone())
-        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
+    let auth_service = AuthService::new(config.auth.clone()).map_err(|e| {
+        FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string()))
+    })?;
 
     match action {
         AdminCommands::Create { email, password } => {
             info!("Creating admin user: {}", email);
-            
+
             // Check if user already exists
-            if let Some(_existing) = user_repo.find_by_email(&email).await.map_err(FerriteDbError::Core)? {
+            if let Some(_existing) = user_repo
+                .find_by_email(&email)
+                .await
+                .map_err(FerriteDbError::Core)?
+            {
                 error!("❌ User with email '{}' already exists", email);
                 return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
-                    format!("User with email '{}' already exists", email)
+                    format!("User with email '{}' already exists", email),
                 )));
             }
 
@@ -331,23 +364,26 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
             } else {
                 print!("Enter password for admin user: ");
                 io::stdout().flush().unwrap();
-                
+
                 // Read password from stdin (note: this will be visible, in production you'd use a proper password input)
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).map_err(FerriteDbError::Io)?;
+                io::stdin()
+                    .read_line(&mut input)
+                    .map_err(FerriteDbError::Io)?;
                 input.trim().to_string()
             };
 
             if password.is_empty() {
                 error!("❌ Password cannot be empty");
                 return Err(FerriteDbError::Core(ferritedb_core::CoreError::Validation(
-                    "Password cannot be empty".to_string()
+                    "Password cannot be empty".to_string(),
                 )));
             }
 
             // Hash password
-            let password_hash = auth_service.hash_password(&password)
-                .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
+            let password_hash = auth_service.hash_password(&password).map_err(|e| {
+                FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string()))
+            })?;
 
             // Create admin user
             let create_request = CreateUserRequest {
@@ -357,8 +393,11 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
                 verified: true,
             };
 
-            let user = user_repo.create(create_request, password_hash).await.map_err(FerriteDbError::Core)?;
-            
+            let user = user_repo
+                .create(create_request, password_hash)
+                .await
+                .map_err(FerriteDbError::Core)?;
+
             info!("✅ Admin user created successfully:");
             info!("  ID: {}", user.id);
             info!("  Email: {}", user.email);
@@ -367,21 +406,25 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
         }
         AdminCommands::List => {
             info!("Listing users...");
-            
+
             let users = user_repo.list(100, 0).await.map_err(FerriteDbError::Core)?;
-            
+
             if users.is_empty() {
                 info!("📋 No users found");
             } else {
                 info!("📋 Found {} users:", users.len());
                 println!();
-                println!("{:<36} {:<30} {:<10} {:<10} {:<20}", "ID", "Email", "Role", "Verified", "Created");
+                println!(
+                    "{:<36} {:<30} {:<10} {:<10} {:<20}",
+                    "ID", "Email", "Role", "Verified", "Created"
+                );
                 println!("{}", "-".repeat(106));
-                
+
                 for user in users {
-                    println!("{:<36} {:<30} {:<10} {:<10} {:<20}", 
-                        user.id, 
-                        user.email, 
+                    println!(
+                        "{:<36} {:<30} {:<10} {:<10} {:<20}",
+                        user.id,
+                        user.email,
                         user.role,
                         if user.verified { "✅" } else { "❌" },
                         user.created_at.format("%Y-%m-%d %H:%M")
@@ -391,26 +434,40 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
         }
         AdminCommands::Delete { user } => {
             info!("Deleting user: {}", user);
-            
+
             // Try to parse as UUID first, then fall back to email
             let user_to_delete = if let Ok(user_id) = uuid::Uuid::parse_str(&user) {
-                user_repo.find_by_id(user_id).await.map_err(FerriteDbError::Core)?
+                user_repo
+                    .find_by_id(user_id)
+                    .await
+                    .map_err(FerriteDbError::Core)?
             } else {
-                user_repo.find_by_email(&user).await.map_err(FerriteDbError::Core)?
+                user_repo
+                    .find_by_email(&user)
+                    .await
+                    .map_err(FerriteDbError::Core)?
             };
 
             if let Some(user_record) = user_to_delete {
                 // Confirm deletion
-                print!("Are you sure you want to delete user '{}' ({})?  [y/N]: ", user_record.email, user_record.id);
+                print!(
+                    "Are you sure you want to delete user '{}' ({})?  [y/N]: ",
+                    user_record.email, user_record.id
+                );
                 io::stdout().flush().unwrap();
-                
+
                 let mut input = String::new();
-                io::stdin().read_line(&mut input).map_err(FerriteDbError::Io)?;
+                io::stdin()
+                    .read_line(&mut input)
+                    .map_err(FerriteDbError::Io)?;
                 let confirmation = input.trim().to_lowercase();
-                
+
                 if confirmation == "y" || confirmation == "yes" {
-                    let deleted = user_repo.delete(user_record.id).await.map_err(FerriteDbError::Core)?;
-                    
+                    let deleted = user_repo
+                        .delete(user_record.id)
+                        .await
+                        .map_err(FerriteDbError::Core)?;
+
                     if deleted {
                         info!("✅ User '{}' deleted successfully", user_record.email);
                     } else {
@@ -422,7 +479,7 @@ async fn admin_command(config: CoreConfig, action: AdminCommands) -> Result<(), 
             } else {
                 error!("❌ User '{}' not found", user);
                 return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
-                    format!("User '{}' not found", user)
+                    format!("User '{}' not found", user),
                 )));
             }
         }
@@ -435,17 +492,20 @@ async fn import_command(
     collection: String,
     file: PathBuf,
 ) -> Result<(), FerriteDbError> {
-    use ferritedb_core::{Database, CollectionRepository, RecordService, CollectionService};
+    use ferritedb_core::{CollectionRepository, CollectionService, Database, RecordService};
     use std::fs;
-    
-    info!("Importing data to collection '{}' from {:?}", collection, file);
-    
+
+    info!(
+        "Importing data to collection '{}' from {:?}",
+        collection, file
+    );
+
     // Check if file exists
     if !file.exists() {
         error!("❌ File {:?} does not exist", file);
         return Err(FerriteDbError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            format!("File {:?} not found", file)
+            format!("File {:?} not found", file),
         )));
     }
 
@@ -463,68 +523,86 @@ async fn import_command(
     let record_service = RecordService::new(database.pool().clone(), collection_service);
 
     // Check if collection exists
-    let _collection_record = collection_repo.find_by_name(&collection).await.map_err(FerriteDbError::Core)?;
+    let _collection_record = collection_repo
+        .find_by_name(&collection)
+        .await
+        .map_err(FerriteDbError::Core)?;
     let _collection_record = match _collection_record {
         Some(c) => c,
         None => {
             error!("❌ Collection '{}' not found", collection);
             return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
-                format!("Collection '{}' not found", collection)
+                format!("Collection '{}' not found", collection),
             )));
         }
     };
 
     // Read and parse file
     let file_content = fs::read_to_string(&file).map_err(FerriteDbError::Io)?;
-    
-    let records: Vec<serde_json::Value> = if file.extension().and_then(|s| s.to_str()) == Some("csv") {
-        // Parse CSV
-        let mut reader = csv::Reader::from_reader(file_content.as_bytes());
-        let headers = reader.headers().map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(
-            format!("Failed to read CSV headers: {}", e)
-        )))?.clone();
-        
-        let mut records = Vec::new();
-        for result in reader.records() {
-            let record = result.map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Validation(
-                format!("Failed to read CSV record: {}", e)
-            )))?;
-            
-            let mut json_record = serde_json::Map::new();
-            for (i, field) in record.iter().enumerate() {
-                if let Some(header) = headers.get(i) {
-                    // Try to parse as number, boolean, or keep as string
-                    let value = if let Ok(num) = field.parse::<f64>() {
-                        serde_json::Value::Number(serde_json::Number::from_f64(num).unwrap_or_else(|| serde_json::Number::from(0)))
-                    } else if let Ok(bool_val) = field.parse::<bool>() {
-                        serde_json::Value::Bool(bool_val)
-                    } else {
-                        serde_json::Value::String(field.to_string())
-                    };
-                    json_record.insert(header.to_string(), value);
+
+    let records: Vec<serde_json::Value> =
+        if file.extension().and_then(|s| s.to_str()) == Some("csv") {
+            // Parse CSV
+            let mut reader = csv::Reader::from_reader(file_content.as_bytes());
+            let headers = reader
+                .headers()
+                .map_err(|e| {
+                    FerriteDbError::Core(ferritedb_core::CoreError::validation(format!(
+                        "Failed to read CSV headers: {}",
+                        e
+                    )))
+                })?
+                .clone();
+
+            let mut records = Vec::new();
+            for result in reader.records() {
+                let record = result.map_err(|e| {
+                    FerriteDbError::Core(ferritedb_core::CoreError::Validation(format!(
+                        "Failed to read CSV record: {}",
+                        e
+                    )))
+                })?;
+
+                let mut json_record = serde_json::Map::new();
+                for (i, field) in record.iter().enumerate() {
+                    if let Some(header) = headers.get(i) {
+                        // Try to parse as number, boolean, or keep as string
+                        let value = if let Ok(num) = field.parse::<f64>() {
+                            serde_json::Value::Number(
+                                serde_json::Number::from_f64(num)
+                                    .unwrap_or_else(|| serde_json::Number::from(0)),
+                            )
+                        } else if let Ok(bool_val) = field.parse::<bool>() {
+                            serde_json::Value::Bool(bool_val)
+                        } else {
+                            serde_json::Value::String(field.to_string())
+                        };
+                        json_record.insert(header.to_string(), value);
+                    }
+                }
+                records.push(serde_json::Value::Object(json_record));
+            }
+            records
+        } else {
+            // Parse JSON
+            let parsed: serde_json::Value = serde_json::from_str(&file_content).map_err(|e| {
+                FerriteDbError::Core(ferritedb_core::CoreError::validation(format!(
+                    "Failed to parse JSON: {}",
+                    e
+                )))
+            })?;
+
+            match parsed {
+                serde_json::Value::Array(records) => records,
+                serde_json::Value::Object(_) => vec![parsed],
+                _ => {
+                    error!("❌ JSON file must contain an array of objects or a single object");
+                    return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
+                        "JSON file must contain an array of objects or a single object".to_string(),
+                    )));
                 }
             }
-            records.push(serde_json::Value::Object(json_record));
-        }
-        records
-    } else {
-        // Parse JSON
-        let parsed: serde_json::Value = serde_json::from_str(&file_content)
-            .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(
-                format!("Failed to parse JSON: {}", e)
-            )))?;
-        
-        match parsed {
-            serde_json::Value::Array(records) => records,
-            serde_json::Value::Object(_) => vec![parsed],
-            _ => {
-                error!("❌ JSON file must contain an array of objects or a single object");
-                return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
-                    "JSON file must contain an array of objects or a single object".to_string()
-                )));
-            }
-        }
-    };
+        };
 
     info!("📥 Found {} records to import", records.len());
 
@@ -533,7 +611,10 @@ async fn import_command(
     let mut error_count = 0;
 
     for (index, record_data) in records.iter().enumerate() {
-        match record_service.create_record(&collection, record_data.clone()).await {
+        match record_service
+            .create_record(&collection, record_data.clone())
+            .await
+        {
             Ok(_) => {
                 imported_count += 1;
                 if imported_count % 100 == 0 {
@@ -561,11 +642,11 @@ async fn export_command(
     collection: String,
     output: Option<PathBuf>,
 ) -> Result<(), FerriteDbError> {
-    use ferritedb_core::{Database, CollectionRepository, RecordService, CollectionService};
+    use ferritedb_core::{CollectionRepository, CollectionService, Database, RecordService};
     use std::fs;
-    
+
     info!("Exporting collection '{}' to {:?}", collection, output);
-    
+
     // Create database connection
     let database = Database::new(
         &config.database.url,
@@ -580,51 +661,67 @@ async fn export_command(
     let record_service = RecordService::new(database.pool().clone(), collection_service);
 
     // Check if collection exists
-    let collection_record = collection_repo.find_by_name(&collection).await.map_err(FerriteDbError::Core)?;
+    let collection_record = collection_repo
+        .find_by_name(&collection)
+        .await
+        .map_err(FerriteDbError::Core)?;
     let _collection_record = match collection_record {
         Some(c) => c,
         None => {
             error!("❌ Collection '{}' not found", collection);
             return Err(FerriteDbError::Core(ferritedb_core::CoreError::Validation(
-                format!("Collection '{}' not found", collection)
+                format!("Collection '{}' not found", collection),
             )));
         }
     };
 
     // Get all records from collection
     info!("📤 Fetching records from collection '{}'...", collection);
-    let records = record_service.list_records(&collection, 1000, 0).await
+    let records = record_service
+        .list_records(&collection, 1000, 0)
+        .await
         .map_err(FerriteDbError::Core)?;
 
     info!("📤 Found {} records to export", records.len());
 
     // Determine output file
-    let output_file = output.unwrap_or_else(|| {
-        PathBuf::from(format!("{}_export.json", collection))
-    });
+    let output_file =
+        output.unwrap_or_else(|| PathBuf::from(format!("{}_export.json", collection)));
 
     // Convert records to JSON
-    let records_json: Vec<serde_json::Value> = records.into_iter()
+    let records_json: Vec<serde_json::Value> = records
+        .into_iter()
         .map(|record| {
             let mut json_obj = serde_json::Map::new();
-            json_obj.insert("id".to_string(), serde_json::Value::String(record.id.to_string()));
-            json_obj.insert("created_at".to_string(), serde_json::Value::String(record.created_at.to_rfc3339()));
-            json_obj.insert("updated_at".to_string(), serde_json::Value::String(record.updated_at.to_rfc3339()));
-            
+            json_obj.insert(
+                "id".to_string(),
+                serde_json::Value::String(record.id.to_string()),
+            );
+            json_obj.insert(
+                "created_at".to_string(),
+                serde_json::Value::String(record.created_at.to_rfc3339()),
+            );
+            json_obj.insert(
+                "updated_at".to_string(),
+                serde_json::Value::String(record.updated_at.to_rfc3339()),
+            );
+
             // Add all data fields
             for (key, value) in record.data {
                 json_obj.insert(key, value);
             }
-            
+
             serde_json::Value::Object(json_obj)
         })
         .collect();
 
     // Write to file
-    let json_output = serde_json::to_string_pretty(&records_json)
-        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::validation(
-            format!("Failed to serialize records: {}", e)
-        )))?;
+    let json_output = serde_json::to_string_pretty(&records_json).map_err(|e| {
+        FerriteDbError::Core(ferritedb_core::CoreError::validation(format!(
+            "Failed to serialize records: {}",
+            e
+        )))
+    })?;
 
     fs::write(&output_file, json_output).map_err(FerriteDbError::Io)?;
 
@@ -640,10 +737,13 @@ async fn gen_jwt_command(
     user: String,
     expires: u64,
 ) -> Result<(), FerriteDbError> {
-    use ferritedb_core::{Database, UserRepository, auth::AuthService};
-    
-    info!("Generating JWT for user '{}' (expires in {}s)", user, expires);
-    
+    use ferritedb_core::{auth::AuthService, Database, UserRepository};
+
+    info!(
+        "Generating JWT for user '{}' (expires in {}s)",
+        user, expires
+    );
+
     // Create database connection
     let database = Database::new(
         &config.database.url,
@@ -654,19 +754,26 @@ async fn gen_jwt_command(
     .map_err(FerriteDbError::Core)?;
 
     let user_repo = UserRepository::new(database.pool().clone());
-    
+
     // Create auth service with custom TTL
     let mut auth_config = config.auth.clone();
     auth_config.token_ttl = expires;
-    
-    let auth_service = AuthService::new(auth_config)
-        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
+
+    let auth_service = AuthService::new(auth_config).map_err(|e| {
+        FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string()))
+    })?;
 
     // Find user by ID or email
     let user_record = if let Ok(user_id) = uuid::Uuid::parse_str(&user) {
-        user_repo.find_by_id(user_id).await.map_err(FerriteDbError::Core)?
+        user_repo
+            .find_by_id(user_id)
+            .await
+            .map_err(FerriteDbError::Core)?
     } else {
-        user_repo.find_by_email(&user).await.map_err(FerriteDbError::Core)?
+        user_repo
+            .find_by_email(&user)
+            .await
+            .map_err(FerriteDbError::Core)?
     };
 
     let user_record = match user_record {
@@ -674,14 +781,15 @@ async fn gen_jwt_command(
         None => {
             error!("❌ User '{}' not found", user);
             return Err(FerriteDbError::Core(ferritedb_core::CoreError::validation(
-                format!("User '{}' not found", user)
+                format!("User '{}' not found", user),
             )));
         }
     };
 
     // Generate tokens
-    let tokens = auth_service.generate_tokens(&user_record)
-        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string())))?;
+    let tokens = auth_service.generate_tokens(&user_record).map_err(|e| {
+        FerriteDbError::Core(ferritedb_core::CoreError::Authentication(e.to_string()))
+    })?;
 
     info!("✅ JWT tokens generated successfully:");
     println!();
@@ -700,19 +808,25 @@ async fn gen_jwt_command(
     println!("Token Details:");
     println!("  Type: {}", tokens.token_type);
     println!("  Expires in: {} seconds", tokens.expires_in);
-    println!("  Expires at: {}", chrono::Utc::now() + chrono::Duration::seconds(tokens.expires_in));
+    println!(
+        "  Expires at: {}",
+        chrono::Utc::now() + chrono::Duration::seconds(tokens.expires_in)
+    );
     println!();
     println!("Usage Example:");
-    println!("  curl -H \"Authorization: Bearer {}\" http://localhost:8090/api/collections", tokens.access_token);
+    println!(
+        "  curl -H \"Authorization: Bearer {}\" http://localhost:8090/api/collections",
+        tokens.access_token
+    );
 
     Ok(())
 }
 
 async fn seed_command(config: CoreConfig, force: bool) -> Result<(), FerriteDbError> {
-    use ferritedb_core::{Database, SeedService, auth::AuthService};
-    
+    use ferritedb_core::{auth::AuthService, Database, SeedService};
+
     info!("Initializing example collections and seed data...");
-    
+
     // Create database connection
     let database = Database::new(
         &config.database.url,
@@ -726,8 +840,11 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), FerriteDbEr
     database.migrate().await.map_err(FerriteDbError::Core)?;
 
     // Create auth service
-    let auth_service = AuthService::new(config.auth.clone())
-        .map_err(|e| FerriteDbError::Core(ferritedb_core::CoreError::authentication_error(e.to_string())))?;
+    let auth_service = AuthService::new(config.auth.clone()).map_err(|e| {
+        FerriteDbError::Core(ferritedb_core::CoreError::authentication_error(
+            e.to_string(),
+        ))
+    })?;
 
     // Create seed service
     let seed_service = SeedService::new(database.pool().clone(), auth_service);
@@ -738,7 +855,10 @@ async fn seed_command(config: CoreConfig, force: bool) -> Result<(), FerriteDbEr
     }
 
     // Initialize examples
-    seed_service.initialize_examples().await.map_err(FerriteDbError::Core)?;
+    seed_service
+        .initialize_examples()
+        .await
+        .map_err(FerriteDbError::Core)?;
 
     info!("✅ Example collections and seed data initialized successfully!");
     info!("📋 Created collections:");

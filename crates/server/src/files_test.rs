@@ -1,4 +1,5 @@
 use super::*;
+use crate::middleware::AuthUser;
 use axum::{
     body::Body,
     extract::multipart::Field,
@@ -7,10 +8,12 @@ use axum::{
 use ferritedb_core::{
     auth::AuthService,
     config::AuthConfig,
-    models::{Collection, CollectionSchema, CollectionType, Field as CoreField, FieldType, User, UserRole, Record},
+    models::{
+        Collection, CollectionSchema, CollectionType, Field as CoreField, FieldType, Record, User,
+        UserRole,
+    },
     CollectionService, RecordService,
 };
-use crate::middleware::AuthUser;
 use ferritedb_storage::{LocalStorage, StorageBackend, StorageConfig, StorageType};
 use serde_json::json;
 use std::collections::HashMap;
@@ -32,11 +35,10 @@ impl MockCollectionService {
         }
     }
 
-fn add_collection(&self, collection: Collection) {
-    let mut collections = self.collections.lock().unwrap();
-    collections.insert(collection.name.clone(), collection);
-}
-
+    fn add_collection(&self, collection: Collection) {
+        let mut collections = self.collections.lock().unwrap();
+        collections.insert(collection.name.clone(), collection);
+    }
 }
 
 #[axum::async_trait]
@@ -58,21 +60,31 @@ impl MockRecordService {
         }
     }
 
-fn add_record(&self, collection_name: &str, record: Record) {
-    let mut records = self.records.lock().unwrap();
-    records.insert((collection_name.to_string(), record.id), record);
-}
-
+    fn add_record(&self, collection_name: &str, record: Record) {
+        let mut records = self.records.lock().unwrap();
+        records.insert((collection_name.to_string(), record.id), record);
+    }
 }
 
 #[axum::async_trait]
 impl FileRecordService for MockRecordService {
-    async fn get_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>> {
+    async fn get_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<Option<Record>> {
         let records = self.records.lock().unwrap();
-        Ok(records.get(&(collection_name.to_string(), record_id)).cloned())
+        Ok(records
+            .get(&(collection_name.to_string(), record_id))
+            .cloned())
     }
 
-    async fn update_record(&self, collection_name: &str, record_id: Uuid, data: serde_json::Value) -> ferritedb_core::CoreResult<Record> {
+    async fn update_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+        data: serde_json::Value,
+    ) -> ferritedb_core::CoreResult<Record> {
         let mut records = self.records.lock().unwrap();
         if let Some(record) = records.get_mut(&(collection_name.to_string(), record_id)) {
             if let Some(data_obj) = data.as_object() {
@@ -83,19 +95,28 @@ impl FileRecordService for MockRecordService {
             record.updated_at = chrono::Utc::now();
             Ok(record.clone())
         } else {
-            Err(ferritedb_core::CoreError::RecordNotFound(record_id.to_string()))
+            Err(ferritedb_core::CoreError::RecordNotFound(
+                record_id.to_string(),
+            ))
         }
     }
 
-    async fn delete_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<bool> {
+    async fn delete_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<bool> {
         let mut records = self.records.lock().unwrap();
-        Ok(records.remove(&(collection_name.to_string(), record_id)).is_some())
+        Ok(records
+            .remove(&(collection_name.to_string(), record_id))
+            .is_some())
     }
 }
 
-fn create_test_file_app_state() -> FileAppState {
+fn create_test_file_app_state() -> (TempDir, FileAppState) {
     let temp_dir = tempdir().unwrap();
-    let storage_backend = Arc::new(LocalStorage::new(temp_dir.path().to_path_buf())) as Arc<dyn StorageBackend>;
+    let storage_backend =
+        Arc::new(LocalStorage::new(temp_dir.path().to_path_buf())) as Arc<dyn StorageBackend>;
     let storage_config = StorageConfig {
         storage_type: StorageType::Local {
             path: temp_dir.path().to_path_buf(),
@@ -127,8 +148,7 @@ fn create_test_file_app_state() -> FileAppState {
         },
     ));
 
-    let collection = Collection::new("users".to_string(), CollectionType::Base)
-        .with_schema(schema);
+    let collection = Collection::new("users".to_string(), CollectionType::Base).with_schema(schema);
 
     collection_service.add_collection(collection);
 
@@ -147,12 +167,14 @@ fn create_test_file_app_state() -> FileAppState {
 
     record_service.add_record("users", record);
 
-    FileAppState {
+    let state = FileAppState {
         storage_backend,
         storage_config,
         collection_service: collection_service.clone() as Arc<dyn FileCollectionService>,
         record_service: record_service.clone() as Arc<dyn FileRecordService>,
-    }
+    };
+
+    (temp_dir, state)
 }
 
 fn create_test_user() -> AuthUser {
@@ -168,8 +190,13 @@ fn create_test_user() -> AuthUser {
 
 #[tokio::test]
 async fn test_validate_file_field_success() {
-    let state = create_test_file_app_state();
-    let collection = state.collection_service.get_collection("users").await.unwrap().unwrap();
+    let (_temp_dir, state) = create_test_file_app_state();
+    let collection = state
+        .collection_service
+        .get_collection("users")
+        .await
+        .unwrap()
+        .unwrap();
 
     // Test valid file field
     let result = validate_file_field(&collection, "avatar");
@@ -181,8 +208,13 @@ async fn test_validate_file_field_success() {
 
 #[tokio::test]
 async fn test_validate_file_field_not_found() {
-    let state = create_test_file_app_state();
-    let collection = state.collection_service.get_collection("users").await.unwrap().unwrap();
+    let (_temp_dir, state) = create_test_file_app_state();
+    let collection = state
+        .collection_service
+        .get_collection("users")
+        .await
+        .unwrap()
+        .unwrap();
 
     let result = validate_file_field(&collection, "nonexistent");
     assert!(result.is_err());
@@ -191,8 +223,13 @@ async fn test_validate_file_field_not_found() {
 
 #[tokio::test]
 async fn test_validate_file_field_wrong_type() {
-    let state = create_test_file_app_state();
-    let mut collection = state.collection_service.get_collection("users").await.unwrap().unwrap();
+    let (_temp_dir, state) = create_test_file_app_state();
+    let mut collection = state
+        .collection_service
+        .get_collection("users")
+        .await
+        .unwrap()
+        .unwrap();
 
     // Add a non-file field
     collection.schema_json.add_field(CoreField::new(
@@ -208,8 +245,13 @@ async fn test_validate_file_field_wrong_type() {
 
 #[tokio::test]
 async fn test_validate_file_success() {
-    let state = create_test_file_app_state();
-    let collection = state.collection_service.get_collection("users").await.unwrap().unwrap();
+    let (_temp_dir, state) = create_test_file_app_state();
+    let collection = state
+        .collection_service
+        .get_collection("users")
+        .await
+        .unwrap()
+        .unwrap();
     let field = collection.schema_json.get_field("avatar").unwrap();
 
     let result = validate_file(
@@ -224,8 +266,13 @@ async fn test_validate_file_success() {
 
 #[tokio::test]
 async fn test_validate_file_size_too_large() {
-    let state = create_test_file_app_state();
-    let collection = state.collection_service.get_collection("users").await.unwrap().unwrap();
+    let (_temp_dir, state) = create_test_file_app_state();
+    let collection = state
+        .collection_service
+        .get_collection("users")
+        .await
+        .unwrap()
+        .unwrap();
     let field = collection.schema_json.get_field("avatar").unwrap();
 
     // Test field-specific size limit (512KB)
@@ -237,13 +284,21 @@ async fn test_validate_file_size_too_large() {
         &Some("image/jpeg".to_string()),
     );
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("field maximum size"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("field maximum size"));
 }
 
 #[tokio::test]
 async fn test_validate_file_wrong_content_type() {
-    let state = create_test_file_app_state();
-    let collection = state.collection_service.get_collection("users").await.unwrap().unwrap();
+    let (_temp_dir, state) = create_test_file_app_state();
+    let collection = state
+        .collection_service
+        .get_collection("users")
+        .await
+        .unwrap()
+        .unwrap();
     let field = collection.schema_json.get_field("avatar").unwrap();
 
     let result = validate_file(
@@ -254,13 +309,21 @@ async fn test_validate_file_wrong_content_type() {
         &Some("application/pdf".to_string()),
     );
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("not allowed for this field"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("not allowed for this field"));
 }
 
 #[tokio::test]
 async fn test_validate_file_blocked_extension() {
-    let state = create_test_file_app_state();
-    let collection = state.collection_service.get_collection("users").await.unwrap().unwrap();
+    let (_temp_dir, state) = create_test_file_app_state();
+    let collection = state
+        .collection_service
+        .get_collection("users")
+        .await
+        .unwrap()
+        .unwrap();
     let field = collection.schema_json.get_field("document").unwrap();
 
     let result = validate_file(
@@ -276,8 +339,16 @@ async fn test_validate_file_blocked_extension() {
 
 #[tokio::test]
 async fn test_generate_file_path() {
-    let path = generate_file_path("users", "123e4567-e89b-12d3-a456-426614174000", "avatar", "profile.jpg");
-    assert_eq!(path, "users/123e4567-e89b-12d3-a456-426614174000/avatar/profile.jpg");
+    let path = generate_file_path(
+        "users",
+        "123e4567-e89b-12d3-a456-426614174000",
+        "avatar",
+        "profile.jpg",
+    );
+    assert_eq!(
+        path,
+        "users/123e4567-e89b-12d3-a456-426614174000/avatar/profile.jpg"
+    );
 
     // Test path sanitization
     let path = generate_file_path("users", "record-id", "field", "file/with/slashes.jpg");
@@ -309,7 +380,10 @@ async fn test_get_file_metadata_from_record() {
         uploaded_at: chrono::Utc::now(),
     };
 
-    record_data.insert("avatar".to_string(), serde_json::to_value(&file_metadata).unwrap());
+    record_data.insert(
+        "avatar".to_string(),
+        serde_json::to_value(&file_metadata).unwrap(),
+    );
 
     let record = Record {
         id: Uuid::new_v4(),
@@ -357,7 +431,10 @@ async fn test_get_file_metadata_from_record_null_field() {
 
     let result = get_file_metadata_from_record(&record, "avatar");
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No file associated"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("No file associated"));
 }
 
 #[tokio::test]
@@ -375,7 +452,10 @@ async fn test_get_file_metadata_from_record_invalid_metadata() {
 
     let result = get_file_metadata_from_record(&record, "avatar");
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Invalid file metadata"));
+    assert!(result
+        .unwrap_err()
+        .to_string()
+        .contains("Invalid file metadata"));
 }
 
 // Integration tests would require setting up a full Axum app with multipart support

@@ -18,21 +18,23 @@ impl LocalStorage {
     fn validate_path(&self, path: &str) -> StorageResult<PathBuf> {
         // Remove any leading slashes and normalize the path
         let clean_path = path.trim_start_matches('/');
-        
+
         // Check for directory traversal attempts
         if clean_path.contains("..") || clean_path.contains("./") {
             return Err(StorageError::InvalidPath(format!(
-                "Path contains invalid sequences: {}", path
+                "Path contains invalid sequences: {}",
+                path
             )));
         }
 
         // Build the full path
         let full_path = self.base_path.join(clean_path);
-        
+
         // Ensure the path is within our base directory
         if !full_path.starts_with(&self.base_path) {
             return Err(StorageError::InvalidPath(format!(
-                "Path outside base directory: {}", path
+                "Path outside base directory: {}",
+                path
             )));
         }
 
@@ -79,21 +81,25 @@ impl LocalStorage {
 impl StorageBackend for LocalStorage {
     async fn store(&self, path: &str, data: &[u8]) -> StorageResult<StorageMetadata> {
         let file_path = self.validate_path(path)?;
-        
+
         debug!("Storing file at: {:?}", file_path);
-        
+
         // Ensure parent directory exists
         self.ensure_parent_dir(&file_path).await?;
-        
+
         // Write the file
         fs::write(&file_path, data).await?;
-        
+
         // Get file metadata
         let metadata = fs::metadata(&file_path).await?;
         let content_type = self.detect_content_type(path);
-        
-        debug!("Stored file: {} bytes, content-type: {:?}", metadata.len(), content_type);
-        
+
+        debug!(
+            "Stored file: {} bytes, content-type: {:?}",
+            metadata.len(),
+            content_type
+        );
+
         Ok(StorageMetadata {
             size: metadata.len(),
             content_type,
@@ -103,32 +109,32 @@ impl StorageBackend for LocalStorage {
 
     async fn retrieve(&self, path: &str) -> StorageResult<Vec<u8>> {
         let file_path = self.validate_path(path)?;
-        
+
         debug!("Retrieving file from: {:?}", file_path);
-        
+
         if !file_path.exists() {
             return Err(StorageError::NotFound(path.to_string()));
         }
-        
+
         let data = fs::read(&file_path).await?;
         debug!("Retrieved file: {} bytes", data.len());
-        
+
         Ok(data)
     }
 
     async fn delete(&self, path: &str) -> StorageResult<()> {
         let file_path = self.validate_path(path)?;
-        
+
         debug!("Deleting file at: {:?}", file_path);
-        
+
         if !file_path.exists() {
             warn!("Attempted to delete non-existent file: {}", path);
             return Ok(()); // Idempotent operation
         }
-        
+
         fs::remove_file(&file_path).await?;
         debug!("Deleted file: {:?}", file_path);
-        
+
         // Try to remove empty parent directories (best effort)
         if let Some(parent) = file_path.parent() {
             if parent != self.base_path {
@@ -142,7 +148,7 @@ impl StorageBackend for LocalStorage {
                 }
             }
         }
-        
+
         Ok(())
     }
 

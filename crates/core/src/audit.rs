@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::{Pool, Sqlite, Row};
+use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tracing::info;
 use uuid::Uuid;
 
@@ -32,7 +32,7 @@ pub enum AuditAction {
     UserRegistration,
     PasswordChange,
     TokenRefresh,
-    
+
     // Collection management
     CollectionCreate,
     CollectionUpdate,
@@ -40,36 +40,36 @@ pub enum AuditAction {
     FieldCreate,
     FieldUpdate,
     FieldDelete,
-    
+
     // Record operations
     RecordCreate,
     RecordUpdate,
     RecordDelete,
     RecordView,
-    
+
     // User management
     UserCreate,
     UserUpdate,
     UserDelete,
     RoleChange,
-    
+
     // File operations
     FileUpload,
     FileDelete,
     FileAccess,
-    
+
     // System operations
     ConfigurationChange,
     DatabaseMigration,
     SystemStart,
     SystemShutdown,
-    
+
     // Security events
     AuthenticationFailure,
     AuthorizationFailure,
     SuspiciousActivity,
     RateLimitExceeded,
-    
+
     // Custom action
     Custom(String),
 }
@@ -175,7 +175,9 @@ impl AuditLogger {
 
     /// Store audit entry in database
     async fn store_audit_entry(&self, entry: &AuditLogEntry) -> CoreResult<()> {
-        let details_json = entry.details.as_ref()
+        let details_json = entry
+            .details
+            .as_ref()
             .map(|d| serde_json::to_string(d).unwrap_or_default());
 
         // Use dynamic query to handle both old and new schema
@@ -213,52 +215,46 @@ impl AuditLogger {
         limit: i64,
         offset: i64,
     ) -> CoreResult<Vec<AuditLogEntry>> {
-        let mut query = "SELECT * FROM audit_log WHERE 1=1".to_string();
-        let mut params: Vec<String> = Vec::new();
+        let mut builder = QueryBuilder::<Sqlite>::new(
+            "SELECT id, user_id, action, resource_type, resource_id, details_json, ip_address, user_agent, created_at FROM audit_log WHERE 1=1",
+        );
 
         if let Some(user_id) = user_id {
-            query.push_str(" AND user_id = ?");
-            params.push(user_id.to_string());
+            builder
+                .push(" AND user_id = ")
+                .push_bind(user_id.to_string());
         }
 
         if let Some(action) = action {
-            query.push_str(" AND action = ?");
-            params.push(action.as_str().to_string());
+            builder
+                .push(" AND action = ")
+                .push_bind(action.as_str().to_string());
         }
 
         if let Some(resource_type) = resource_type {
-            query.push_str(" AND resource_type = ?");
-            params.push(resource_type);
+            builder
+                .push(" AND resource_type = ")
+                .push_bind(resource_type);
         }
 
         if let Some(start_date) = start_date {
-            query.push_str(" AND created_at >= ?");
-            params.push(start_date.to_rfc3339());
+            builder
+                .push(" AND created_at >= ")
+                .push_bind(start_date.to_rfc3339());
         }
 
         if let Some(end_date) = end_date {
-            query.push_str(" AND created_at <= ?");
-            params.push(end_date.to_rfc3339());
+            builder
+                .push(" AND created_at <= ")
+                .push_bind(end_date.to_rfc3339());
         }
 
-        query.push_str(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
-        params.push(limit.to_string());
-        params.push(offset.to_string());
+        builder
+            .push(" ORDER BY created_at DESC LIMIT ")
+            .push_bind(limit);
+        builder.push(" OFFSET ").push_bind(offset);
 
-        // Use dynamic query to handle both old and new schema
-        let query = r#"
-            SELECT id, user_id, action, resource_type, resource_id,
-                   details_json, ip_address, user_agent, created_at
-            FROM audit_log 
-            ORDER BY created_at DESC 
-            LIMIT ? OFFSET ?
-        "#;
-
-        let rows = sqlx::query(query)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(&self.pool)
-            .await?;
+        let rows = builder.build().fetch_all(&self.pool).await?;
 
         let mut entries = Vec::new();
         for row in rows {
@@ -273,8 +269,16 @@ impl AuditLogger {
             let created_at: chrono::NaiveDateTime = row.get("created_at");
 
             let entry = self.create_audit_entry_from_values(
-                id, user_id, action, resource_type, resource_id,
-                details_json, ip_address, user_agent, None, created_at
+                id,
+                user_id,
+                action,
+                resource_type,
+                resource_id,
+                details_json,
+                ip_address,
+                user_agent,
+                None,
+                created_at,
             )?;
             entries.push(entry);
         }
@@ -357,24 +361,18 @@ impl AuditLogger {
         })
     }
 
-
-
     /// Clean up old audit log entries
     pub async fn cleanup_old_entries(&self, retention_days: i64) -> CoreResult<u64> {
         let cutoff_date = Utc::now() - chrono::Duration::days(retention_days);
-        
-        let result = sqlx::query(
-            "DELETE FROM audit_log WHERE created_at < ?"
-        )
-        .bind(cutoff_date)
-        .execute(&self.pool)
-        .await?;
+
+        let result = sqlx::query("DELETE FROM audit_log WHERE created_at < ?")
+            .bind(cutoff_date)
+            .execute(&self.pool)
+            .await?;
 
         Ok(result.rows_affected())
     }
 }
-
-
 
 /// Audit context for collecting audit information from requests
 #[derive(Debug, Clone, Default)]
@@ -415,56 +413,62 @@ impl AuditContext {
 #[macro_export]
 macro_rules! audit_log {
     ($logger:expr, $action:expr, $resource_type:expr, $context:expr) => {
-        $logger.log(
-            $action,
-            $resource_type,
-            None::<String>,
-            $context.user_id,
-            None,
-            $context.ip_address.clone(),
-            $context.user_agent.clone(),
-            $context.request_id.clone(),
-        ).await
+        $logger
+            .log(
+                $action,
+                $resource_type,
+                None::<String>,
+                $context.user_id,
+                None,
+                $context.ip_address.clone(),
+                $context.user_agent.clone(),
+                $context.request_id.clone(),
+            )
+            .await
     };
-    
+
     ($logger:expr, $action:expr, $resource_type:expr, $resource_id:expr, $context:expr) => {
-        $logger.log(
-            $action,
-            $resource_type,
-            Some($resource_id),
-            $context.user_id,
-            None,
-            $context.ip_address.clone(),
-            $context.user_agent.clone(),
-            $context.request_id.clone(),
-        ).await
+        $logger
+            .log(
+                $action,
+                $resource_type,
+                Some($resource_id),
+                $context.user_id,
+                None,
+                $context.ip_address.clone(),
+                $context.user_agent.clone(),
+                $context.request_id.clone(),
+            )
+            .await
     };
-    
+
     ($logger:expr, $action:expr, $resource_type:expr, $resource_id:expr, $details:expr, $context:expr) => {
-        $logger.log(
-            $action,
-            $resource_type,
-            Some($resource_id),
-            $context.user_id,
-            Some($details),
-            $context.ip_address.clone(),
-            $context.user_agent.clone(),
-            $context.request_id.clone(),
-        ).await
+        $logger
+            .log(
+                $action,
+                $resource_type,
+                Some($resource_id),
+                $context.user_id,
+                Some($details),
+                $context.ip_address.clone(),
+                $context.user_agent.clone(),
+                $context.request_id.clone(),
+            )
+            .await
     };
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::tempdir;
     use crate::Database;
+    use tempfile::{tempdir, TempDir};
 
-    async fn create_test_db() -> Database {
-        let db_dir = tempdir().unwrap().into_path();
-        let db_path = db_dir.join("test.db");
+    async fn create_test_db() -> (TempDir, Database) {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
-        
+
         let db = Database::new(&database_url, 5, 30).await.unwrap();
         let pool = db.pool().clone();
 
@@ -483,49 +487,45 @@ mod tests {
                 request_id TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
-            "#
+            "#,
         )
         .execute(&pool)
         .await
         .unwrap();
-        
-        db
+
+        (temp_dir, db)
     }
 
     #[tokio::test]
     async fn test_audit_logging() {
-        let db = create_test_db().await;
+        let (_dir, db) = create_test_db().await;
         let logger = AuditLogger::new(db.pool().clone(), true);
-        
+
         let user_id = Uuid::new_v4();
         let context = AuditContext::new()
             .with_user_id(user_id)
             .with_ip_address("127.0.0.1".to_string())
             .with_request_id("req-123".to_string());
-        
-        // Test logging
-        logger.log(
-            AuditAction::UserLogin,
-            "user",
-            Some("user-123"),
-            context.user_id,
-            Some(serde_json::json!({"success": true})),
-            context.ip_address.clone(),
-            context.user_agent.clone(),
-            context.request_id.clone(),
-        ).await.unwrap();
-        
-        // Test retrieval
-        let logs = logger.get_audit_logs(
-            Some(user_id),
-            None,
-            None,
-            None,
-            None,
-            10,
-            0,
-        ).await.unwrap();
-        
+
+        logger
+            .log(
+                AuditAction::UserLogin,
+                "user",
+                Some("user-123"),
+                context.user_id,
+                Some(serde_json::json!({"success": true})),
+                context.ip_address.clone(),
+                context.user_agent.clone(),
+                context.request_id.clone(),
+            )
+            .await
+            .unwrap();
+
+        let logs = logger
+            .get_audit_logs(Some(user_id), None, None, None, None, 10, 0)
+            .await
+            .unwrap();
+
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].action.as_str(), "user_login");
         assert_eq!(logs[0].user_id, Some(user_id));
@@ -537,6 +537,167 @@ mod tests {
     async fn test_audit_action_serialization() {
         assert_eq!(AuditAction::UserLogin.as_str(), "user_login");
         assert_eq!(AuditAction::CollectionCreate.as_str(), "collection_create");
-        assert_eq!(AuditAction::Custom("custom_action".to_string()).as_str(), "custom_action");
+        assert_eq!(
+            AuditAction::Custom("custom_action".to_string()).as_str(),
+            "custom_action"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_audit_log_filtering() {
+        let (_dir, db) = create_test_db().await;
+        let logger = AuditLogger::new(db.pool().clone(), true);
+
+        let user_a = Uuid::new_v4();
+        let user_b = Uuid::new_v4();
+
+        logger
+            .log(
+                AuditAction::UserLogin,
+                "user",
+                Some("alice"),
+                Some(user_a),
+                None,
+                Some("127.0.0.1"),
+                None::<String>,
+                Some("req-a"),
+            )
+            .await
+            .unwrap();
+
+        logger
+            .log(
+                AuditAction::RecordCreate,
+                "record",
+                Some("post-1"),
+                Some(user_b),
+                None,
+                Some("127.0.0.1"),
+                None::<String>,
+                Some("req-b"),
+            )
+            .await
+            .unwrap();
+
+        let user_a_logs = logger
+            .get_audit_logs(Some(user_a), None, None, None, None, 10, 0)
+            .await
+            .unwrap();
+        assert_eq!(user_a_logs.len(), 1);
+        assert_eq!(user_a_logs[0].action.as_str(), "user_login");
+
+        let record_logs = logger
+            .get_audit_logs(
+                None,
+                Some(AuditAction::RecordCreate),
+                None,
+                None,
+                None,
+                10,
+                0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(record_logs.len(), 1);
+        assert_eq!(record_logs[0].resource_type, "record");
+
+        let injection_logs = logger
+            .get_audit_logs(
+                None,
+                None,
+                Some("user' OR 1=1 --".to_string()),
+                None,
+                None,
+                10,
+                0,
+            )
+            .await
+            .unwrap();
+        assert!(injection_logs.is_empty());
+
+        db.close().await;
+    }
+
+    #[tokio::test]
+    async fn test_audit_log_date_filters() {
+        let (_dir, db) = create_test_db().await;
+        let logger = AuditLogger::new(db.pool().clone(), true);
+
+        logger
+            .log(
+                AuditAction::UserLogin,
+                "user",
+                Some("alice"),
+                None,
+                None,
+                Some("127.0.0.1"),
+                None::<String>,
+                Some("req-old"),
+            )
+            .await
+            .unwrap();
+
+        logger
+            .log(
+                AuditAction::RecordCreate,
+                "record",
+                Some("post-1"),
+                None,
+                None,
+                Some("127.0.0.1"),
+                None::<String>,
+                Some("req-new"),
+            )
+            .await
+            .unwrap();
+
+        let now = Utc::now();
+        let older = now - chrono::Duration::days(7);
+
+        sqlx::query("UPDATE audit_log SET created_at = ? WHERE request_id = ?")
+            .bind(older)
+            .bind("req-old")
+            .execute(db.pool())
+            .await
+            .unwrap();
+
+        sqlx::query("UPDATE audit_log SET created_at = ? WHERE request_id = ?")
+            .bind(now)
+            .bind("req-new")
+            .execute(db.pool())
+            .await
+            .unwrap();
+
+        let recent = logger
+            .get_audit_logs(
+                None,
+                None,
+                None,
+                Some(now - chrono::Duration::days(1)),
+                None,
+                10,
+                0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].request_id.as_deref(), Some("req-new"));
+
+        let older_only = logger
+            .get_audit_logs(
+                None,
+                None,
+                None,
+                None,
+                Some(now - chrono::Duration::days(1)),
+                10,
+                0,
+            )
+            .await
+            .unwrap();
+        assert_eq!(older_only.len(), 1);
+        assert_eq!(older_only[0].request_id.as_deref(), Some("req-old"));
+
+        db.close().await;
     }
 }

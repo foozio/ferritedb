@@ -96,7 +96,10 @@ mod tests {
 
         let result = storage.retrieve("nonexistent.txt").await;
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), crate::StorageError::NotFound(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            crate::StorageError::NotFound(_)
+        ));
     }
 
     #[tokio::test]

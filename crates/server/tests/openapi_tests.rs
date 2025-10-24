@@ -117,10 +117,7 @@ fn test_collection_crud_endpoints() {
 
     // Verify query parameters
     let params = get_method["parameters"].as_array().unwrap();
-    let param_names: Vec<&str> = params
-        .iter()
-        .map(|p| p["name"].as_str().unwrap())
-        .collect();
+    let param_names: Vec<&str> = params.iter().map(|p| p["name"].as_str().unwrap()).collect();
     assert!(param_names.contains(&"page"));
     assert!(param_names.contains(&"perPage"));
     assert!(param_names.contains(&"sort"));
@@ -221,12 +218,13 @@ fn test_field_type_mapping() {
     let generator = OpenApiGenerator::new("http://localhost:8090".to_string());
 
     // Test text field
-    let text_field = Field::new(Uuid::new_v4(), "title".to_string(), FieldType::Text)
-        .with_options(FieldOptions {
+    let text_field = Field::new(Uuid::new_v4(), "title".to_string(), FieldType::Text).with_options(
+        FieldOptions {
             min_length: Some(1),
             max_length: Some(255),
             ..Default::default()
-        });
+        },
+    );
 
     let schema = generator.field_to_json_schema(&text_field);
     assert_eq!(schema["type"], "string");
@@ -276,10 +274,7 @@ fn test_field_type_mapping() {
     let schema = generator.field_to_json_schema(&relation_field);
     assert_eq!(schema["type"], "string");
     assert_eq!(schema["format"], "uuid");
-    assert!(schema["description"]
-        .as_str()
-        .unwrap()
-        .contains("users"));
+    assert!(schema["description"].as_str().unwrap().contains("users"));
 
     // Test file field
     let file_field = Field::new(
@@ -293,10 +288,7 @@ fn test_field_type_mapping() {
 
     let schema = generator.field_to_json_schema(&file_field);
     assert_eq!(schema["type"], "string");
-    assert!(schema["description"]
-        .as_str()
-        .unwrap()
-        .contains("File"));
+    assert!(schema["description"].as_str().unwrap().contains("File"));
 
     // Test date/datetime fields
     let date_field = Field::new(Uuid::new_v4(), "birth_date".to_string(), FieldType::Date);
@@ -481,24 +473,27 @@ fn create_test_posts_collection() -> Collection {
             }),
     );
 
-    schema.add_field(
-        Field::new(Uuid::new_v4(), "content".to_string(), FieldType::Text).required(),
-    );
+    schema.add_field(Field::new(Uuid::new_v4(), "content".to_string(), FieldType::Text).required());
 
     schema.add_field(
-        Field::new(Uuid::new_v4(), "owner_id".to_string(), FieldType::Relation {
-            target_collection: "users".to_string(),
-            cascade_delete: false,
-        })
+        Field::new(
+            Uuid::new_v4(),
+            "owner_id".to_string(),
+            FieldType::Relation {
+                target_collection: "users".to_string(),
+                cascade_delete: false,
+            },
+        )
         .required(),
     );
 
     schema.add_field(
-        Field::new(Uuid::new_v4(), "published".to_string(), FieldType::Boolean)
-            .with_options(FieldOptions {
+        Field::new(Uuid::new_v4(), "published".to_string(), FieldType::Boolean).with_options(
+            FieldOptions {
                 default_value: Some(json!(false)),
                 ..Default::default()
-            }),
+            },
+        ),
     );
 
     schema.add_field(Field::new(
@@ -506,26 +501,23 @@ fn create_test_posts_collection() -> Collection {
         "featured_image".to_string(),
         FieldType::File {
             max_size: Some(10 * 1024 * 1024),
-            allowed_types: Some(vec![
-                "image/jpeg".to_string(),
-                "image/png".to_string(),
-            ]),
+            allowed_types: Some(vec!["image/jpeg".to_string(), "image/png".to_string()]),
         },
     ));
 
-    schema.add_field(Field::new(
-        Uuid::new_v4(),
-        "status".to_string(),
-        FieldType::Text,
-    ).with_options(FieldOptions {
-        enum_values: Some(vec![
-            "draft".to_string(),
-            "published".to_string(),
-            "archived".to_string(),
-        ]),
-        default_value: Some(json!("draft")),
-        ..Default::default()
-    }));
+    schema.add_field(
+        Field::new(Uuid::new_v4(), "status".to_string(), FieldType::Text).with_options(
+            FieldOptions {
+                enum_values: Some(vec![
+                    "draft".to_string(),
+                    "published".to_string(),
+                    "archived".to_string(),
+                ]),
+                default_value: Some(json!("draft")),
+                ..Default::default()
+            },
+        ),
+    );
 
     Collection::new("posts".to_string(), CollectionType::Base).with_schema(schema)
 }
@@ -539,9 +531,7 @@ fn create_test_users_collection() -> Collection {
             .unique(),
     );
 
-    schema.add_field(
-        Field::new(Uuid::new_v4(), "name".to_string(), FieldType::Text).required(),
-    );
+    schema.add_field(Field::new(Uuid::new_v4(), "name".to_string(), FieldType::Text).required());
 
     Collection::new("users".to_string(), CollectionType::Auth).with_schema(schema)
 }

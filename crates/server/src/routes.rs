@@ -13,7 +13,9 @@ use ferritedb_core::{
     models::{CreateUserRequest, Record, User, UserRole},
     UserRepository as CoreUserRepository,
 };
-use ferritedb_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
+use ferritedb_rules::{
+    CollectionRules, EvaluationContext, RequestContext, RuleEngine, RuleOperation,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, error::Error};
@@ -73,63 +75,154 @@ pub struct UpdateRecordRequest {
 // Temporary trait for UserRepository until repository module is fixed
 #[axum::async_trait]
 pub trait UserRepository: Send + Sync {
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, Box<dyn Error + Send + Sync>>;
-    async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<User>, Box<dyn Error + Send + Sync>>;
-    async fn create(&self, request: CreateUserRequest, password_hash: String) -> Result<User, Box<dyn Error + Send + Sync>>;
+    async fn find_by_email(
+        &self,
+        email: &str,
+    ) -> Result<Option<User>, Box<dyn Error + Send + Sync>>;
+    async fn find_by_id(
+        &self,
+        id: uuid::Uuid,
+    ) -> Result<Option<User>, Box<dyn Error + Send + Sync>>;
+    async fn create(
+        &self,
+        request: CreateUserRequest,
+        password_hash: String,
+    ) -> Result<User, Box<dyn Error + Send + Sync>>;
 }
 
 // Service traits for dependency injection
 #[axum::async_trait]
 pub trait CollectionServiceTrait: Send + Sync {
-    async fn get_collection(&self, name: &str) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>>;
+    async fn get_collection(
+        &self,
+        name: &str,
+    ) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>>;
 }
 
 #[axum::async_trait]
 pub trait RecordServiceTrait: Send + Sync {
-    async fn list_records(&self, collection_name: &str, limit: i64, offset: i64) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>>;
-    async fn list_records_with_query(&self, collection_name: &str, limit: i64, offset: i64, filter: Option<&str>, sort: Option<&str>, fields: Option<&[String]>) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>>;
-    async fn create_record(&self, collection_name: &str, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record>;
-    async fn get_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Record>>;
-    async fn update_record(&self, collection_name: &str, record_id: uuid::Uuid, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record>;
-    async fn delete_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<bool>;
+    async fn list_records(
+        &self,
+        collection_name: &str,
+        limit: i64,
+        offset: i64,
+    ) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>>;
+    async fn list_records_with_query(
+        &self,
+        collection_name: &str,
+        limit: i64,
+        offset: i64,
+        filter: Option<&str>,
+        sort: Option<&str>,
+        fields: Option<&[String]>,
+    ) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>>;
+    async fn create_record(
+        &self,
+        collection_name: &str,
+        data: serde_json::Value,
+    ) -> ferritedb_core::CoreResult<ferritedb_core::models::Record>;
+    async fn get_record(
+        &self,
+        collection_name: &str,
+        record_id: uuid::Uuid,
+    ) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Record>>;
+    async fn update_record(
+        &self,
+        collection_name: &str,
+        record_id: uuid::Uuid,
+        data: serde_json::Value,
+    ) -> ferritedb_core::CoreResult<ferritedb_core::models::Record>;
+    async fn delete_record(
+        &self,
+        collection_name: &str,
+        record_id: uuid::Uuid,
+    ) -> ferritedb_core::CoreResult<bool>;
     async fn count_records(&self, collection_name: &str) -> ferritedb_core::CoreResult<i64>;
-    async fn count_records_with_filter(&self, collection_name: &str, filter: Option<&str>) -> ferritedb_core::CoreResult<i64>;
+    async fn count_records_with_filter(
+        &self,
+        collection_name: &str,
+        filter: Option<&str>,
+    ) -> ferritedb_core::CoreResult<i64>;
     async fn table_exists(&self, collection_name: &str) -> ferritedb_core::CoreResult<bool>;
 }
 
 // Implement traits for real services
-use ferritedb_core::{CollectionService as CoreCollectionService, RecordService as CoreRecordService};
+use ferritedb_core::{
+    CollectionService as CoreCollectionService, RecordService as CoreRecordService,
+};
 
 #[axum::async_trait]
 impl CollectionServiceTrait for CoreCollectionService {
-    async fn get_collection(&self, name: &str) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>> {
+    async fn get_collection(
+        &self,
+        name: &str,
+    ) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>> {
         CoreCollectionService::get_collection(self, name).await
     }
 }
 
 #[axum::async_trait]
 impl RecordServiceTrait for CoreRecordService {
-    async fn list_records(&self, collection_name: &str, limit: i64, offset: i64) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>> {
+    async fn list_records(
+        &self,
+        collection_name: &str,
+        limit: i64,
+        offset: i64,
+    ) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>> {
         CoreRecordService::list_records(self, collection_name, limit, offset).await
     }
 
-    async fn list_records_with_query(&self, collection_name: &str, limit: i64, offset: i64, filter: Option<&str>, sort: Option<&str>, fields: Option<&[String]>) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>> {
-        CoreRecordService::list_records_with_query(self, collection_name, limit, offset, filter, sort, fields).await
+    async fn list_records_with_query(
+        &self,
+        collection_name: &str,
+        limit: i64,
+        offset: i64,
+        filter: Option<&str>,
+        sort: Option<&str>,
+        fields: Option<&[String]>,
+    ) -> ferritedb_core::CoreResult<Vec<ferritedb_core::models::Record>> {
+        CoreRecordService::list_records_with_query(
+            self,
+            collection_name,
+            limit,
+            offset,
+            filter,
+            sort,
+            fields,
+        )
+        .await
     }
 
-    async fn create_record(&self, collection_name: &str, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record> {
+    async fn create_record(
+        &self,
+        collection_name: &str,
+        data: serde_json::Value,
+    ) -> ferritedb_core::CoreResult<ferritedb_core::models::Record> {
         CoreRecordService::create_record(self, collection_name, data).await
     }
 
-    async fn get_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Record>> {
+    async fn get_record(
+        &self,
+        collection_name: &str,
+        record_id: uuid::Uuid,
+    ) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Record>> {
         CoreRecordService::get_record(self, collection_name, record_id).await
     }
 
-    async fn update_record(&self, collection_name: &str, record_id: uuid::Uuid, data: serde_json::Value) -> ferritedb_core::CoreResult<ferritedb_core::models::Record> {
+    async fn update_record(
+        &self,
+        collection_name: &str,
+        record_id: uuid::Uuid,
+        data: serde_json::Value,
+    ) -> ferritedb_core::CoreResult<ferritedb_core::models::Record> {
         CoreRecordService::update_record(self, collection_name, record_id, data).await
     }
 
-    async fn delete_record(&self, collection_name: &str, record_id: uuid::Uuid) -> ferritedb_core::CoreResult<bool> {
+    async fn delete_record(
+        &self,
+        collection_name: &str,
+        record_id: uuid::Uuid,
+    ) -> ferritedb_core::CoreResult<bool> {
         CoreRecordService::delete_record(self, collection_name, record_id).await
     }
 
@@ -137,7 +230,11 @@ impl RecordServiceTrait for CoreRecordService {
         CoreRecordService::count_records(self, collection_name).await
     }
 
-    async fn count_records_with_filter(&self, collection_name: &str, filter: Option<&str>) -> ferritedb_core::CoreResult<i64> {
+    async fn count_records_with_filter(
+        &self,
+        collection_name: &str,
+        filter: Option<&str>,
+    ) -> ferritedb_core::CoreResult<i64> {
         CoreRecordService::count_records_with_filter(self, collection_name, filter).await
     }
 
@@ -153,19 +250,29 @@ pub struct MockRecordService;
 
 #[axum::async_trait]
 impl UserRepository for CoreUserRepository {
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
+    async fn find_by_email(
+        &self,
+        email: &str,
+    ) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
         CoreUserRepository::find_by_email(self, email)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
     }
 
-    async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
+    async fn find_by_id(
+        &self,
+        id: uuid::Uuid,
+    ) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
         CoreUserRepository::find_by_id(self, id)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
     }
 
-    async fn create(&self, request: CreateUserRequest, password_hash: String) -> Result<User, Box<dyn Error + Send + Sync>> {
+    async fn create(
+        &self,
+        request: CreateUserRequest,
+        password_hash: String,
+    ) -> Result<User, Box<dyn Error + Send + Sync>> {
         CoreUserRepository::create(self, request, password_hash)
             .await
             .map_err(|e| Box::new(e) as Box<dyn Error + Send + Sync>)
@@ -174,21 +281,32 @@ impl UserRepository for CoreUserRepository {
 
 #[axum::async_trait]
 impl UserRepository for MockUserRepository {
-    async fn find_by_email(&self, _email: &str) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
+    async fn find_by_email(
+        &self,
+        _email: &str,
+    ) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
         Ok(None)
     }
-    
-    async fn find_by_id(&self, _id: uuid::Uuid) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
+
+    async fn find_by_id(
+        &self,
+        _id: uuid::Uuid,
+    ) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
         Ok(None)
     }
-    
-    async fn create(&self, request: CreateUserRequest, password_hash: String) -> Result<User, Box<dyn Error + Send + Sync>> {
-        let CreateUserRequest { email, role, verified, .. } = request;
-        let mut user = User::new(
+
+    async fn create(
+        &self,
+        request: CreateUserRequest,
+        password_hash: String,
+    ) -> Result<User, Box<dyn Error + Send + Sync>> {
+        let CreateUserRequest {
             email,
-            password_hash,
-            role.unwrap_or(UserRole::User),
-        );
+            role,
+            verified,
+            ..
+        } = request;
+        let mut user = User::new(email, password_hash, role.unwrap_or(UserRole::User));
         user.verified = verified;
         Ok(user)
     }
@@ -196,17 +314,25 @@ impl UserRepository for MockUserRepository {
 
 // Mock CollectionService implementation
 impl MockCollectionService {
-    pub async fn get_collection(&self, _name: &str) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>> {
+    pub async fn get_collection(
+        &self,
+        _name: &str,
+    ) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>> {
         Ok(None)
     }
 }
 
-// Mock RecordService implementation  
+// Mock RecordService implementation
 impl MockRecordService {
-    pub async fn list_records(&self, _collection_name: &str, _limit: i64, _offset: i64) -> ferritedb_core::CoreResult<Vec<Record>> {
+    pub async fn list_records(
+        &self,
+        _collection_name: &str,
+        _limit: i64,
+        _offset: i64,
+    ) -> ferritedb_core::CoreResult<Vec<Record>> {
         Ok(Vec::new())
     }
-    
+
     pub async fn list_records_with_query(
         &self,
         _collection_name: &str,
@@ -218,8 +344,12 @@ impl MockRecordService {
     ) -> ferritedb_core::CoreResult<Vec<Record>> {
         Ok(Vec::new())
     }
-    
-    pub async fn create_record(&self, _collection_name: &str, _data: serde_json::Value) -> ferritedb_core::CoreResult<Record> {
+
+    pub async fn create_record(
+        &self,
+        _collection_name: &str,
+        _data: serde_json::Value,
+    ) -> ferritedb_core::CoreResult<Record> {
         use chrono::Utc;
         Ok(Record {
             id: Uuid::new_v4(),
@@ -229,12 +359,21 @@ impl MockRecordService {
             updated_at: Utc::now(),
         })
     }
-    
-    pub async fn get_record(&self, _collection_name: &str, _record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>> {
+
+    pub async fn get_record(
+        &self,
+        _collection_name: &str,
+        _record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<Option<Record>> {
         Ok(None)
     }
-    
-    pub async fn update_record(&self, _collection_name: &str, _record_id: Uuid, _data: serde_json::Value) -> ferritedb_core::CoreResult<Record> {
+
+    pub async fn update_record(
+        &self,
+        _collection_name: &str,
+        _record_id: Uuid,
+        _data: serde_json::Value,
+    ) -> ferritedb_core::CoreResult<Record> {
         use chrono::Utc;
         Ok(Record {
             id: _record_id,
@@ -244,16 +383,24 @@ impl MockRecordService {
             updated_at: Utc::now(),
         })
     }
-    
-    pub async fn delete_record(&self, _collection_name: &str, _record_id: Uuid) -> ferritedb_core::CoreResult<bool> {
+
+    pub async fn delete_record(
+        &self,
+        _collection_name: &str,
+        _record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<bool> {
         Ok(true)
     }
-    
+
     pub async fn count_records(&self, _collection_name: &str) -> ferritedb_core::CoreResult<i64> {
         Ok(0)
     }
-    
-    pub async fn count_records_with_filter(&self, _collection_name: &str, _filter: Option<&str>) -> ferritedb_core::CoreResult<i64> {
+
+    pub async fn count_records_with_filter(
+        &self,
+        _collection_name: &str,
+        _filter: Option<&str>,
+    ) -> ferritedb_core::CoreResult<i64> {
         Ok(0)
     }
 }
@@ -262,7 +409,11 @@ use std::sync::Arc;
 
 use crate::{
     error::{ServerError, ServerResult},
-    files::{FileAppState, FileCollectionService, FileMetadata, FileRecordService, delete_file as delete_file_handler, serve_file as serve_file_handler, upload_file as upload_file_handler},
+    files::{
+        delete_file as delete_file_handler, serve_file as serve_file_handler,
+        upload_file as upload_file_handler, FileAppState, FileCollectionService, FileMetadata,
+        FileRecordService,
+    },
     middleware::AuthUser,
     realtime::{websocket_handler, RealtimeManager},
 };
@@ -299,17 +450,28 @@ pub struct AppState {
 
 /// Create the main application router
 pub fn create_router(state: AppState) -> Router {
-    use axum::middleware::from_fn_with_state;
     use crate::middleware::auth_middleware;
+    use axum::middleware::from_fn_with_state;
 
     // Protected routes that require authentication
     let protected_routes = Router::new()
         .route("/auth/me", get(get_current_user))
-        .route("/collections/:collection/records", get(list_records).post(create_record))
-        .route("/collections/:collection/records/:id", get(get_record).patch(update_record).delete(delete_record))
-        .route("/files/:collection/:record/:field", 
-               get(serve_file).post(upload_file).delete(delete_file))
-        .layer(from_fn_with_state(state.auth_service.clone(), auth_middleware));
+        .route(
+            "/collections/:collection/records",
+            get(list_records).post(create_record),
+        )
+        .route(
+            "/collections/:collection/records/:id",
+            get(get_record).patch(update_record).delete(delete_record),
+        )
+        .route(
+            "/files/:collection/:record/:field",
+            get(serve_file).post(upload_file).delete(delete_file),
+        )
+        .layer(from_fn_with_state(
+            state.auth_service.clone(),
+            auth_middleware,
+        ));
 
     // Public routes
     #[allow(unused_mut)]
@@ -327,8 +489,7 @@ pub fn create_router(state: AppState) -> Router {
     }
 
     // WebSocket route (separate from API routes)
-    let websocket_routes = Router::new()
-        .route("/realtime", axum::routing::get(websocket_handler));
+    let websocket_routes = Router::new().route("/realtime", axum::routing::get(websocket_handler));
 
     // Admin routes for serving static files
     let admin_routes = Router::new()
@@ -341,8 +502,6 @@ pub fn create_router(state: AppState) -> Router {
         .merge(admin_routes)
         .with_state(state)
 }
-
-
 
 /// Health check endpoint (liveness probe)
 async fn health_check() -> Json<Value> {
@@ -358,16 +517,16 @@ async fn health_check() -> Json<Value> {
 async fn readiness_check(State(state): State<AppState>) -> ServerResult<Json<Value>> {
     // Check database connectivity
     let db_status = check_database_health(&state).await;
-    
+
     // Check storage backend
     let storage_status = check_storage_health(&state).await;
-    
+
     let overall_status = if db_status && storage_status {
         "ready"
     } else {
         "not_ready"
     };
-    
+
     let response = json!({
         "status": overall_status,
         "timestamp": chrono::Utc::now(),
@@ -378,7 +537,7 @@ async fn readiness_check(State(state): State<AppState>) -> ServerResult<Json<Val
             "storage": if storage_status { "healthy" } else { "unhealthy" }
         }
     });
-    
+
     if overall_status == "ready" {
         Ok(Json(response))
     } else {
@@ -449,7 +608,9 @@ async fn register(
 ) -> ServerResult<Json<RegisterResponse>> {
     // Validate password confirmation
     if request.password != request.password_confirm {
-        return Err(ServerError::BadRequest("Passwords do not match".to_string()));
+        return Err(ServerError::BadRequest(
+            "Passwords do not match".to_string(),
+        ));
     }
 
     // Check if user already exists
@@ -526,7 +687,6 @@ async fn get_current_user(
     State(state): State<AppState>,
     auth_user: AuthUser,
 ) -> ServerResult<Json<UserResponse>> {
-
     // Get fresh user data from database
     let user = state
         .user_repository
@@ -541,9 +701,15 @@ async fn get_current_user(
 /// Helper function to convert rule errors to server errors
 fn rule_error_to_server_error(rule_error: ferritedb_rules::RuleError) -> ServerError {
     match rule_error {
-        ferritedb_rules::RuleError::Parse(msg) => ServerError::BadRequest(format!("Rule parse error: {}", msg)),
-        ferritedb_rules::RuleError::Evaluation(msg) => ServerError::Forbidden(format!("Rule evaluation failed: {}", msg)),
-        ferritedb_rules::RuleError::Invalid(msg) => ServerError::BadRequest(format!("Invalid rule: {}", msg)),
+        ferritedb_rules::RuleError::Parse(msg) => {
+            ServerError::BadRequest(format!("Rule parse error: {}", msg))
+        }
+        ferritedb_rules::RuleError::Evaluation(msg) => {
+            ServerError::Forbidden(format!("Rule evaluation failed: {}", msg))
+        }
+        ferritedb_rules::RuleError::Invalid(msg) => {
+            ServerError::BadRequest(format!("Invalid rule: {}", msg))
+        }
     }
 }
 
@@ -560,7 +726,9 @@ async fn list_records(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Check list rule access
     let rules = CollectionRules {
@@ -598,7 +766,9 @@ async fn list_records(
     };
 
     if !has_access {
-        return Err(ServerError::Forbidden("Access denied to list records".to_string()));
+        return Err(ServerError::Forbidden(
+            "Access denied to list records".to_string(),
+        ));
     }
 
     // Calculate pagination
@@ -658,7 +828,9 @@ async fn create_record(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Check create rule access
     let rules = CollectionRules {
@@ -696,7 +868,9 @@ async fn create_record(
     };
 
     if !has_access {
-        return Err(ServerError::Forbidden("Access denied to create records".to_string()));
+        return Err(ServerError::Forbidden(
+            "Access denied to create records".to_string(),
+        ));
     }
 
     // Convert request data to JSON Value
@@ -739,7 +913,9 @@ async fn get_record(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Get the record first
     let record = state
@@ -789,7 +965,9 @@ async fn get_record(
     };
 
     if !has_access {
-        return Err(ServerError::Forbidden("Access denied to view this record".to_string()));
+        return Err(ServerError::Forbidden(
+            "Access denied to view this record".to_string(),
+        ));
     }
 
     // Apply field-level filtering
@@ -814,7 +992,9 @@ async fn update_record(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Get the existing record first for rule evaluation
     let existing_record = state
@@ -864,7 +1044,9 @@ async fn update_record(
     };
 
     if !has_access {
-        return Err(ServerError::Forbidden("Access denied to update this record".to_string()));
+        return Err(ServerError::Forbidden(
+            "Access denied to update this record".to_string(),
+        ));
     }
 
     // Convert request data to JSON Value
@@ -907,7 +1089,9 @@ async fn delete_record(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Get the existing record first for rule evaluation
     let existing_record = state
@@ -957,7 +1141,9 @@ async fn delete_record(
     };
 
     if !has_access {
-        return Err(ServerError::Forbidden("Access denied to delete this record".to_string()));
+        return Err(ServerError::Forbidden(
+            "Access denied to delete this record".to_string(),
+        ));
     }
 
     // Clean up any files associated with this record before deletion
@@ -1003,7 +1189,7 @@ async fn upload_file(
         collection_service: Arc::new(MockCollectionService) as Arc<dyn FileCollectionService>,
         record_service: Arc::new(MockRecordService) as Arc<dyn FileRecordService>,
     };
-    
+
     upload_file_handler(State(file_state), path, auth_user, multipart).await
 }
 
@@ -1019,7 +1205,7 @@ async fn serve_file(
         collection_service: Arc::new(MockCollectionService) as Arc<dyn FileCollectionService>,
         record_service: Arc::new(MockRecordService) as Arc<dyn FileRecordService>,
     };
-    
+
     serve_file_handler(State(file_state), path, auth_user).await
 }
 
@@ -1035,7 +1221,7 @@ async fn delete_file(
         collection_service: Arc::new(MockCollectionService) as Arc<dyn FileCollectionService>,
         record_service: Arc::new(MockRecordService) as Arc<dyn FileRecordService>,
     };
-    
+
     delete_file_handler(State(file_state), path, auth_user).await
 }
 
@@ -1047,12 +1233,17 @@ async fn cleanup_record_files(
 ) -> ServerResult<()> {
     // Find all file fields in the collection schema
     for field in &collection.schema_json.fields {
-        if matches!(field.field_type, ferritedb_core::models::FieldType::File { .. }) {
+        if matches!(
+            field.field_type,
+            ferritedb_core::models::FieldType::File { .. }
+        ) {
             // Check if this record has a file in this field
             if let Some(field_value) = record.data.get(&field.name) {
                 if !field_value.is_null() {
                     // Try to parse file metadata and delete the file
-                    if let Ok(file_metadata) = serde_json::from_value::<FileMetadata>(field_value.clone()) {
+                    if let Ok(file_metadata) =
+                        serde_json::from_value::<FileMetadata>(field_value.clone())
+                    {
                         if let Err(e) = state.storage_backend.delete(&file_metadata.path).await {
                             // Log the error but don't fail the record deletion
                             tracing::warn!(
@@ -1079,7 +1270,7 @@ async fn serve_admin_index() -> Result<Html<String>, ServerError> {
 /// Serve admin static files (CSS, JS)
 async fn serve_admin_static(uri: Uri) -> Result<Response, ServerError> {
     let path = uri.path();
-    
+
     match path {
         "/admin/styles.css" => {
             let css_content = include_str!("../admin/styles.css");
@@ -1097,9 +1288,7 @@ async fn serve_admin_static(uri: Uri) -> Result<Response, ServerError> {
                 .body(js_content.into())
                 .unwrap())
         }
-        _ => {
-            Err(ServerError::NotFound("Static file not found".to_string()))
-        }
+        _ => Err(ServerError::NotFound("Static file not found".to_string())),
     }
 }
 
@@ -1108,7 +1297,7 @@ mod tests {
     use super::*;
     use axum::{
         body::Body,
-        http::{Request, StatusCode, HeaderValue},
+        http::{HeaderValue, Request, StatusCode},
     };
     use ferritedb_core::{auth::AuthService, config::AuthConfig};
     use serde_json::json;
@@ -1120,18 +1309,18 @@ mod tests {
             token_ttl: 900,
             refresh_ttl: 86400,
             password_min_length: 8,
-            argon2_memory: 4096, // Reduced for testing
+            argon2_memory: 4096,  // Reduced for testing
             argon2_iterations: 1, // Reduced for testing
             argon2_parallelism: 1,
         };
         let auth_service = Arc::new(AuthService::new(auth_config).unwrap());
         let user_repository = Arc::new(MockUserRepository) as Arc<dyn UserRepository>;
-        
+
         // Create mock services for testing
         let collection_service = Arc::new(MockCollectionService);
         let record_service = Arc::new(MockRecordService);
         let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
-        
+
         // Create mock storage for testing
         let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new(
             "/tmp/ferritedb_test_storage".into(),
@@ -1159,7 +1348,7 @@ mod tests {
             "hashed_password".to_string(),
             UserRole::Admin,
         );
-        
+
         auth_service.generate_tokens(&user).unwrap().access_token
     }
 
@@ -1211,7 +1400,10 @@ mod tests {
 
         let record_id = Uuid::new_v4();
         let request = Request::builder()
-            .uri(&format!("/api/collections/nonexistent/records/{}", record_id))
+            .uri(&format!(
+                "/api/collections/nonexistent/records/{}",
+                record_id
+            ))
             .method("GET")
             .header("authorization", format!("Bearer {}", token))
             .body(Body::empty())
@@ -1233,7 +1425,10 @@ mod tests {
         });
 
         let request = Request::builder()
-            .uri(&format!("/api/collections/nonexistent/records/{}", record_id))
+            .uri(&format!(
+                "/api/collections/nonexistent/records/{}",
+                record_id
+            ))
             .method("PATCH")
             .header("authorization", format!("Bearer {}", token))
             .header("content-type", "application/json")
@@ -1252,7 +1447,10 @@ mod tests {
 
         let record_id = Uuid::new_v4();
         let request = Request::builder()
-            .uri(&format!("/api/collections/nonexistent/records/{}", record_id))
+            .uri(&format!(
+                "/api/collections/nonexistent/records/{}",
+                record_id
+            ))
             .method("DELETE")
             .header("authorization", format!("Bearer {}", token))
             .body(Body::empty())

@@ -4,9 +4,9 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Argon2, Params,
 };
-use rand_core::OsRng;
 use chrono::{DateTime, Duration, Utc};
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use thiserror::Error;
@@ -33,12 +33,12 @@ pub struct AuthToken {
 /// JWT claims structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Claims {
-    pub sub: String,        // User ID
-    pub email: String,      // User email
-    pub role: UserRole,     // User role
-    pub exp: i64,          // Expiration time
-    pub iat: i64,          // Issued at
-    pub jti: String,       // JWT ID
+    pub sub: String,    // User ID
+    pub email: String,  // User email
+    pub role: UserRole, // User role
+    pub exp: i64,       // Expiration time
+    pub iat: i64,       // Issued at
+    pub jti: String,    // JWT ID
     pub token_type: TokenType,
 }
 
@@ -120,10 +120,13 @@ impl AuthService {
 
     /// Verify a password against its hash
     pub fn verify_password(&self, password: &str, hash: &str) -> Result<bool, AuthError> {
-        let parsed_hash = PasswordHash::new(hash)
-            .map_err(|e| AuthError::PasswordHashError(e.to_string()))?;
+        let parsed_hash =
+            PasswordHash::new(hash).map_err(|e| AuthError::PasswordHashError(e.to_string()))?;
 
-        match self.argon2.verify_password(password.as_bytes(), &parsed_hash) {
+        match self
+            .argon2
+            .verify_password(password.as_bytes(), &parsed_hash)
+        {
             Ok(()) => Ok(true),
             Err(argon2::password_hash::Error::Password) => Ok(false),
             Err(e) => Err(AuthError::PasswordHashError(e.to_string())),
@@ -178,11 +181,12 @@ impl AuthService {
         validation.validate_exp = true;
         validation.validate_nbf = false;
 
-        let token_data = decode::<Claims>(token, &self.decoding_key, &validation)
-            .map_err(|e| match e.kind() {
+        let token_data = decode::<Claims>(token, &self.decoding_key, &validation).map_err(|e| {
+            match e.kind() {
                 jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::TokenExpired,
                 _ => AuthError::TokenValidationError(e.to_string()),
-            })?;
+            }
+        })?;
 
         Ok(token_data.claims)
     }
@@ -208,14 +212,13 @@ impl AuthService {
     /// Extract user ID from a token without full validation (for middleware)
     pub fn extract_user_id(&self, token: &str) -> Result<Uuid, AuthError> {
         let claims = self.validate_token(token)?;
-        
+
         // Only allow access tokens for API requests
         if claims.token_type != TokenType::Access {
             return Err(AuthError::InvalidToken);
         }
 
-        Uuid::parse_str(&claims.sub)
-            .map_err(|_| AuthError::InvalidToken)
+        Uuid::parse_str(&claims.sub).map_err(|_| AuthError::InvalidToken)
     }
 
     /// Validate password strength according to security requirements
@@ -314,8 +317,7 @@ impl From<User> for UserResponse {
         }
     }
 }
-#[
-cfg(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::UserRole;
@@ -326,7 +328,7 @@ mod tests {
             token_ttl: 900,
             refresh_ttl: 86400,
             password_min_length: 8,
-            argon2_memory: 4096, // Reduced for testing
+            argon2_memory: 4096,  // Reduced for testing
             argon2_iterations: 1, // Reduced for testing
             argon2_parallelism: 1,
         };
@@ -352,7 +354,7 @@ mod tests {
     fn test_password_hashing() {
         let auth_service = create_test_auth_service();
         let password = "TestPassword123!";
-        
+
         let hash = auth_service.hash_password(password).unwrap();
         assert!(!hash.is_empty());
         assert!(hash.starts_with("$argon2id$"));
@@ -362,35 +364,37 @@ mod tests {
     fn test_password_verification() {
         let auth_service = create_test_auth_service();
         let password = "TestPassword123!";
-        
+
         let hash = auth_service.hash_password(password).unwrap();
-        
+
         // Correct password should verify
         assert!(auth_service.verify_password(password, &hash).unwrap());
-        
+
         // Wrong password should not verify
-        assert!(!auth_service.verify_password("WrongPassword123!", &hash).unwrap());
+        assert!(!auth_service
+            .verify_password("WrongPassword123!", &hash)
+            .unwrap());
     }
 
     #[test]
     fn test_password_strength_validation() {
         let auth_service = create_test_auth_service();
-        
+
         // Too short
         assert!(auth_service.hash_password("Short1!").is_err());
-        
+
         // Missing uppercase
         assert!(auth_service.hash_password("lowercase123!").is_err());
-        
+
         // Missing lowercase
         assert!(auth_service.hash_password("UPPERCASE123!").is_err());
-        
+
         // Missing digit
         assert!(auth_service.hash_password("NoDigits!").is_err());
-        
+
         // Missing special character
         assert!(auth_service.hash_password("NoSpecial123").is_err());
-        
+
         // Valid password
         assert!(auth_service.hash_password("ValidPass123!").is_ok());
     }
@@ -399,9 +403,9 @@ mod tests {
     fn test_token_generation() {
         let auth_service = create_test_auth_service();
         let user = create_test_user();
-        
+
         let tokens = auth_service.generate_tokens(&user).unwrap();
-        
+
         assert!(!tokens.access_token.is_empty());
         assert!(!tokens.refresh_token.is_empty());
         assert_eq!(tokens.token_type, "Bearer");
@@ -412,16 +416,16 @@ mod tests {
     fn test_token_validation() {
         let auth_service = create_test_auth_service();
         let user = create_test_user();
-        
+
         let tokens = auth_service.generate_tokens(&user).unwrap();
-        
+
         // Validate access token
         let claims = auth_service.validate_token(&tokens.access_token).unwrap();
         assert_eq!(claims.sub, user.id.to_string());
         assert_eq!(claims.email, user.email);
         assert_eq!(claims.role, user.role);
         assert_eq!(claims.token_type, TokenType::Access);
-        
+
         // Validate refresh token
         let refresh_claims = auth_service.validate_token(&tokens.refresh_token).unwrap();
         assert_eq!(refresh_claims.token_type, TokenType::Refresh);
@@ -430,10 +434,10 @@ mod tests {
     #[test]
     fn test_invalid_token_validation() {
         let auth_service = create_test_auth_service();
-        
+
         // Invalid token format
         assert!(auth_service.validate_token("invalid.token.format").is_err());
-        
+
         // Empty token
         assert!(auth_service.validate_token("").is_err());
     }
@@ -442,13 +446,13 @@ mod tests {
     fn test_user_id_extraction() {
         let auth_service = create_test_auth_service();
         let user = create_test_user();
-        
+
         let tokens = auth_service.generate_tokens(&user).unwrap();
-        
+
         // Extract from access token should work
         let extracted_id = auth_service.extract_user_id(&tokens.access_token).unwrap();
         assert_eq!(extracted_id, user.id);
-        
+
         // Extract from refresh token should fail (wrong token type)
         assert!(auth_service.extract_user_id(&tokens.refresh_token).is_err());
     }
@@ -457,14 +461,14 @@ mod tests {
     fn test_token_refresh() {
         let auth_service = create_test_auth_service();
         let user = create_test_user();
-        
+
         let original_tokens = auth_service.generate_tokens(&user).unwrap();
-        
+
         // Refresh using valid refresh token
         let new_tokens = auth_service
             .refresh_token(&original_tokens.refresh_token, &user)
             .unwrap();
-        
+
         assert!(!new_tokens.access_token.is_empty());
         assert!(!new_tokens.refresh_token.is_empty());
         assert_ne!(new_tokens.access_token, original_tokens.access_token);
@@ -475,9 +479,9 @@ mod tests {
     fn test_refresh_with_access_token_fails() {
         let auth_service = create_test_auth_service();
         let user = create_test_user();
-        
+
         let tokens = auth_service.generate_tokens(&user).unwrap();
-        
+
         // Try to refresh using access token (should fail)
         assert!(auth_service
             .refresh_token(&tokens.access_token, &user)
@@ -490,9 +494,9 @@ mod tests {
         let user1 = create_test_user();
         let mut user2 = create_test_user();
         user2.id = Uuid::new_v4(); // Different user
-        
+
         let tokens = auth_service.generate_tokens(&user1).unwrap();
-        
+
         // Try to refresh with different user (should fail)
         assert!(auth_service
             .refresh_token(&tokens.refresh_token, &user2)
@@ -509,7 +513,7 @@ mod tests {
     fn test_user_response_conversion() {
         let user = create_test_user();
         let user_response = UserResponse::from(user.clone());
-        
+
         assert_eq!(user_response.id, user.id);
         assert_eq!(user_response.email, user.email);
         assert_eq!(user_response.role, user.role);
@@ -522,10 +526,10 @@ mod tests {
     fn test_auth_error_display() {
         let error = AuthError::InvalidCredentials;
         assert_eq!(error.to_string(), "Invalid credentials");
-        
+
         let error = AuthError::TokenExpired;
         assert_eq!(error.to_string(), "Token expired");
-        
+
         let error = AuthError::WeakPassword("Too short".to_string());
         assert_eq!(error.to_string(), "Weak password: Too short");
     }

@@ -57,7 +57,8 @@ impl PiiRedactionConfig {
             // Phone numbers (US format)
             PiiPattern {
                 name: "phone_us".to_string(),
-                regex: r"\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b".to_string(),
+                regex: r"\b(?:\+?1[-.\s]?)?\(?([0-9]{3})\)?[-.\s]?([0-9]{3})[-.\s]?([0-9]{4})\b"
+                    .to_string(),
                 description: "US phone numbers".to_string(),
             },
             // Social Security Numbers (simplified pattern)
@@ -113,12 +114,12 @@ impl PiiRedactor {
     /// Create a new PII redactor with the given configuration
     pub fn new(config: PiiRedactionConfig) -> Result<Self, regex::Error> {
         let mut compiled_patterns = Vec::new();
-        
+
         for pattern in &config.pii_patterns {
             let regex = Regex::new(&pattern.regex)?;
             compiled_patterns.push((pattern.name.clone(), regex));
         }
-        
+
         Ok(Self {
             config,
             compiled_patterns,
@@ -179,33 +180,35 @@ impl PiiRedactor {
     /// Check if a field name is considered sensitive
     fn is_sensitive_field(&self, field_name: &str) -> bool {
         let field_lower = field_name.to_lowercase();
-        
+
         // Check exact matches
         if self.config.sensitive_fields.contains(&field_lower) {
             return true;
         }
-        
+
         // Check if field name contains sensitive keywords
         for sensitive_field in &self.config.sensitive_fields {
             if field_lower.contains(sensitive_field) {
                 return true;
             }
         }
-        
+
         false
     }
 
     /// Redact PII patterns from text
     pub fn redact_text(&self, text: &str) -> String {
         let mut result = text.to_string();
-        
+
         for (pattern_name, regex) in &self.compiled_patterns {
             if regex.is_match(&result) {
                 debug!("Found PII pattern '{}' in text", pattern_name);
-                result = regex.replace_all(&result, &self.config.redaction_text).to_string();
+                result = regex
+                    .replace_all(&result, &self.config.redaction_text)
+                    .to_string();
             }
         }
-        
+
         result
     }
 
@@ -246,7 +249,7 @@ impl PiiRedactor {
     pub fn analyze_text(&self, text: &str) -> PiiAnalysis {
         let mut detected_patterns = Vec::new();
         let mut total_matches = 0;
-        
+
         for (pattern_name, regex) in &self.compiled_patterns {
             let matches: Vec<_> = regex.find_iter(text).collect();
             if !matches.is_empty() {
@@ -258,7 +261,7 @@ impl PiiRedactor {
                 });
             }
         }
-        
+
         PiiAnalysis {
             contains_pii: total_matches > 0,
             total_matches,
@@ -305,7 +308,7 @@ impl PiiUtils {
     pub fn redact_phone_partial(phone: &str) -> String {
         let digits: String = phone.chars().filter(|c| c.is_ascii_digit()).collect();
         if digits.len() >= 4 {
-            format!("***-***-{}", &digits[digits.len()-4..])
+            format!("***-***-{}", &digits[digits.len() - 4..])
         } else {
             "[REDACTED_PHONE]".to_string()
         }
@@ -315,7 +318,7 @@ impl PiiUtils {
     pub fn redact_credit_card_partial(card: &str) -> String {
         let digits: String = card.chars().filter(|c| c.is_ascii_digit()).collect();
         if digits.len() >= 4 {
-            format!("****-****-****-{}", &digits[digits.len()-4..])
+            format!("****-****-****-{}", &digits[digits.len() - 4..])
         } else {
             "[REDACTED_CARD]".to_string()
         }
@@ -332,10 +335,7 @@ impl PiiUtils {
 }
 
 /// Middleware helper for redacting request/response data
-pub fn redact_request_data(
-    redactor: &PiiRedactor,
-    data: &mut serde_json::Value,
-) {
+pub fn redact_request_data(redactor: &PiiRedactor, data: &mut serde_json::Value) {
     redactor.redact_json(data);
 }
 
@@ -360,7 +360,7 @@ mod tests {
     fn test_sensitive_field_detection() {
         let config = PiiRedactionConfig::default();
         let redactor = PiiRedactor::new(config).unwrap();
-        
+
         assert!(redactor.is_sensitive_field("password"));
         assert!(redactor.is_sensitive_field("user_password"));
         assert!(redactor.is_sensitive_field("PASSWORD"));
@@ -371,7 +371,7 @@ mod tests {
     fn test_json_redaction() {
         let config = PiiRedactionConfig::default();
         let redactor = PiiRedactor::new(config).unwrap();
-        
+
         let mut data = json!({
             "username": "john_doe",
             "password": "secret123",
@@ -382,17 +382,17 @@ mod tests {
                 "public_info": "safe data"
             }
         });
-        
+
         redactor.redact_json(&mut data);
-        
+
         // Password should be redacted (sensitive field)
         assert_eq!(data["password"], "[REDACTED]");
         assert_eq!(data["nested"]["api_key"], "[REDACTED]");
-        
+
         // Email and phone should be redacted (PII patterns)
         assert_ne!(data["email"], "john@example.com");
         assert_ne!(data["phone"], "555-123-4567");
-        
+
         // Username and public info should remain
         assert_eq!(data["username"], "john_doe");
         assert_eq!(data["nested"]["public_info"], "safe data");
@@ -402,10 +402,10 @@ mod tests {
     fn test_text_redaction() {
         let config = PiiRedactionConfig::default();
         let redactor = PiiRedactor::new(config).unwrap();
-        
+
         let text = "Contact me at john@example.com or call 555-123-4567";
         let redacted = redactor.redact_text(text);
-        
+
         assert!(!redacted.contains("john@example.com"));
         assert!(!redacted.contains("555-123-4567"));
         assert!(redacted.contains("[REDACTED]"));
@@ -415,10 +415,10 @@ mod tests {
     fn test_pii_analysis() {
         let config = PiiRedactionConfig::default();
         let redactor = PiiRedactor::new(config).unwrap();
-        
+
         let text = "Email: john@example.com, Phone: 555-123-4567";
         let analysis = redactor.analyze_text(text);
-        
+
         assert!(analysis.contains_pii);
         assert_eq!(analysis.total_matches, 2);
         assert_eq!(analysis.detected_patterns.len(), 2);
@@ -426,17 +426,29 @@ mod tests {
 
     #[test]
     fn test_partial_redaction_utils() {
-        assert_eq!(PiiUtils::redact_email_partial("john@example.com"), "jo***@example.com");
-        assert_eq!(PiiUtils::redact_phone_partial("555-123-4567"), "***-***-4567");
-        assert_eq!(PiiUtils::redact_credit_card_partial("4111-1111-1111-1111"), "****-****-****-1111");
-        assert_eq!(PiiUtils::redact_ip_partial("192.168.1.1"), "192.***.***.***");
+        assert_eq!(
+            PiiUtils::redact_email_partial("john@example.com"),
+            "jo***@example.com"
+        );
+        assert_eq!(
+            PiiUtils::redact_phone_partial("555-123-4567"),
+            "***-***-4567"
+        );
+        assert_eq!(
+            PiiUtils::redact_credit_card_partial("4111-1111-1111-1111"),
+            "****-****-****-1111"
+        );
+        assert_eq!(
+            PiiUtils::redact_ip_partial("192.168.1.1"),
+            "192.***.***.***"
+        );
     }
 
     #[test]
     fn test_contains_pii() {
         let config = PiiRedactionConfig::default();
         let redactor = PiiRedactor::new(config).unwrap();
-        
+
         assert!(redactor.contains_pii("My email is john@example.com"));
         assert!(redactor.contains_pii("Call me at 555-123-4567"));
         assert!(!redactor.contains_pii("This is just normal text"));

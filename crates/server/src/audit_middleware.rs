@@ -52,7 +52,7 @@ impl Default for AuditMiddlewareConfig {
             audit_success_only: false,
             include_request_body: true,
             include_response_body: false, // Usually too large and not needed
-            max_body_size: 1024 * 1024, // 1MB
+            max_body_size: 1024 * 1024,   // 1MB
         }
     }
 }
@@ -88,9 +88,10 @@ pub async fn audit_logging_middleware(
 
     // Extract audit context
     let audit_context = extract_audit_context(&headers, &state.ip_config, &request);
-    
+
     // Extract request ID for correlation
-    let request_id = request.extensions()
+    let request_id = request
+        .extensions()
         .get::<RequestId>()
         .map(|rid| rid.get().to_string());
 
@@ -126,24 +127,31 @@ pub async fn audit_logging_middleware(
         let mut details = serde_json::Map::new();
         details.insert("method".to_string(), Value::String(method.to_string()));
         details.insert("path".to_string(), Value::String(path.clone()));
-        details.insert("status_code".to_string(), Value::Number(status.as_u16().into()));
-        
+        details.insert(
+            "status_code".to_string(),
+            Value::Number(status.as_u16().into()),
+        );
+
         if let Some(query) = query {
             let redacted_query = state.pii_redactor.redact_for_logging(&query);
             details.insert("query".to_string(), Value::String(redacted_query));
         }
 
         // Log the audit event
-        if let Err(e) = state.audit_logger.log(
-            audit_action,
-            resource_type,
-            resource_id,
-            audit_context.user_id,
-            Some(Value::Object(details.clone())),
-            audit_context.ip_address.clone(),
-            audit_context.user_agent.clone(),
-            request_id.clone(),
-        ).await {
+        if let Err(e) = state
+            .audit_logger
+            .log(
+                audit_action,
+                resource_type,
+                resource_id,
+                audit_context.user_id,
+                Some(Value::Object(details.clone())),
+                audit_context.ip_address.clone(),
+                audit_context.user_agent.clone(),
+                request_id.clone(),
+            )
+            .await
+        {
             error!("Failed to log audit event: {}", e);
         }
 
@@ -155,16 +163,20 @@ pub async fn audit_logging_middleware(
                 AuditAction::AuthorizationFailure
             };
 
-            if let Err(e) = state.audit_logger.log(
-                security_action,
-                "security",
-                None::<String>,
-                audit_context.user_id,
-                Some(Value::Object(details)),
-                audit_context.ip_address,
-                audit_context.user_agent,
-                request_id,
-            ).await {
+            if let Err(e) = state
+                .audit_logger
+                .log(
+                    security_action,
+                    "security",
+                    None::<String>,
+                    audit_context.user_id,
+                    Some(Value::Object(details)),
+                    audit_context.ip_address,
+                    audit_context.user_agent,
+                    request_id,
+                )
+                .await
+            {
                 error!("Failed to log security event: {}", e);
             }
         }
@@ -233,31 +245,37 @@ fn determine_audit_action(method: &Method, path: &str) -> AuditAction {
         (&Method::POST, path) if path.contains("/auth/register") => AuditAction::UserRegistration,
         (&Method::POST, path) if path.contains("/auth/logout") => AuditAction::UserLogout,
         (&Method::POST, path) if path.contains("/auth/refresh") => AuditAction::TokenRefresh,
-        
+
         // Collection management
-        (&Method::POST, path) if path.contains("/collections") && !path.contains("/records") => AuditAction::CollectionCreate,
-        (&Method::PATCH, path) if path.contains("/collections") && !path.contains("/records") => AuditAction::CollectionUpdate,
-        (&Method::DELETE, path) if path.contains("/collections") && !path.contains("/records") => AuditAction::CollectionDelete,
-        
+        (&Method::POST, path) if path.contains("/collections") && !path.contains("/records") => {
+            AuditAction::CollectionCreate
+        }
+        (&Method::PATCH, path) if path.contains("/collections") && !path.contains("/records") => {
+            AuditAction::CollectionUpdate
+        }
+        (&Method::DELETE, path) if path.contains("/collections") && !path.contains("/records") => {
+            AuditAction::CollectionDelete
+        }
+
         // Record operations
         (&Method::POST, path) if path.contains("/records") => AuditAction::RecordCreate,
         (&Method::GET, path) if path.contains("/records") => AuditAction::RecordView,
         (&Method::PATCH, path) if path.contains("/records") => AuditAction::RecordUpdate,
         (&Method::DELETE, path) if path.contains("/records") => AuditAction::RecordDelete,
-        
+
         // File operations
         (&Method::POST, path) if path.contains("/files") => AuditAction::FileUpload,
         (&Method::GET, path) if path.contains("/files") => AuditAction::FileAccess,
         (&Method::DELETE, path) if path.contains("/files") => AuditAction::FileDelete,
-        
+
         // User management
         (&Method::POST, path) if path.contains("/users") => AuditAction::UserCreate,
         (&Method::PATCH, path) if path.contains("/users") => AuditAction::UserUpdate,
         (&Method::DELETE, path) if path.contains("/users") => AuditAction::UserDelete,
-        
+
         // Admin interface
         (_, path) if path.starts_with("/admin") => AuditAction::Custom("admin_access".to_string()),
-        
+
         // Default for other operations
         _ => AuditAction::Custom(format!("{}_request", method.as_str().to_lowercase())),
     }
@@ -266,38 +284,25 @@ fn determine_audit_action(method: &Method, path: &str) -> AuditAction {
 /// Extract resource type and ID from path
 fn extract_resource_info(path: &str) -> (String, Option<String>) {
     let parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
-    
+
     match parts.as_slice() {
         ["api", "collections", _collection_name, "records", record_id] => {
             ("record".to_string(), Some(record_id.to_string()))
         }
-        ["api", "collections", _collection_name, "records"] => {
-            ("record".to_string(), None)
-        }
+        ["api", "collections", _collection_name, "records"] => ("record".to_string(), None),
         ["api", "collections", collection_name] => {
             ("collection".to_string(), Some(collection_name.to_string()))
         }
-        ["api", "collections"] => {
-            ("collection".to_string(), None)
-        }
-        ["api", "files", collection, record, field] => {
-            ("file".to_string(), Some(format!("{}/{}/{}", collection, record, field)))
-        }
-        ["api", "users", user_id] => {
-            ("user".to_string(), Some(user_id.to_string()))
-        }
-        ["api", "users"] => {
-            ("user".to_string(), None)
-        }
-        ["api", "auth", _] => {
-            ("auth".to_string(), None)
-        }
-        ["admin", ..] => {
-            ("admin".to_string(), None)
-        }
-        _ => {
-            ("unknown".to_string(), None)
-        }
+        ["api", "collections"] => ("collection".to_string(), None),
+        ["api", "files", collection, record, field] => (
+            "file".to_string(),
+            Some(format!("{}/{}/{}", collection, record, field)),
+        ),
+        ["api", "users", user_id] => ("user".to_string(), Some(user_id.to_string())),
+        ["api", "users"] => ("user".to_string(), None),
+        ["api", "auth", _] => ("auth".to_string(), None),
+        ["admin", ..] => ("admin".to_string(), None),
+        _ => ("unknown".to_string(), None),
     }
 }
 
@@ -310,43 +315,45 @@ pub async fn suspicious_activity_middleware(
 ) -> Result<Response, StatusCode> {
     let path = request.uri().path();
     let method = request.method();
-    
+
     // Check for suspicious patterns
     let mut suspicious_indicators = Vec::new();
-    
+
     // Check for path traversal attempts
     if path.contains("../") || path.contains("..\\") {
         suspicious_indicators.push("path_traversal");
     }
-    
+
     // Check for SQL injection patterns in path
-    if path.to_lowercase().contains("union select") || 
-       path.to_lowercase().contains("drop table") ||
-       path.contains("'") && path.contains("or") {
+    if path.to_lowercase().contains("union select")
+        || path.to_lowercase().contains("drop table")
+        || path.contains("'") && path.contains("or")
+    {
         suspicious_indicators.push("sql_injection");
     }
-    
+
     // Check for script injection in path
     if path.contains("<script") || path.contains("javascript:") {
         suspicious_indicators.push("script_injection");
     }
-    
+
     // Check for suspicious user agents
     if let Some(user_agent) = headers.get("user-agent") {
         if let Ok(ua_str) = user_agent.to_str() {
             let ua_lower = ua_str.to_lowercase();
-            if ua_lower.contains("sqlmap") || 
-               ua_lower.contains("nikto") || 
-               ua_lower.contains("nmap") {
+            if ua_lower.contains("sqlmap")
+                || ua_lower.contains("nikto")
+                || ua_lower.contains("nmap")
+            {
                 suspicious_indicators.push("malicious_user_agent");
             }
         }
     }
-    
+
     // Log suspicious activity if detected
     if !suspicious_indicators.is_empty() {
         let audit_context = extract_audit_context(&headers, &state.ip_config, &request);
-        
+
         let details = serde_json::json!({
             "indicators": suspicious_indicators,
             "method": method.to_string(),
@@ -355,34 +362,39 @@ pub async fn suspicious_activity_middleware(
                 .and_then(|ua| ua.to_str().ok())
                 .unwrap_or("unknown")
         });
-        
+
         warn!(
             user_id = ?audit_context.user_id,
             ip_address = ?audit_context.ip_address,
             indicators = ?suspicious_indicators,
             "Suspicious activity detected"
         );
-        
-        if let Err(e) = state.audit_logger.log(
-            AuditAction::SuspiciousActivity,
-            "security",
-            None::<String>,
-            audit_context.user_id,
-            Some(details),
-            audit_context.ip_address,
-            audit_context.user_agent,
-            audit_context.request_id,
-        ).await {
+
+        if let Err(e) = state
+            .audit_logger
+            .log(
+                AuditAction::SuspiciousActivity,
+                "security",
+                None::<String>,
+                audit_context.user_id,
+                Some(details),
+                audit_context.ip_address,
+                audit_context.user_agent,
+                audit_context.request_id,
+            )
+            .await
+        {
             error!("Failed to log suspicious activity: {}", e);
         }
-        
+
         // Block the request for severe indicators
-        if suspicious_indicators.contains(&"sql_injection") || 
-           suspicious_indicators.contains(&"script_injection") {
+        if suspicious_indicators.contains(&"sql_injection")
+            || suspicious_indicators.contains(&"script_injection")
+        {
             return Err(StatusCode::BAD_REQUEST);
         }
     }
-    
+
     Ok(next.run(request).await)
 }
 
@@ -394,7 +406,7 @@ mod tests {
     #[test]
     fn test_should_audit_path() {
         let config = AuditMiddlewareConfig::default();
-        
+
         assert!(should_audit_path("/api/collections/users", &config));
         assert!(should_audit_path("/api/auth/login", &config));
         assert!(!should_audit_path("/api/health", &config));
@@ -407,12 +419,12 @@ mod tests {
             determine_audit_action(&Method::POST, "/api/auth/login"),
             AuditAction::UserLogin
         ));
-        
+
         assert!(matches!(
             determine_audit_action(&Method::POST, "/api/collections/users/records"),
             AuditAction::RecordCreate
         ));
-        
+
         assert!(matches!(
             determine_audit_action(&Method::DELETE, "/api/collections/posts"),
             AuditAction::CollectionDelete
@@ -421,14 +433,15 @@ mod tests {
 
     #[test]
     fn test_extract_resource_info() {
-        let (resource_type, resource_id) = extract_resource_info("/api/collections/users/records/123");
+        let (resource_type, resource_id) =
+            extract_resource_info("/api/collections/users/records/123");
         assert_eq!(resource_type, "record");
         assert_eq!(resource_id, Some("123".to_string()));
-        
+
         let (resource_type, resource_id) = extract_resource_info("/api/collections/posts");
         assert_eq!(resource_type, "collection");
         assert_eq!(resource_id, Some("posts".to_string()));
-        
+
         let (resource_type, resource_id) = extract_resource_info("/api/files/posts/123/image");
         assert_eq!(resource_type, "file");
         assert_eq!(resource_id, Some("posts/123/image".to_string()));

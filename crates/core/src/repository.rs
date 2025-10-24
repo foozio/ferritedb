@@ -22,7 +22,11 @@ impl UserRepository {
     }
 
     /// Create a new user
-    pub async fn create(&self, request: CreateUserRequest, password_hash: String) -> CoreResult<User> {
+    pub async fn create(
+        &self,
+        request: CreateUserRequest,
+        password_hash: String,
+    ) -> CoreResult<User> {
         let user = User::new(
             request.email,
             password_hash,
@@ -34,7 +38,7 @@ impl UserRepository {
 
         let user_id = user.id.to_string();
         let user_role = user.role.to_string();
-        
+
         sqlx::query(
             r#"
             INSERT INTO users (id, email, password_hash, role, verified, created_at, updated_at)
@@ -244,7 +248,11 @@ impl CollectionRepository {
         for field in &schema.fields {
             let field_id = field.id.to_string();
             let field_type_json = serde_json::to_string(&field.field_type)?;
-            let options_json = field.options_json.as_ref().map(serde_json::to_string).transpose()?;
+            let options_json = field
+                .options_json
+                .as_ref()
+                .map(serde_json::to_string)
+                .transpose()?;
 
             sqlx::query(
                 r#"
@@ -302,15 +310,20 @@ impl CollectionRepository {
                     field_type: serde_json::from_str(&field_row.get::<String, _>("type"))?,
                     required: field_row.get("required"),
                     unique_constraint: field_row.get("unique_constraint"),
-                    options_json: field_row.get::<Option<String>, _>("options_json")
+                    options_json: field_row
+                        .get::<Option<String>, _>("options_json")
                         .map(|s| serde_json::from_str(&s))
                         .transpose()?,
-                    created_at: chrono::DateTime::from_naive_utc_and_offset(field_row.get("created_at"), Utc),
+                    created_at: chrono::DateTime::from_naive_utc_and_offset(
+                        field_row.get("created_at"),
+                        Utc,
+                    ),
                 };
                 fields.push(field);
             }
 
-            let mut schema_json: CollectionSchema = serde_json::from_str(&row.get::<String, _>("schema_json"))?;
+            let mut schema_json: CollectionSchema =
+                serde_json::from_str(&row.get::<String, _>("schema_json"))?;
             schema_json.fields = fields;
 
             let collection = Collection {
@@ -368,15 +381,20 @@ impl CollectionRepository {
                     field_type: serde_json::from_str(&field_row.get::<String, _>("type"))?,
                     required: field_row.get("required"),
                     unique_constraint: field_row.get("unique_constraint"),
-                    options_json: field_row.get::<Option<String>, _>("options_json")
+                    options_json: field_row
+                        .get::<Option<String>, _>("options_json")
                         .map(|s| serde_json::from_str(&s))
                         .transpose()?,
-                    created_at: chrono::DateTime::from_naive_utc_and_offset(field_row.get("created_at"), Utc),
+                    created_at: chrono::DateTime::from_naive_utc_and_offset(
+                        field_row.get("created_at"),
+                        Utc,
+                    ),
                 };
                 fields.push(field);
             }
 
-            let mut schema_json: CollectionSchema = serde_json::from_str(&row.get::<String, _>("schema_json"))?;
+            let mut schema_json: CollectionSchema =
+                serde_json::from_str(&row.get::<String, _>("schema_json"))?;
             schema_json.fields = fields;
 
             let collection = Collection {
@@ -435,15 +453,20 @@ impl CollectionRepository {
                     field_type: serde_json::from_str(&field_row.get::<String, _>("type"))?,
                     required: field_row.get("required"),
                     unique_constraint: field_row.get("unique_constraint"),
-                    options_json: field_row.get::<Option<String>, _>("options_json")
+                    options_json: field_row
+                        .get::<Option<String>, _>("options_json")
                         .map(|s| serde_json::from_str(&s))
                         .transpose()?,
-                    created_at: chrono::DateTime::from_naive_utc_and_offset(field_row.get("created_at"), Utc),
+                    created_at: chrono::DateTime::from_naive_utc_and_offset(
+                        field_row.get("created_at"),
+                        Utc,
+                    ),
                 };
                 fields.push(field);
             }
 
-            let mut schema_json: CollectionSchema = serde_json::from_str(&row.get::<String, _>("schema_json"))?;
+            let mut schema_json: CollectionSchema =
+                serde_json::from_str(&row.get::<String, _>("schema_json"))?;
             schema_json.fields = fields;
 
             let collection = Collection {
@@ -471,7 +494,11 @@ impl CollectionRepository {
     }
 
     /// Update collection
-    pub async fn update(&self, id: Uuid, request: UpdateCollectionRequest) -> CoreResult<Collection> {
+    pub async fn update(
+        &self,
+        id: Uuid,
+        request: UpdateCollectionRequest,
+    ) -> CoreResult<Collection> {
         let mut tx = self.pool.begin().await?;
         let id_str = id.to_string();
         let updated_at = Utc::now();
@@ -505,8 +532,12 @@ impl CollectionRepository {
             // Insert new fields
             for field in &schema.fields {
                 let field_id = field.id.to_string();
-        let field_type_json = serde_json::to_string(&field.field_type)?;
-        let options_json = field.options_json.as_ref().map(serde_json::to_string).transpose()?;
+                let field_type_json = serde_json::to_string(&field.field_type)?;
+                let options_json = field
+                    .options_json
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?;
 
                 sqlx::query(
                     r#"
@@ -550,7 +581,9 @@ impl CollectionRepository {
         tx.commit().await?;
 
         // Return updated collection
-        self.find_by_id(id).await?.ok_or_else(|| CoreError::CollectionNotFound("Collection not found after update".to_string()))
+        self.find_by_id(id).await?.ok_or_else(|| {
+            CoreError::CollectionNotFound("Collection not found after update".to_string())
+        })
     }
 
     /// Delete collection by ID
@@ -591,7 +624,10 @@ impl AuditLogRepository {
     pub async fn create(&self, audit_log: AuditLog) -> CoreResult<()> {
         let audit_id = audit_log.id.to_string();
         let user_id_str = audit_log.user_id.map(|id| id.to_string());
-        let details_json = audit_log.details_json.map(|d| serde_json::to_string(&d)).transpose()?;
+        let details_json = audit_log
+            .details_json
+            .map(|d| serde_json::to_string(&d))
+            .transpose()?;
 
         sqlx::query(
             r#"
@@ -618,13 +654,16 @@ impl AuditLogRepository {
     /// Clean up old audit log entries
     pub async fn cleanup_old_entries(&self, days: i32) -> CoreResult<u64> {
         let result = sqlx::query(
-            "DELETE FROM audit_log WHERE created_at < datetime('now', '-' || ?1 || ' days')"
+            "DELETE FROM audit_log WHERE created_at < datetime('now', '-' || ?1 || ' days')",
         )
         .bind(days)
         .execute(&self.pool)
         .await?;
 
-        info!("Cleaned up {} old audit log entries", result.rows_affected());
+        info!(
+            "Cleaned up {} old audit log entries",
+            result.rows_affected()
+        );
         Ok(result.rows_affected())
     }
 }
@@ -676,7 +715,11 @@ mod tests {
 
         repo.create(request, password_hash).await.unwrap();
 
-        let user = repo.find_by_email("test@example.com").await.unwrap().unwrap();
+        let user = repo
+            .find_by_email("test@example.com")
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(user.email, "test@example.com");
         assert_eq!(user.role, UserRole::Admin);

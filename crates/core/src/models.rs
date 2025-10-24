@@ -388,14 +388,17 @@ impl AuditLog {
         self
     }
 
-    pub fn with_request_info(mut self, ip_address: Option<String>, user_agent: Option<String>) -> Self {
+    pub fn with_request_info(
+        mut self,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
+    ) -> Self {
         self.ip_address = ip_address;
         self.user_agent = user_agent;
         self
     }
 }
-#[cfg
-(test)]
+#[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
@@ -418,9 +421,21 @@ mod tests {
 
     #[test]
     fn test_user_roles() {
-        let admin = User::new("admin@example.com".to_string(), "hash".to_string(), UserRole::Admin);
-        let service = User::new("service@example.com".to_string(), "hash".to_string(), UserRole::Service);
-        let user = User::new("user@example.com".to_string(), "hash".to_string(), UserRole::User);
+        let admin = User::new(
+            "admin@example.com".to_string(),
+            "hash".to_string(),
+            UserRole::Admin,
+        );
+        let service = User::new(
+            "service@example.com".to_string(),
+            "hash".to_string(),
+            UserRole::Service,
+        );
+        let user = User::new(
+            "user@example.com".to_string(),
+            "hash".to_string(),
+            UserRole::User,
+        );
 
         assert!(admin.is_admin());
         assert!(!admin.is_service());
@@ -459,22 +474,24 @@ mod tests {
             delete_rule: Some("@request.auth.role = 'admin'".to_string()),
         };
 
-        let collection = Collection::new("posts".to_string(), CollectionType::Base)
-            .with_rules(rules);
+        let collection =
+            Collection::new("posts".to_string(), CollectionType::Base).with_rules(rules);
 
-        assert_eq!(collection.list_rule, Some("@request.auth.id != ''".to_string()));
-        assert_eq!(collection.create_rule, Some("@request.auth.role = 'admin'".to_string()));
+        assert_eq!(
+            collection.list_rule,
+            Some("@request.auth.id != ''".to_string())
+        );
+        assert_eq!(
+            collection.create_rule,
+            Some("@request.auth.role = 'admin'".to_string())
+        );
     }
 
     #[test]
     fn test_collection_schema() {
         let mut schema = CollectionSchema::new();
-        
-        let field = Field::new(
-            Uuid::new_v4(),
-            "title".to_string(),
-            FieldType::Text,
-        ).required();
+
+        let field = Field::new(Uuid::new_v4(), "title".to_string(), FieldType::Text).required();
 
         schema.add_field(field);
 
@@ -532,8 +549,8 @@ mod tests {
             ..Default::default()
         };
 
-        let field = Field::new(Uuid::new_v4(), "status".to_string(), FieldType::Text)
-            .with_options(options);
+        let field =
+            Field::new(Uuid::new_v4(), "status".to_string(), FieldType::Text).with_options(options);
 
         assert!(field.options_json.is_some());
         let opts = field.options_json.unwrap();
@@ -608,11 +625,7 @@ mod tests {
 
     #[test]
     fn test_field_serialization() {
-        let field = Field::new(
-            Uuid::new_v4(),
-            "content".to_string(),
-            FieldType::Text,
-        );
+        let field = Field::new(Uuid::new_v4(), "content".to_string(), FieldType::Text);
 
         let serialized = serde_json::to_string(&field).unwrap();
         let deserialized: Field = serde_json::from_str(&serialized).unwrap();

@@ -24,9 +24,22 @@ pub trait FileCollectionService: Send + Sync {
 
 #[axum::async_trait]
 pub trait FileRecordService: Send + Sync {
-    async fn get_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>>;
-    async fn update_record(&self, collection_name: &str, record_id: Uuid, data: Value) -> ferritedb_core::CoreResult<Record>;
-    async fn delete_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<bool>;
+    async fn get_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<Option<Record>>;
+    async fn update_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+        data: Value,
+    ) -> ferritedb_core::CoreResult<Record>;
+    async fn delete_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<bool>;
 }
 
 /// File upload response
@@ -81,7 +94,9 @@ pub async fn upload_file(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Validate record exists
     let _record = state
@@ -96,7 +111,7 @@ pub async fn upload_file(
 
     // Validate field exists and is a file field
     validate_file_field(&collection, &field_name)?;
-    
+
     // Get the field definition for validation
     let field = collection
         .schema_json
@@ -120,10 +135,9 @@ pub async fn upload_file(
 
                 let content_type = multipart_field.content_type().map(|ct| ct.to_string());
 
-                let data = multipart_field
-                    .bytes()
-                    .await
-                    .map_err(|e| ServerError::BadRequest(format!("Failed to read file data: {}", e)))?;
+                let data = multipart_field.bytes().await.map_err(|e| {
+                    ServerError::BadRequest(format!("Failed to read file data: {}", e))
+                })?;
 
                 file_data = Some((filename, data, content_type));
                 break;
@@ -135,10 +149,21 @@ pub async fn upload_file(
         .ok_or_else(|| ServerError::BadRequest("No file provided in multipart data".to_string()))?;
 
     // Validate file against both global config and field constraints
-    validate_file(&state.storage_config, field, &filename, data.len(), &content_type)?;
+    validate_file(
+        &state.storage_config,
+        field,
+        &filename,
+        data.len(),
+        &content_type,
+    )?;
 
     // Generate storage path
-    let file_path = generate_file_path(&collection_name, &record_id.to_string(), &field_name, &filename);
+    let file_path = generate_file_path(
+        &collection_name,
+        &record_id.to_string(),
+        &field_name,
+        &filename,
+    );
 
     // Store file
     let metadata = state
@@ -160,8 +185,9 @@ pub async fn upload_file(
     let mut update_data = serde_json::Map::new();
     update_data.insert(
         field_name.clone(),
-        serde_json::to_value(&file_metadata)
-            .map_err(|e| ServerError::Internal(format!("Failed to serialize file metadata: {}", e)))?,
+        serde_json::to_value(&file_metadata).map_err(|e| {
+            ServerError::Internal(format!("Failed to serialize file metadata: {}", e))
+        })?,
     );
 
     state
@@ -171,7 +197,10 @@ pub async fn upload_file(
         .map_err(ServerError::Core)?;
 
     // Generate file URL
-    let file_url = format!("/api/files/{}/{}/{}", collection_name, record_id, field_name);
+    let file_url = format!(
+        "/api/files/{}/{}/{}",
+        collection_name, record_id, field_name
+    );
 
     Ok(Json(FileUploadResponse {
         filename,
@@ -197,7 +226,9 @@ pub async fn serve_file(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Get record
     let record = state
@@ -232,9 +263,9 @@ pub async fn serve_file(
     if let Some(content_type) = &file_metadata.content_type {
         headers.insert(
             header::CONTENT_TYPE,
-            content_type.parse().unwrap_or_else(|_| {
-                "application/octet-stream".parse().unwrap()
-            }),
+            content_type
+                .parse()
+                .unwrap_or_else(|_| "application/octet-stream".parse().unwrap()),
         );
     } else {
         headers.insert(
@@ -251,10 +282,7 @@ pub async fn serve_file(
 
     // Set content disposition for download
     let disposition = format!("attachment; filename=\"{}\"", file_metadata.filename);
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        disposition.parse().unwrap(),
-    );
+    headers.insert(header::CONTENT_DISPOSITION, disposition.parse().unwrap());
 
     // Set cache headers
     headers.insert(
@@ -281,7 +309,9 @@ pub async fn delete_file(
         .get_collection(&collection_name)
         .await
         .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound(format!("Collection '{}' not found", collection_name)))?;
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
 
     // Get record
     let record = state
@@ -323,14 +353,21 @@ pub async fn delete_file(
 /// Validate that a field is a file field
 fn validate_file_field(collection: &Collection, field_name: &str) -> ServerResult<()> {
     if field_name.is_empty() {
-        return Err(ServerError::BadRequest("Field name cannot be empty".to_string()));
+        return Err(ServerError::BadRequest(
+            "Field name cannot be empty".to_string(),
+        ));
     }
 
     // Check if field exists in collection schema
     let field = collection
         .schema_json
         .get_field(field_name)
-        .ok_or_else(|| ServerError::BadRequest(format!("Field '{}' does not exist in collection", field_name)))?;
+        .ok_or_else(|| {
+            ServerError::BadRequest(format!(
+                "Field '{}' does not exist in collection",
+                field_name
+            ))
+        })?;
 
     // Check if field is of type File
     match &field.field_type {
@@ -366,7 +403,11 @@ fn validate_file(
     }
 
     // Check field-specific constraints
-    if let ferritedb_core::models::FieldType::File { max_size, allowed_types } = &field.field_type {
+    if let ferritedb_core::models::FieldType::File {
+        max_size,
+        allowed_types,
+    } = &field.field_type
+    {
         // Check field-specific size limit
         if let Some(field_max_size) = max_size {
             if size as u64 > *field_max_size {
@@ -389,7 +430,7 @@ fn validate_file(
                 }
             } else {
                 return Err(ServerError::BadRequest(
-                    "Content type required for this field".to_string()
+                    "Content type required for this field".to_string(),
                 ));
             }
         }
@@ -407,13 +448,14 @@ fn generate_file_path(collection: &str, record_id: &str, field: &str, filename: 
 
 /// Extract file metadata from a record field
 fn get_file_metadata_from_record(record: &Record, field_name: &str) -> ServerResult<FileMetadata> {
-    let field_value = record
-        .data
-        .get(field_name)
-        .ok_or_else(|| ServerError::NotFound(format!("Field '{}' not found in record", field_name)))?;
+    let field_value = record.data.get(field_name).ok_or_else(|| {
+        ServerError::NotFound(format!("Field '{}' not found in record", field_name))
+    })?;
 
     if field_value.is_null() {
-        return Err(ServerError::NotFound("No file associated with this field".to_string()));
+        return Err(ServerError::NotFound(
+            "No file associated with this field".to_string(),
+        ));
     }
 
     serde_json::from_value(field_value.clone())
@@ -429,15 +471,29 @@ impl FileCollectionService for crate::routes::MockCollectionService {
 
 #[axum::async_trait]
 impl FileRecordService for crate::routes::MockRecordService {
-    async fn get_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<Option<Record>> {
+    async fn get_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<Option<Record>> {
         crate::routes::MockRecordService::get_record(self, collection_name, record_id).await
     }
 
-    async fn update_record(&self, collection_name: &str, record_id: Uuid, data: Value) -> ferritedb_core::CoreResult<Record> {
-        crate::routes::MockRecordService::update_record(self, collection_name, record_id, data).await
+    async fn update_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+        data: Value,
+    ) -> ferritedb_core::CoreResult<Record> {
+        crate::routes::MockRecordService::update_record(self, collection_name, record_id, data)
+            .await
     }
 
-    async fn delete_record(&self, collection_name: &str, record_id: Uuid) -> ferritedb_core::CoreResult<bool> {
+    async fn delete_record(
+        &self,
+        collection_name: &str,
+        record_id: Uuid,
+    ) -> ferritedb_core::CoreResult<bool> {
         crate::routes::MockRecordService::delete_record(self, collection_name, record_id).await
     }
 }

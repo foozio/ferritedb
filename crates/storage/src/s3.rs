@@ -29,18 +29,19 @@ impl S3Storage {
     fn validate_key(&self, path: &str) -> StorageResult<String> {
         // Remove leading slashes and normalize
         let clean_path = path.trim_start_matches('/');
-        
+
         // Check for invalid characters or patterns
         if clean_path.is_empty() {
             return Err(StorageError::InvalidPath("Empty path".to_string()));
         }
-        
+
         if clean_path.contains("..") {
             return Err(StorageError::InvalidPath(format!(
-                "Path contains invalid sequences: {}", path
+                "Path contains invalid sequences: {}",
+                path
             )));
         }
-        
+
         // S3 object keys should not start with a slash
         Ok(clean_path.to_string())
     }
@@ -75,30 +76,34 @@ impl StorageBackend for S3Storage {
     async fn store(&self, path: &str, data: &[u8]) -> StorageResult<StorageMetadata> {
         let key = self.validate_key(path)?;
         let content_type = self.detect_content_type(path);
-        
+
         debug!(
             "Storing object in S3: bucket={}, region={}, key={}",
             self.bucket, self.region, key
         );
-        
+
         let mut put_request = self
             .client
             .put_object()
             .bucket(&self.bucket)
             .key(&key)
             .body(ByteStream::from(data.to_vec()));
-        
+
         if let Some(ct) = &content_type {
             put_request = put_request.content_type(ct);
         }
-        
+
         let result = put_request.send().await.map_err(|e| {
             error!("Failed to store object in S3: {}", e);
             StorageError::Backend(format!("S3 put_object failed: {}", e))
         })?;
-        
-        debug!("Stored object in S3: {} bytes, etag: {:?}", data.len(), result.e_tag());
-        
+
+        debug!(
+            "Stored object in S3: {} bytes, etag: {:?}",
+            data.len(),
+            result.e_tag()
+        );
+
         Ok(StorageMetadata {
             size: data.len() as u64,
             content_type,
@@ -108,12 +113,12 @@ impl StorageBackend for S3Storage {
 
     async fn retrieve(&self, path: &str) -> StorageResult<Vec<u8>> {
         let key = self.validate_key(path)?;
-        
+
         debug!(
             "Retrieving object from S3: bucket={}, region={}, key={}",
             self.bucket, self.region, key
         );
-        
+
         let result = self
             .client
             .get_object()
@@ -129,7 +134,7 @@ impl StorageBackend for S3Storage {
                     StorageError::Backend(format!("S3 get_object failed: {}", e))
                 }
             })?;
-        
+
         let data = result
             .body
             .collect()
@@ -140,16 +145,19 @@ impl StorageBackend for S3Storage {
             })?
             .into_bytes()
             .to_vec();
-        
+
         debug!("Retrieved object from S3: {} bytes", data.len());
         Ok(data)
     }
 
     async fn delete(&self, path: &str) -> StorageResult<()> {
         let key = self.validate_key(path)?;
-        
-        debug!("Deleting object from S3: bucket={}, key={}", self.bucket, key);
-        
+
+        debug!(
+            "Deleting object from S3: bucket={}, key={}",
+            self.bucket, key
+        );
+
         self.client
             .delete_object()
             .bucket(&self.bucket)
@@ -160,16 +168,19 @@ impl StorageBackend for S3Storage {
                 error!("Failed to delete object from S3: {}", e);
                 StorageError::Backend(format!("S3 delete_object failed: {}", e))
             })?;
-        
+
         debug!("Deleted object from S3: {}", key);
         Ok(())
     }
 
     async fn exists(&self, path: &str) -> StorageResult<bool> {
         let key = self.validate_key(path)?;
-        
-        debug!("Checking if object exists in S3: bucket={}, key={}", self.bucket, key);
-        
+
+        debug!(
+            "Checking if object exists in S3: bucket={}, key={}",
+            self.bucket, key
+        );
+
         match self
             .client
             .head_object()
@@ -188,7 +199,10 @@ impl StorageBackend for S3Storage {
                     Ok(false)
                 } else {
                     error!("Failed to check object existence in S3: {}", e);
-                    Err(StorageError::Backend(format!("S3 head_object failed: {}", e)))
+                    Err(StorageError::Backend(format!(
+                        "S3 head_object failed: {}",
+                        e
+                    )))
                 }
             }
         }
@@ -196,16 +210,18 @@ impl StorageBackend for S3Storage {
 
     async fn generate_url(&self, path: &str, expires_in: Duration) -> StorageResult<String> {
         let key = self.validate_key(path)?;
-        
-        debug!("Generating presigned URL for S3 object: bucket={}, key={}, expires_in={:?}", 
-               self.bucket, key, expires_in);
-        
+
+        debug!(
+            "Generating presigned URL for S3 object: bucket={}, key={}, expires_in={:?}",
+            self.bucket, key, expires_in
+        );
+
         let presigning_config = aws_sdk_s3::presigning::PresigningConfig::expires_in(expires_in)
             .map_err(|e| {
                 error!("Failed to create presigning config: {}", e);
                 StorageError::Backend(format!("Invalid presigning duration: {}", e))
             })?;
-        
+
         let presigned_request = self
             .client
             .get_object()
@@ -217,10 +233,10 @@ impl StorageBackend for S3Storage {
                 error!("Failed to generate presigned URL: {}", e);
                 StorageError::Backend(format!("S3 presigning failed: {}", e))
             })?;
-        
+
         let url = presigned_request.uri().to_string();
         debug!("Generated presigned URL: {}", url);
-        
+
         Ok(url)
     }
 }

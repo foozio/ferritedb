@@ -699,21 +699,21 @@ impl AuditLogRepository {
 mod tests {
     use super::*;
     use crate::{Database, models::*};
-    use tempfile::tempdir;
+    use tempfile::TempDir;
 
-    async fn setup_test_db() -> Database {
-        let db_dir = tempdir().unwrap().into_path();
-        let db_path = db_dir.join("test.db");
+    async fn setup_test_db() -> (TempDir, Database) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();
         db.migrate().await.unwrap();
-        db
+        (temp_dir, db)
     }
 
     #[tokio::test]
     async fn test_user_repository_create_and_find() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = UserRepository::new(db.pool().clone());
 
         let request = CreateUserRequest {
@@ -750,7 +750,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_user_repository_update_operations() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = UserRepository::new(db.pool().clone());
 
         let request = CreateUserRequest {
@@ -777,7 +777,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_user_repository_list_and_delete() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = UserRepository::new(db.pool().clone());
 
         // Create multiple users
@@ -820,7 +820,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_collection_repository_create_and_find() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = CollectionRepository::new(db.pool().clone());
 
         let mut schema = CollectionSchema::new();
@@ -878,7 +878,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_collection_repository_list_and_update() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = CollectionRepository::new(db.pool().clone());
 
         // Create multiple collections
@@ -924,7 +924,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_collection_repository_delete() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = CollectionRepository::new(db.pool().clone());
 
         let request = CreateCollectionRequest {
@@ -953,7 +953,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_log_repository() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = AuditLogRepository::new(db.pool().clone());
 
         let user_id = Uuid::new_v4();
@@ -1003,7 +1003,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_log_cleanup() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = AuditLogRepository::new(db.pool().clone());
 
         // Create some audit log entries
@@ -1030,7 +1030,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_repository_error_handling() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let user_repo = UserRepository::new(db.pool().clone());
 
         // Test duplicate email constraint
@@ -1060,7 +1060,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_collection_with_complex_fields() {
-        let db = setup_test_db().await;
+        let (_dir, db) = setup_test_db().await;
         let repo = CollectionRepository::new(db.pool().clone());
 
         let mut schema = CollectionSchema::new();

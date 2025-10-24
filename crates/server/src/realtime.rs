@@ -7,7 +7,9 @@ use axum::{
     response::Response,
 };
 use ferritedb_core::models::UserRole;
-use ferritedb_rules::{RuleEngine, CollectionRules, RuleOperation, EvaluationContext, RequestContext};
+use ferritedb_rules::{
+    CollectionRules, EvaluationContext, RequestContext, RuleEngine, RuleOperation,
+};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -17,7 +19,10 @@ use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{middleware::AuthUser, routes::{AppState, CollectionServiceTrait}};
+use crate::{
+    middleware::AuthUser,
+    routes::{AppState, CollectionServiceTrait},
+};
 
 /// WebSocket connection query parameters for authentication
 #[derive(Debug, Deserialize)]
@@ -121,11 +126,9 @@ pub struct RealtimeManager {
 
 impl RealtimeManager {
     /// Create a new realtime manager
-    pub fn new(
-        rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
-    ) -> Self {
+    pub fn new(rule_engine: Arc<std::sync::Mutex<RuleEngine>>) -> Self {
         let (event_sender, _) = broadcast::channel::<RealtimeEvent>(1000);
-        
+
         Self {
             connections: Arc::new(RwLock::new(HashMap::new())),
             event_sender,
@@ -150,20 +153,28 @@ impl RealtimeManager {
     pub fn add_connection(&self, connection: Connection) {
         let connection_id = connection.id;
         debug!("Adding connection: {}", connection_id);
-        
+
         let mut connections = self.connections.write().unwrap();
         connections.insert(connection_id, connection);
-        
-        info!("Connection {} added. Total connections: {}", connection_id, connections.len());
+
+        info!(
+            "Connection {} added. Total connections: {}",
+            connection_id,
+            connections.len()
+        );
     }
 
     /// Remove a connection
     pub fn remove_connection(&self, connection_id: Uuid) {
         debug!("Removing connection: {}", connection_id);
-        
+
         let mut connections = self.connections.write().unwrap();
         if connections.remove(&connection_id).is_some() {
-            info!("Connection {} removed. Total connections: {}", connection_id, connections.len());
+            info!(
+                "Connection {} removed. Total connections: {}",
+                connection_id,
+                connections.len()
+            );
         }
     }
 
@@ -174,10 +185,15 @@ impl RealtimeManager {
         subscription: Subscription,
     ) -> Result<(), String> {
         let mut connections = self.connections.write().unwrap();
-        
+
         if let Some(connection) = connections.get_mut(&connection_id) {
-            debug!("Adding subscription {} to connection {}", subscription.id, connection_id);
-            connection.subscriptions.insert(subscription.id.clone(), subscription);
+            debug!(
+                "Adding subscription {} to connection {}",
+                subscription.id, connection_id
+            );
+            connection
+                .subscriptions
+                .insert(subscription.id.clone(), subscription);
             Ok(())
         } else {
             Err("Connection not found".to_string())
@@ -185,11 +201,18 @@ impl RealtimeManager {
     }
 
     /// Remove a subscription from a connection
-    pub fn remove_subscription(&self, connection_id: Uuid, subscription_id: &str) -> Result<(), String> {
+    pub fn remove_subscription(
+        &self,
+        connection_id: Uuid,
+        subscription_id: &str,
+    ) -> Result<(), String> {
         let mut connections = self.connections.write().unwrap();
-        
+
         if let Some(connection) = connections.get_mut(&connection_id) {
-            debug!("Removing subscription {} from connection {}", subscription_id, connection_id);
+            debug!(
+                "Removing subscription {} from connection {}",
+                subscription_id, connection_id
+            );
             connection.subscriptions.remove(subscription_id);
             Ok(())
         } else {
@@ -231,7 +254,7 @@ impl RealtimeManager {
                 UserRole::User => ferritedb_rules::evaluator::UserRole::User,
                 UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
             },
-            verified: true, // Assume verified for authenticated users
+            verified: true,                 // Assume verified for authenticated users
             created_at: chrono::Utc::now(), // We don't have this info in the context
             updated_at: chrono::Utc::now(),
         };
@@ -260,16 +283,22 @@ impl RealtimeManager {
         }
 
         // Check collection access
-        match self.check_collection_access(
-            &subscription.collection,
-            subscription.user_id,
-            subscription.user_role.clone(),
-            &subscription.user_email,
-            collection_service,
-        ).await {
+        match self
+            .check_collection_access(
+                &subscription.collection,
+                subscription.user_id,
+                subscription.user_role.clone(),
+                &subscription.user_email,
+                collection_service,
+            )
+            .await
+        {
             Ok(has_access) => {
                 if !has_access {
-                    debug!("User {} denied access to collection {}", subscription.user_id, subscription.collection);
+                    debug!(
+                        "User {} denied access to collection {}",
+                        subscription.user_id, subscription.collection
+                    );
                     return false;
                 }
             }
@@ -297,8 +326,12 @@ impl RealtimeManager {
         collection_service: &dyn crate::routes::CollectionServiceTrait,
     ) {
         debug!("Broadcasting event for collection: {}", event.collection);
-        
-        let connection_snapshots: Vec<(Uuid, mpsc::UnboundedSender<ServerMessage>, Vec<Subscription>)> = {
+
+        let connection_snapshots: Vec<(
+            Uuid,
+            mpsc::UnboundedSender<ServerMessage>,
+            Vec<Subscription>,
+        )> = {
             let connections = self.connections.read().unwrap();
             connections
                 .values()
@@ -330,7 +363,10 @@ impl RealtimeManager {
                     };
 
                     if let Err(e) = sender.send(server_message) {
-                        warn!("Failed to send event to connection {}: {}", connection_id, e);
+                        warn!(
+                            "Failed to send event to connection {}: {}",
+                            connection_id, e
+                        );
                     } else {
                         sent_count += 1;
                     }
@@ -343,8 +379,11 @@ impl RealtimeManager {
 
     /// Broadcast an event immediately to all connections (used by CRUD operations)
     pub fn broadcast_event_sync(&self, event: RealtimeEvent) {
-        debug!("Broadcasting event synchronously for collection: {}", event.collection);
-        
+        debug!(
+            "Broadcasting event synchronously for collection: {}",
+            event.collection
+        );
+
         let connections = self.connections.read().unwrap();
         let mut sent_count = 0;
 
@@ -358,7 +397,10 @@ impl RealtimeManager {
                     };
 
                     if let Err(e) = connection.sender.send(server_message) {
-                        warn!("Failed to send event to connection {}: {}", connection.id, e);
+                        warn!(
+                            "Failed to send event to connection {}: {}",
+                            connection.id, e
+                        );
                     } else {
                         sent_count += 1;
                     }
@@ -366,7 +408,10 @@ impl RealtimeManager {
             }
         }
 
-        debug!("Event broadcasted synchronously to {} subscriptions", sent_count);
+        debug!(
+            "Event broadcasted synchronously to {} subscriptions",
+            sent_count
+        );
     }
 }
 
@@ -386,12 +431,10 @@ pub async fn websocket_handler(
         None
     };
 
-    // Create realtime manager if not already in state
-    let realtime_manager = RealtimeManager::new(state.rule_engine.clone());
+    // Reuse shared realtime manager from application state
+    let realtime_manager = state.realtime_manager.clone();
 
-    Ok(ws.on_upgrade(move |socket| {
-        handle_websocket(socket, auth_user, realtime_manager, state)
-    }))
+    Ok(ws.on_upgrade(move |socket| handle_websocket(socket, auth_user, realtime_manager, state)))
 }
 
 /// Handle individual WebSocket connection
@@ -496,14 +539,16 @@ async fn handle_websocket(
                     &auth_user,
                     &realtime_manager,
                     &state,
-                ).await {
+                )
+                .await
+                {
                     error!("Error handling client message: {}", e);
-                    
+
                     let error_msg = ServerMessage::Error {
                         message: e.to_string(),
                         subscription_id: None,
                     };
-                    
+
                     if let Some(connection) = realtime_manager
                         .connections
                         .read()
@@ -550,23 +595,30 @@ async fn handle_client_message(
     realtime_manager: &RealtimeManager,
     state: &AppState,
 ) -> Result<(), String> {
-    let client_msg: ClientMessage = serde_json::from_str(text)
-        .map_err(|e| format!("Invalid message format: {}", e))?;
+    let client_msg: ClientMessage =
+        serde_json::from_str(text).map_err(|e| format!("Invalid message format: {}", e))?;
 
     match client_msg {
-        ClientMessage::Subscribe { id, collection, filter } => {
+        ClientMessage::Subscribe {
+            id,
+            collection,
+            filter,
+        } => {
             // Require authentication for subscriptions
-            let auth_user = auth_user.as_ref()
+            let auth_user = auth_user
+                .as_ref()
                 .ok_or_else(|| "Authentication required for subscriptions".to_string())?;
 
             // Check if user has access to the collection
-            let has_access = realtime_manager.check_collection_access(
-                &collection,
-                auth_user.id,
-                auth_user.role.clone(),
-                &auth_user.email,
-                state.collection_service.as_ref(),
-            ).await?;
+            let has_access = realtime_manager
+                .check_collection_access(
+                    &collection,
+                    auth_user.id,
+                    auth_user.role.clone(),
+                    &auth_user.email,
+                    state.collection_service.as_ref(),
+                )
+                .await?;
 
             if !has_access {
                 return Err(format!("Access denied to collection '{}'", collection));
@@ -586,13 +638,17 @@ async fn handle_client_message(
             realtime_manager.add_subscription(connection_id, subscription)?;
 
             // Send confirmation
-            let response = ServerMessage::Subscribed {
-                id,
-                collection,
-            };
+            let response = ServerMessage::Subscribed { id, collection };
 
-            if let Some(connection) = realtime_manager.connections.read().unwrap().get(&connection_id) {
-                connection.sender.send(response)
+            if let Some(connection) = realtime_manager
+                .connections
+                .read()
+                .unwrap()
+                .get(&connection_id)
+            {
+                connection
+                    .sender
+                    .send(response)
                     .map_err(|e| format!("Failed to send response: {}", e))?;
             }
         }
@@ -601,16 +657,30 @@ async fn handle_client_message(
 
             let response = ServerMessage::Unsubscribed { id };
 
-            if let Some(connection) = realtime_manager.connections.read().unwrap().get(&connection_id) {
-                connection.sender.send(response)
+            if let Some(connection) = realtime_manager
+                .connections
+                .read()
+                .unwrap()
+                .get(&connection_id)
+            {
+                connection
+                    .sender
+                    .send(response)
                     .map_err(|e| format!("Failed to send response: {}", e))?;
             }
         }
         ClientMessage::Ping => {
             let response = ServerMessage::Pong;
 
-            if let Some(connection) = realtime_manager.connections.read().unwrap().get(&connection_id) {
-                connection.sender.send(response)
+            if let Some(connection) = realtime_manager
+                .connections
+                .read()
+                .unwrap()
+                .get(&connection_id)
+            {
+                connection
+                    .sender
+                    .send(response)
                     .map_err(|e| format!("Failed to send pong: {}", e))?;
             }
         }
@@ -631,7 +701,7 @@ mod tests {
 
     // Mock auth service for testing
     struct MockAuthService;
-    
+
     impl MockAuthService {
         fn new() -> Self {
             Self
@@ -640,7 +710,7 @@ mod tests {
 
     // Mock rule engine for testing
     struct MockRuleEngine;
-    
+
     impl MockRuleEngine {
         fn new() -> Self {
             Self
@@ -651,12 +721,12 @@ mod tests {
     fn test_realtime_manager_creation() {
         let auth_service = Arc::new(MockAuthService::new());
         let rule_engine = Arc::new(std::sync::Mutex::new(MockRuleEngine::new()));
-        
+
         // Create a simple manager for testing
         let (event_sender, _) = broadcast::channel::<RealtimeEvent>(1000);
         let connections: Arc<RwLock<HashMap<Uuid, Connection>>> =
             Arc::new(RwLock::new(HashMap::new()));
-        
+
         // Test that we can create the basic structure
         assert!(connections.read().unwrap().is_empty());
     }
@@ -729,7 +799,11 @@ mod tests {
         let deserialized: ClientMessage = serde_json::from_str(&json).unwrap();
 
         match deserialized {
-            ClientMessage::Subscribe { id, collection, filter } => {
+            ClientMessage::Subscribe {
+                id,
+                collection,
+                filter,
+            } => {
                 assert_eq!(id, "sub1");
                 assert_eq!(collection, "posts");
                 assert_eq!(filter, Some("record.published == true".to_string()));
@@ -757,7 +831,10 @@ mod tests {
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
 
         match deserialized {
-            ServerMessage::Event { subscription_id, event } => {
+            ServerMessage::Event {
+                subscription_id,
+                event,
+            } => {
                 assert_eq!(subscription_id, "sub1");
                 assert_eq!(event.collection, "posts");
                 assert_eq!(event.event_type, EventType::Created);
@@ -784,8 +861,6 @@ mod tests {
         assert_eq!(updated_deser, EventType::Updated);
         assert_eq!(deleted_deser, EventType::Deleted);
     }
-
-
 
     #[test]
     fn test_ping_pong_messages() {
@@ -818,7 +893,10 @@ mod tests {
         let deserialized: ServerMessage = serde_json::from_str(&json).unwrap();
 
         match deserialized {
-            ServerMessage::Error { message, subscription_id } => {
+            ServerMessage::Error {
+                message,
+                subscription_id,
+            } => {
                 assert_eq!(message, "Access denied");
                 assert_eq!(subscription_id, Some("sub1".to_string()));
             }

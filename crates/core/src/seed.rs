@@ -1,13 +1,13 @@
 use crate::{
-    models::{
-        AccessRules, CollectionSchema, CollectionType, CreateCollectionRequest,
-        CreateUserRequest, Field, FieldOptions, FieldType, User, UserRole,
-    },
-    repository::{CollectionRepository, UserRepository},
-    collections::CollectionService,
-    records::RecordService,
-    schema_manager::SchemaManager,
     auth::AuthService,
+    collections::CollectionService,
+    models::{
+        AccessRules, CollectionSchema, CollectionType, CreateCollectionRequest, CreateUserRequest,
+        Field, FieldOptions, FieldType, User, UserRole,
+    },
+    records::RecordService,
+    repository::{CollectionRepository, UserRepository},
+    schema_manager::SchemaManager,
     CoreError, CoreResult, DatabasePool,
 };
 use serde_json::json;
@@ -19,16 +19,14 @@ use uuid::Uuid;
 pub struct SeedService {
     pub collection_repo: CollectionRepository,
     pub user_repo: UserRepository,
+    pub collection_service: CollectionService,
     pub record_service: RecordService,
     pub schema_manager: SchemaManager,
     pub auth_service: AuthService,
 }
 
 impl SeedService {
-    pub fn new(
-        pool: DatabasePool,
-        auth_service: AuthService,
-    ) -> Self {
+    pub fn new(pool: DatabasePool, auth_service: AuthService) -> Self {
         let collection_repo = CollectionRepository::new(pool.clone());
         let user_repo = UserRepository::new(pool.clone());
         let collection_service = CollectionService::new(collection_repo.clone());
@@ -42,6 +40,7 @@ impl SeedService {
         Self {
             collection_repo,
             user_repo,
+            collection_service,
             record_service,
             schema_manager,
             auth_service,
@@ -113,60 +112,77 @@ impl SeedService {
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "verified".to_string(), FieldType::Boolean)
-                .with_options(FieldOptions {
+            Field::new(Uuid::new_v4(), "verified".to_string(), FieldType::Boolean).with_options(
+                FieldOptions {
                     default_value: Some(json!(false)),
                     ..Default::default()
-                }),
+                },
+            ),
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "first_name".to_string(), FieldType::Text)
-                .with_options(FieldOptions {
+            Field::new(Uuid::new_v4(), "first_name".to_string(), FieldType::Text).with_options(
+                FieldOptions {
                     max_length: Some(100),
                     ..Default::default()
-                }),
+                },
+            ),
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "last_name".to_string(), FieldType::Text)
-                .with_options(FieldOptions {
+            Field::new(Uuid::new_v4(), "last_name".to_string(), FieldType::Text).with_options(
+                FieldOptions {
                     max_length: Some(100),
                     ..Default::default()
-                }),
+                },
+            ),
         );
 
-        schema.add_field(
-            Field::new(Uuid::new_v4(), "avatar".to_string(), FieldType::File {
+        schema.add_field(Field::new(
+            Uuid::new_v4(),
+            "avatar".to_string(),
+            FieldType::File {
                 max_size: Some(5 * 1024 * 1024), // 5MB
                 allowed_types: Some(vec![
                     "image/jpeg".to_string(),
                     "image/png".to_string(),
                     "image/webp".to_string(),
                 ]),
-            }),
-        );
+            },
+        ));
 
         // Define access rules for users collection
         let rules = AccessRules {
             list_rule: Some("@request.auth.role = 'admin'".to_string()),
-            view_rule: Some("@request.auth.id = record.id || @request.auth.role = 'admin'".to_string()),
+            view_rule: Some(
+                "@request.auth.id = record.id || @request.auth.role = 'admin'".to_string(),
+            ),
             create_rule: Some("@request.auth.role = 'admin'".to_string()),
-            update_rule: Some("@request.auth.id = record.id || @request.auth.role = 'admin'".to_string()),
+            update_rule: Some(
+                "@request.auth.id = record.id || @request.auth.role = 'admin'".to_string(),
+            ),
             delete_rule: Some("@request.auth.role = 'admin'".to_string()),
         };
+
+        let mut schema_with_json = schema;
+        schema_with_json.json_schema = Some(
+            self.collection_service
+                .generate_json_schema(&schema_with_json)?,
+        );
 
         let request = CreateCollectionRequest {
             name: "users".to_string(),
             collection_type: Some(CollectionType::Auth),
-            schema,
+            schema: schema_with_json,
             rules,
         };
 
         let collection = self.collection_repo.create(request).await?;
 
         // Create the actual database table
-        self.schema_manager.create_collection_with_table(&collection).await?;
+        self.schema_manager
+            .create_collection_with_table(&collection)
+            .await?;
 
         info!("✅ Built-in users collection created successfully");
         Ok(())
@@ -206,27 +222,33 @@ impl SeedService {
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "excerpt".to_string(), FieldType::Text)
-                .with_options(FieldOptions {
+            Field::new(Uuid::new_v4(), "excerpt".to_string(), FieldType::Text).with_options(
+                FieldOptions {
                     max_length: Some(500),
                     ..Default::default()
-                }),
+                },
+            ),
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "owner_id".to_string(), FieldType::Relation {
-                target_collection: "users".to_string(),
-                cascade_delete: false,
-            })
+            Field::new(
+                Uuid::new_v4(),
+                "owner_id".to_string(),
+                FieldType::Relation {
+                    target_collection: "users".to_string(),
+                    cascade_delete: false,
+                },
+            )
             .required(),
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "published".to_string(), FieldType::Boolean)
-                .with_options(FieldOptions {
+            Field::new(Uuid::new_v4(), "published".to_string(), FieldType::Boolean).with_options(
+                FieldOptions {
                     default_value: Some(json!(false)),
                     ..Default::default()
-                }),
+                },
+            ),
         );
 
         schema.add_field(
@@ -244,27 +266,32 @@ impl SeedService {
         );
 
         schema.add_field(
-            Field::new(Uuid::new_v4(), "tags".to_string(), FieldType::Json)
-                .with_options(FieldOptions {
+            Field::new(Uuid::new_v4(), "tags".to_string(), FieldType::Json).with_options(
+                FieldOptions {
                     default_value: Some(json!([])),
                     ..Default::default()
-                }),
+                },
+            ),
         );
 
-        schema.add_field(
-            Field::new(Uuid::new_v4(), "featured_image".to_string(), FieldType::File {
+        schema.add_field(Field::new(
+            Uuid::new_v4(),
+            "featured_image".to_string(),
+            FieldType::File {
                 max_size: Some(10 * 1024 * 1024), // 10MB
                 allowed_types: Some(vec![
                     "image/jpeg".to_string(),
                     "image/png".to_string(),
                     "image/webp".to_string(),
                 ]),
-            }),
-        );
+            },
+        ));
 
-        schema.add_field(
-            Field::new(Uuid::new_v4(), "published_at".to_string(), FieldType::DateTime),
-        );
+        schema.add_field(Field::new(
+            Uuid::new_v4(),
+            "published_at".to_string(),
+            FieldType::DateTime,
+        ));
 
         // Define access rules demonstrating different permission levels
         let rules = AccessRules {
@@ -280,17 +307,25 @@ impl SeedService {
             delete_rule: Some("@request.auth.role = 'admin'".to_string()),
         };
 
+        let mut schema_with_json = schema;
+        schema_with_json.json_schema = Some(
+            self.collection_service
+                .generate_json_schema(&schema_with_json)?,
+        );
+
         let request = CreateCollectionRequest {
             name: "posts".to_string(),
             collection_type: Some(CollectionType::Base),
-            schema,
+            schema: schema_with_json,
             rules,
         };
 
         let collection = self.collection_repo.create(request).await?;
 
         // Create the actual database table
-        self.schema_manager.create_collection_with_table(&collection).await?;
+        self.schema_manager
+            .create_collection_with_table(&collection)
+            .await?;
 
         info!("✅ Example posts collection created successfully");
         Ok(())
@@ -304,7 +339,9 @@ impl SeedService {
         let admin_email = "admin@ferritedb.dev";
         if self.user_repo.find_by_email(admin_email).await?.is_none() {
             let admin_password = "Admin123!".to_string();
-            let password_hash = self.auth_service.hash_password(&admin_password)
+            let password_hash = self
+                .auth_service
+                .hash_password(&admin_password)
                 .map_err(|e| CoreError::Authentication(e.to_string()))?;
 
             let admin_request = CreateUserRequest {
@@ -330,7 +367,9 @@ impl SeedService {
         for (name, email) in example_users {
             if self.user_repo.find_by_email(email).await?.is_none() {
                 let user_password = "Password123!".to_string();
-                let password_hash = self.auth_service.hash_password(&user_password)
+                let password_hash = self
+                    .auth_service
+                    .hash_password(&user_password)
                     .map_err(|e| CoreError::Authentication(e.to_string()))?;
 
                 let user_request = CreateUserRequest {
@@ -382,7 +421,7 @@ impl SeedService {
                     "status": "published",
                     "tags": ["welcome", "ferritedb", "backend"],
                     "published_at": chrono::Utc::now().to_rfc3339()
-                })
+                }),
             ),
             (
                 alice,
@@ -394,7 +433,7 @@ impl SeedService {
                     "status": "published",
                     "tags": ["collections", "schema", "data-modeling"],
                     "published_at": chrono::Utc::now().to_rfc3339()
-                })
+                }),
             ),
             (
                 admin,
@@ -406,7 +445,7 @@ impl SeedService {
                     "status": "published",
                     "tags": ["security", "access-control", "rules"],
                     "published_at": chrono::Utc::now().to_rfc3339()
-                })
+                }),
             ),
             (
                 alice,
@@ -417,7 +456,7 @@ impl SeedService {
                     "published": false,
                     "status": "draft",
                     "tags": ["advanced", "realtime", "files"],
-                })
+                }),
             ),
             (
                 admin,
@@ -429,7 +468,7 @@ impl SeedService {
                     "status": "published",
                     "tags": ["api", "rest", "documentation"],
                     "published_at": chrono::Utc::now().to_rfc3339()
-                })
+                }),
             ),
         ];
 
@@ -437,8 +476,10 @@ impl SeedService {
         for (owner, post_data) in example_posts {
             let mut post_with_owner = post_data.as_object().unwrap().clone();
             post_with_owner.insert("owner_id".to_string(), json!(owner.id.to_string()));
-            
-            self.record_service.create_record("posts", json!(post_with_owner)).await?;
+
+            self.record_service
+                .create_record("posts", json!(post_with_owner))
+                .await?;
         }
 
         info!("✅ Created {} example posts", post_count);
@@ -449,12 +490,12 @@ impl SeedService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Database, config::AuthConfig};
-    use tempfile::tempdir;
+    use crate::{config::AuthConfig, Database};
+    use tempfile::TempDir;
 
-    async fn setup_test_service() -> (Database, SeedService) {
-        let db_dir = tempdir().unwrap().into_path();
-        let db_path = db_dir.join("test.db");
+    async fn setup_test_service() -> (TempDir, Database, SeedService) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
         let database_url = format!("sqlite:{}", db_path.display());
 
         let db = Database::new(&database_url, 5, 30).await.unwrap();
@@ -473,18 +514,22 @@ mod tests {
 
         let seed_service = SeedService::new(db.pool().clone(), auth_service);
 
-        (db, seed_service)
+        (temp_dir, db, seed_service)
     }
 
     #[tokio::test]
     async fn test_create_users_collection() {
-        let (db, seed_service) = setup_test_service().await;
+        let (_dir, db, seed_service) = setup_test_service().await;
 
         let result = seed_service.create_users_collection().await;
         assert!(result.is_ok());
 
         // Verify collection was created
-        let collection = seed_service.collection_repo.find_by_name("users").await.unwrap();
+        let collection = seed_service
+            .collection_repo
+            .find_by_name("users")
+            .await
+            .unwrap();
         assert!(collection.is_some());
 
         let collection = collection.unwrap();
@@ -493,10 +538,13 @@ mod tests {
         assert!(!collection.schema_json.fields.is_empty());
 
         // Verify required fields exist
-        let field_names: Vec<&str> = collection.schema_json.fields.iter()
+        let field_names: Vec<&str> = collection
+            .schema_json
+            .fields
+            .iter()
             .map(|f| f.name.as_str())
             .collect();
-        
+
         assert!(field_names.contains(&"email"));
         assert!(field_names.contains(&"password"));
         assert!(field_names.contains(&"role"));
@@ -507,13 +555,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_posts_collection() {
-        let (db, seed_service) = setup_test_service().await;
+        let (_dir, db, seed_service) = setup_test_service().await;
 
         let result = seed_service.create_posts_collection().await;
         assert!(result.is_ok());
 
         // Verify collection was created
-        let collection = seed_service.collection_repo.find_by_name("posts").await.unwrap();
+        let collection = seed_service
+            .collection_repo
+            .find_by_name("posts")
+            .await
+            .unwrap();
         assert!(collection.is_some());
 
         let collection = collection.unwrap();
@@ -528,10 +580,13 @@ mod tests {
         assert!(collection.delete_rule.is_some());
 
         // Verify required fields exist
-        let field_names: Vec<&str> = collection.schema_json.fields.iter()
+        let field_names: Vec<&str> = collection
+            .schema_json
+            .fields
+            .iter()
             .map(|f| f.name.as_str())
             .collect();
-        
+
         assert!(field_names.contains(&"title"));
         assert!(field_names.contains(&"content"));
         assert!(field_names.contains(&"owner_id"));
@@ -542,7 +597,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_demo_users() {
-        let (db, seed_service) = setup_test_service().await;
+        let (_dir, db, seed_service) = setup_test_service().await;
 
         seed_service.initialize_examples().await.unwrap();
         let users = seed_service.user_repo.list(100, 0).await.unwrap();
@@ -563,16 +618,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_initialize_examples() {
-        let (db, seed_service) = setup_test_service().await;
+        let (_dir, db, seed_service) = setup_test_service().await;
 
         let result = seed_service.initialize_examples().await;
         assert!(result.is_ok());
 
         // Verify both collections were created
-        let users_collection = seed_service.collection_repo.find_by_name("users").await.unwrap();
+        let users_collection = seed_service
+            .collection_repo
+            .find_by_name("users")
+            .await
+            .unwrap();
         assert!(users_collection.is_some());
 
-        let posts_collection = seed_service.collection_repo.find_by_name("posts").await.unwrap();
+        let posts_collection = seed_service
+            .collection_repo
+            .find_by_name("posts")
+            .await
+            .unwrap();
         assert!(posts_collection.is_some());
 
         db.close().await;

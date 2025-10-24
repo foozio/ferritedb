@@ -1,16 +1,16 @@
 #![allow(dead_code)]
 
+use reqwest::Client;
+use serde_json::json;
 use std::process::Command;
 use std::time::Duration;
 use tokio::time::sleep;
-use reqwest::Client;
-use serde_json::json;
 
 /// Integration tests for Docker deployment
-/// 
+///
 /// These tests verify that FerriteDB works correctly when deployed via Docker,
 /// including container health checks, API functionality, and proper shutdown.
-/// 
+///
 /// Prerequisites:
 /// - Docker must be installed and running
 /// - Port 8090 must be available
@@ -36,10 +36,13 @@ async fn test_docker_container_build_and_health() {
         .args([
             "run",
             "-d",
-            "--name", "ferritedb-test",
-            "-p", "8090:8090",
-            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-for-integration-tests",
-            "ferritedb:test"
+            "--name",
+            "ferritedb-test",
+            "-p",
+            "8090:8090",
+            "-e",
+            "FERRITEDB_AUTH_JWT_SECRET=test-secret-for-integration-tests",
+            "ferritedb:test",
         ])
         .output()
         .expect("Failed to start Docker container");
@@ -50,7 +53,9 @@ async fn test_docker_container_build_and_health() {
         String::from_utf8_lossy(&run_output.stderr)
     );
 
-    let container_id = String::from_utf8_lossy(&run_output.stdout).trim().to_string();
+    let container_id = String::from_utf8_lossy(&run_output.stdout)
+        .trim()
+        .to_string();
 
     // Wait for container to start
     sleep(Duration::from_secs(10)).await;
@@ -82,10 +87,8 @@ async fn test_docker_container_build_and_health() {
     let _ = Command::new("docker")
         .args(["stop", &container_id])
         .output();
-    
-    let _ = Command::new("docker")
-        .args(["rm", &container_id])
-        .output();
+
+    let _ = Command::new("docker").args(["rm", &container_id]).output();
 }
 
 #[tokio::test]
@@ -96,17 +99,23 @@ async fn test_docker_container_api_functionality() {
         .args([
             "run",
             "-d",
-            "--name", "ferritedb-api-test",
-            "-p", "8091:8090",
-            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-for-api-tests",
-            "-e", "FERRITEDB_SERVER_PORT=8090",
-            "ferritedb:test"
+            "--name",
+            "ferritedb-api-test",
+            "-p",
+            "8091:8090",
+            "-e",
+            "FERRITEDB_AUTH_JWT_SECRET=test-secret-for-api-tests",
+            "-e",
+            "FERRITEDB_SERVER_PORT=8090",
+            "ferritedb:test",
         ])
         .output()
         .expect("Failed to start Docker container");
 
     assert!(run_output.status.success());
-    let container_id = String::from_utf8_lossy(&run_output.stdout).trim().to_string();
+    let container_id = String::from_utf8_lossy(&run_output.stdout)
+        .trim()
+        .to_string();
 
     // Wait for container to be ready
     sleep(Duration::from_secs(15)).await;
@@ -176,7 +185,10 @@ async fn test_docker_container_api_functionality() {
 
     // Test record creation
     let record_response = client
-        .post(format!("{}/api/collections/test_collection/records", base_url))
+        .post(format!(
+            "{}/api/collections/test_collection/records",
+            base_url
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&json!({
             "title": "Test Record",
@@ -193,10 +205,8 @@ async fn test_docker_container_api_functionality() {
     let _ = Command::new("docker")
         .args(["stop", &container_id])
         .output();
-    
-    let _ = Command::new("docker")
-        .args(["rm", &container_id])
-        .output();
+
+    let _ = Command::new("docker").args(["rm", &container_id]).output();
 }
 
 #[tokio::test]
@@ -226,7 +236,10 @@ async fn test_docker_compose_development_setup() {
         .send()
         .await;
 
-    assert!(health_response.is_ok(), "Health check failed in compose setup");
+    assert!(
+        health_response.is_ok(),
+        "Health check failed in compose setup"
+    );
     assert_eq!(health_response.unwrap().status(), 200);
 
     // Test admin interface is accessible
@@ -254,16 +267,21 @@ async fn test_docker_container_graceful_shutdown() {
         .args([
             "run",
             "-d",
-            "--name", "ferritedb-shutdown-test",
-            "-p", "8092:8090",
-            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-shutdown",
-            "ferritedb:test"
+            "--name",
+            "ferritedb-shutdown-test",
+            "-p",
+            "8092:8090",
+            "-e",
+            "FERRITEDB_AUTH_JWT_SECRET=test-secret-shutdown",
+            "ferritedb:test",
         ])
         .output()
         .expect("Failed to start container");
 
     assert!(run_output.status.success());
-    let container_id = String::from_utf8_lossy(&run_output.stdout).trim().to_string();
+    let container_id = String::from_utf8_lossy(&run_output.stdout)
+        .trim()
+        .to_string();
 
     // Wait for container to be ready
     sleep(Duration::from_secs(10)).await;
@@ -271,10 +289,7 @@ async fn test_docker_container_graceful_shutdown() {
     let client = Client::new();
 
     // Verify container is healthy
-    let health_response = client
-        .get("http://localhost:8092/healthz")
-        .send()
-        .await;
+    let health_response = client.get("http://localhost:8092/healthz").send().await;
     assert!(health_response.is_ok());
 
     // Send SIGTERM to container (graceful shutdown)
@@ -283,7 +298,10 @@ async fn test_docker_container_graceful_shutdown() {
         .output()
         .expect("Failed to stop container");
 
-    assert!(stop_output.status.success(), "Failed to gracefully stop container");
+    assert!(
+        stop_output.status.success(),
+        "Failed to gracefully stop container"
+    );
 
     // Verify container stopped cleanly
     let inspect_output = Command::new("docker")
@@ -296,9 +314,7 @@ async fn test_docker_container_graceful_shutdown() {
     assert_eq!(exit_code, "0", "Container did not exit cleanly");
 
     // Cleanup
-    let _ = Command::new("docker")
-        .args(["rm", &container_id])
-        .output();
+    let _ = Command::new("docker").args(["rm", &container_id]).output();
 }
 
 #[tokio::test]
@@ -317,17 +333,23 @@ async fn test_docker_volume_persistence() {
         .args([
             "run",
             "-d",
-            "--name", "ferritedb-persistence-test",
-            "-p", "8093:8090",
-            "-v", "ferritedb-test-data:/app/data",
-            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-persistence",
-            "ferritedb:test"
+            "--name",
+            "ferritedb-persistence-test",
+            "-p",
+            "8093:8090",
+            "-v",
+            "ferritedb-test-data:/app/data",
+            "-e",
+            "FERRITEDB_AUTH_JWT_SECRET=test-secret-persistence",
+            "ferritedb:test",
         ])
         .output()
         .expect("Failed to start container");
 
     assert!(run_output.status.success());
-    let container_id = String::from_utf8_lossy(&run_output.stdout).trim().to_string();
+    let container_id = String::from_utf8_lossy(&run_output.stdout)
+        .trim()
+        .to_string();
 
     // Wait for container to be ready
     sleep(Duration::from_secs(15)).await;
@@ -352,26 +374,30 @@ async fn test_docker_volume_persistence() {
         .args(["stop", &container_id])
         .output();
 
-    let _ = Command::new("docker")
-        .args(["rm", &container_id])
-        .output();
+    let _ = Command::new("docker").args(["rm", &container_id]).output();
 
     // Start new container with same volume
     let run_output2 = Command::new("docker")
         .args([
             "run",
             "-d",
-            "--name", "ferritedb-persistence-test-2",
-            "-p", "8093:8090",
-            "-v", "ferritedb-test-data:/app/data",
-            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-persistence",
-            "ferritedb:test"
+            "--name",
+            "ferritedb-persistence-test-2",
+            "-p",
+            "8093:8090",
+            "-v",
+            "ferritedb-test-data:/app/data",
+            "-e",
+            "FERRITEDB_AUTH_JWT_SECRET=test-secret-persistence",
+            "ferritedb:test",
         ])
         .output()
         .expect("Failed to start second container");
 
     assert!(run_output2.status.success());
-    let container_id2 = String::from_utf8_lossy(&run_output2.stdout).trim().to_string();
+    let container_id2 = String::from_utf8_lossy(&run_output2.stdout)
+        .trim()
+        .to_string();
 
     // Wait for container to be ready
     sleep(Duration::from_secs(15)).await;
@@ -386,7 +412,10 @@ async fn test_docker_volume_persistence() {
         .send()
         .await;
 
-    assert!(login_response.is_ok(), "Data was not persisted across container restarts");
+    assert!(
+        login_response.is_ok(),
+        "Data was not persisted across container restarts"
+    );
     assert_eq!(login_response.unwrap().status(), 200);
 
     // Cleanup
@@ -394,9 +423,7 @@ async fn test_docker_volume_persistence() {
         .args(["stop", &container_id2])
         .output();
 
-    let _ = Command::new("docker")
-        .args(["rm", &container_id2])
-        .output();
+    let _ = Command::new("docker").args(["rm", &container_id2]).output();
 
     let _ = Command::new("docker")
         .args(["volume", "rm", "ferritedb-test-data"])
@@ -423,8 +450,14 @@ fn docker_compose_available() -> bool {
 
 #[test]
 fn test_docker_prerequisites() {
-    assert!(docker_available(), "Docker is not available. Please install Docker to run these tests.");
-    assert!(docker_compose_available(), "docker-compose is not available. Please install docker-compose to run these tests.");
+    assert!(
+        docker_available(),
+        "Docker is not available. Please install Docker to run these tests."
+    );
+    assert!(
+        docker_compose_available(),
+        "docker-compose is not available. Please install docker-compose to run these tests."
+    );
 }
 
 /// Test Docker image security configuration
@@ -436,16 +469,21 @@ async fn test_docker_security_configuration() {
         .args([
             "run",
             "-d",
-            "--name", "ferritedb-security-test",
-            "-p", "8094:8090",
-            "-e", "FERRITEDB_AUTH_JWT_SECRET=test-secret-security",
-            "ferritedb:test"
+            "--name",
+            "ferritedb-security-test",
+            "-p",
+            "8094:8090",
+            "-e",
+            "FERRITEDB_AUTH_JWT_SECRET=test-secret-security",
+            "ferritedb:test",
         ])
         .output()
         .expect("Failed to start container");
 
     assert!(run_output.status.success());
-    let container_id = String::from_utf8_lossy(&run_output.stdout).trim().to_string();
+    let container_id = String::from_utf8_lossy(&run_output.stdout)
+        .trim()
+        .to_string();
 
     // Check that container runs as non-root user
     let user_check = Command::new("docker")
@@ -470,9 +508,7 @@ async fn test_docker_security_configuration() {
         .args(["stop", &container_id])
         .output();
 
-    let _ = Command::new("docker")
-        .args(["rm", &container_id])
-        .output();
+    let _ = Command::new("docker").args(["rm", &container_id]).output();
 }
 
 #[cfg(test)]
@@ -487,7 +523,10 @@ mod test_helpers {
             .output()
             .expect("Failed to build test image");
 
-        assert!(build_output.status.success(), "Failed to build Docker image for tests");
+        assert!(
+            build_output.status.success(),
+            "Failed to build Docker image for tests"
+        );
     }
 
     /// Cleanup function for Docker tests

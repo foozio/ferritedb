@@ -11,6 +11,6 @@ pub mod security;
 pub mod server;
 pub mod validation;
 
-pub use ferritedb_core::config::ServerConfig;
 pub use error::{ServerError, ServerResult};
+pub use ferritedb_core::config::ServerConfig;
 pub use server::Server;

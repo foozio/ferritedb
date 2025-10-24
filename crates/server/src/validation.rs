@@ -45,7 +45,7 @@ impl Default for ValidationConfig {
 
         Self {
             max_body_size: 10 * 1024 * 1024, // 10MB
-            max_header_length: 8192,          // 8KB
+            max_header_length: 8192,         // 8KB
             max_headers: 100,
             max_path_length: 2048,
             max_query_length: 4096,
@@ -64,7 +64,10 @@ pub async fn input_validation_middleware(
 ) -> Result<Response, StatusCode> {
     // Validate request path length
     if request.uri().path().len() > config.max_path_length {
-        warn!("Request rejected: path too long ({})", request.uri().path().len());
+        warn!(
+            "Request rejected: path too long ({})",
+            request.uri().path().len()
+        );
         return Err(StatusCode::URI_TOO_LONG);
     }
 
@@ -80,20 +83,29 @@ pub async fn input_validation_middleware(
     validate_headers(request.headers(), &config)?;
 
     // Validate content type for body-containing methods
-    if matches!(request.method(), &Method::POST | &Method::PATCH | &Method::PUT) {
+    if matches!(
+        request.method(),
+        &Method::POST | &Method::PATCH | &Method::PUT
+    ) {
         validate_content_type(request.headers(), &config)?;
     }
 
     // Check for suspicious patterns in path
     if contains_suspicious_patterns(request.uri().path()) {
-        warn!("Request rejected: suspicious patterns in path: {}", request.uri().path());
+        warn!(
+            "Request rejected: suspicious patterns in path: {}",
+            request.uri().path()
+        );
         return Err(StatusCode::BAD_REQUEST);
     }
 
     // Check for SQL injection patterns in query parameters
     if let Some(query) = request.uri().query() {
         if contains_sql_injection_patterns(query) {
-            warn!("Request rejected: potential SQL injection in query: {}", query);
+            warn!(
+                "Request rejected: potential SQL injection in query: {}",
+                query
+            );
             return Err(StatusCode::BAD_REQUEST);
         }
     }
@@ -140,7 +152,10 @@ fn validate_headers(headers: &HeaderMap, config: &ValidationConfig) -> Result<()
         // Check for suspicious header patterns
         if let Ok(header_str) = value.to_str() {
             if contains_suspicious_patterns(header_str) {
-                warn!("Request rejected: suspicious patterns in header {}: {}", name, header_str);
+                warn!(
+                    "Request rejected: suspicious patterns in header {}: {}",
+                    name, header_str
+                );
                 return Err(StatusCode::BAD_REQUEST);
             }
         }
@@ -155,18 +170,23 @@ fn validate_content_type(headers: &HeaderMap, config: &ValidationConfig) -> Resu
         if let Ok(content_type_str) = content_type.to_str() {
             // Extract the main content type (before semicolon)
             let main_type = content_type_str.split(';').next().unwrap_or("").trim();
-            
+
             // Check if content type is allowed
-            let is_allowed = config.allowed_content_types.iter()
+            let is_allowed = config
+                .allowed_content_types
+                .iter()
                 .any(|allowed| main_type.starts_with(allowed));
-            
+
             if !is_allowed {
-                warn!("Request rejected: unsupported content type: {}", content_type_str);
+                warn!(
+                    "Request rejected: unsupported content type: {}",
+                    content_type_str
+                );
                 return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -174,46 +194,98 @@ fn validate_content_type(headers: &HeaderMap, config: &ValidationConfig) -> Resu
 fn contains_suspicious_patterns(input: &str) -> bool {
     let suspicious_patterns = [
         // Path traversal
-        "../", "..\\", "%2e%2e%2f", "%2e%2e%5c",
+        "../",
+        "..\\",
+        "%2e%2e%2f",
+        "%2e%2e%5c",
         // Script injection
-        "<script", "</script>", "javascript:", "vbscript:",
+        "<script",
+        "</script>",
+        "javascript:",
+        "vbscript:",
         // Command injection
-        "; rm ", "; del ", "| rm ", "| del ", "&& rm ", "&& del ",
+        "; rm ",
+        "; del ",
+        "| rm ",
+        "| del ",
+        "&& rm ",
+        "&& del ",
         // Null bytes
-        "%00", "\0",
+        "%00",
+        "\0",
         // LDAP injection
-        ")(cn=", ")(uid=", ")(mail=",
+        ")(cn=",
+        ")(uid=",
+        ")(mail=",
         // XPath injection
-        "' or '1'='1", "\" or \"1\"=\"1",
+        "' or '1'='1",
+        "\" or \"1\"=\"1",
         // Template injection
-        "{{", "}}", "${", "<%", "%>",
+        "{{",
+        "}}",
+        "${",
+        "<%",
+        "%>",
     ];
 
     let input_lower = input.to_lowercase();
-    suspicious_patterns.iter().any(|pattern| input_lower.contains(pattern))
+    suspicious_patterns
+        .iter()
+        .any(|pattern| input_lower.contains(pattern))
 }
 
 /// Check for SQL injection patterns
 fn contains_sql_injection_patterns(input: &str) -> bool {
     let sql_patterns = [
         // Classic SQL injection
-        "' or '1'='1", "\" or \"1\"=\"1", "' or 1=1", "\" or 1=1",
-        "' union select", "\" union select", "' drop table", "\" drop table",
-        "' delete from", "\" delete from", "' insert into", "\" insert into",
-        "' update ", "\" update ", "' alter table", "\" alter table",
+        "' or '1'='1",
+        "\" or \"1\"=\"1",
+        "' or 1=1",
+        "\" or 1=1",
+        "' union select",
+        "\" union select",
+        "' drop table",
+        "\" drop table",
+        "' delete from",
+        "\" delete from",
+        "' insert into",
+        "\" insert into",
+        "' update ",
+        "\" update ",
+        "' alter table",
+        "\" alter table",
         // Blind SQL injection
-        "' and sleep(", "\" and sleep(", "' waitfor delay", "\" waitfor delay",
-        "' benchmark(", "\" benchmark(", "' pg_sleep(", "\" pg_sleep(",
+        "' and sleep(",
+        "\" and sleep(",
+        "' waitfor delay",
+        "\" waitfor delay",
+        "' benchmark(",
+        "\" benchmark(",
+        "' pg_sleep(",
+        "\" pg_sleep(",
         // Boolean-based blind SQL injection
-        "' and '1'='1", "\" and \"1\"=\"1", "' and '1'='2", "\" and \"1\"=\"2",
+        "' and '1'='1",
+        "\" and \"1\"=\"1",
+        "' and '1'='2",
+        "\" and \"1\"=\"2",
         // Time-based blind SQL injection
-        "' and (select", "\" and (select", "' or (select", "\" or (select",
+        "' and (select",
+        "\" and (select",
+        "' or (select",
+        "\" or (select",
         // Comment-based injection
-        "';--", "\";--", "'/*", "\"/*", "'#", "\"#",
+        "';--",
+        "\";--",
+        "'/*",
+        "\"/*",
+        "'#",
+        "\"#",
     ];
 
     let input_lower = input.to_lowercase();
-    sql_patterns.iter().any(|pattern| input_lower.contains(pattern))
+    sql_patterns
+        .iter()
+        .any(|pattern| input_lower.contains(pattern))
 }
 
 /// Request sanitization utilities
@@ -226,9 +298,37 @@ impl RequestSanitizer {
             .chars()
             .filter(|c| {
                 // Allow alphanumeric, common punctuation, and Unicode letters
-                c.is_alphanumeric() 
+                c.is_alphanumeric()
                     || c.is_whitespace()
-                    || matches!(*c, '.' | ',' | '!' | '?' | '-' | '_' | '@' | '#' | '$' | '%' | '&' | '*' | '+' | '=' | ':' | ';' | '(' | ')' | '[' | ']' | '{' | '}' | '|' | '\\' | '/' | '\'' | '"')
+                    || matches!(
+                        *c,
+                        '.' | ','
+                            | '!'
+                            | '?'
+                            | '-'
+                            | '_'
+                            | '@'
+                            | '#'
+                            | '$'
+                            | '%'
+                            | '&'
+                            | '*'
+                            | '+'
+                            | '='
+                            | ':'
+                            | ';'
+                            | '('
+                            | ')'
+                            | '['
+                            | ']'
+                            | '{'
+                            | '}'
+                            | '|'
+                            | '\\'
+                            | '/'
+                            | '\''
+                            | '"'
+                    )
                     || (*c as u32) > 127 // Allow Unicode characters
             })
             .collect()
@@ -248,10 +348,9 @@ impl RequestSanitizer {
     /// Validate email format
     pub fn is_valid_email(email: &str) -> bool {
         // Basic email validation regex
-        let email_regex = regex::Regex::new(
-            r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
-        ).unwrap();
-        
+        let email_regex =
+            regex::Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").unwrap();
+
         email_regex.is_match(email) && email.len() <= 254
     }
 
@@ -278,7 +377,9 @@ mod tests {
     #[test]
     fn test_suspicious_patterns() {
         assert!(contains_suspicious_patterns("../etc/passwd"));
-        assert!(contains_suspicious_patterns("<script>alert('xss')</script>"));
+        assert!(contains_suspicious_patterns(
+            "<script>alert('xss')</script>"
+        ));
         assert!(contains_suspicious_patterns("javascript:alert(1)"));
         assert!(!contains_suspicious_patterns("normal/path/to/resource"));
     }
@@ -286,7 +387,9 @@ mod tests {
     #[test]
     fn test_sql_injection_patterns() {
         assert!(contains_sql_injection_patterns("' or '1'='1"));
-        assert!(contains_sql_injection_patterns("' union select * from users"));
+        assert!(contains_sql_injection_patterns(
+            "' union select * from users"
+        ));
         assert!(contains_sql_injection_patterns("'; drop table users;--"));
         assert!(!contains_sql_injection_patterns("normal query string"));
     }
@@ -302,21 +405,35 @@ mod tests {
     fn test_escape_html() {
         let input = "<script>alert('xss')</script>";
         let escaped = RequestSanitizer::escape_html(input);
-        assert_eq!(escaped, "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;&#x2F;script&gt;");
+        assert_eq!(
+            escaped,
+            "&lt;script&gt;alert(&#x27;xss&#x27;)&lt;&#x2F;script&gt;"
+        );
     }
 
     #[test]
     fn test_email_validation() {
         assert!(RequestSanitizer::is_valid_email("user@example.com"));
-        assert!(RequestSanitizer::is_valid_email("test.email+tag@domain.co.uk"));
+        assert!(RequestSanitizer::is_valid_email(
+            "test.email+tag@domain.co.uk"
+        ));
         assert!(!RequestSanitizer::is_valid_email("invalid.email"));
         assert!(!RequestSanitizer::is_valid_email("@domain.com"));
     }
 
     #[test]
     fn test_filename_sanitization() {
-        assert_eq!(RequestSanitizer::sanitize_filename("../../../etc/passwd"), "etcpasswd");
-        assert_eq!(RequestSanitizer::sanitize_filename("file<>name.txt"), "filename.txt");
-        assert_eq!(RequestSanitizer::sanitize_filename("normal_file-name.pdf"), "normal_file-name.pdf");
+        assert_eq!(
+            RequestSanitizer::sanitize_filename("../../../etc/passwd"),
+            "etcpasswd"
+        );
+        assert_eq!(
+            RequestSanitizer::sanitize_filename("file<>name.txt"),
+            "filename.txt"
+        );
+        assert_eq!(
+            RequestSanitizer::sanitize_filename("normal_file-name.pdf"),
+            "normal_file-name.pdf"
+        );
     }
 }

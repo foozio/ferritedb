@@ -1,7 +1,6 @@
 use axum::{
     http::{header, HeaderValue, Method},
-    middleware,
-    Router,
+    middleware, Router,
 };
 use ferritedb_core::{
     auth::AuthService,
@@ -14,15 +13,19 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 use tokio::signal;
 use tower::ServiceBuilder;
 use tower_http::{
-    cors::CorsLayer,
-    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
     compression::CompressionLayer,
+    cors::CorsLayer,
     timeout::TimeoutLayer,
+    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::{info, Level};
 
 use crate::{
-    middleware::{rate_limit_middleware, request_id_middleware, SecurityConfig, ValidationConfig, security_headers_middleware, input_validation_middleware, request_size_limit_middleware},
+    middleware::{
+        input_validation_middleware, rate_limit_middleware, request_id_middleware,
+        request_size_limit_middleware, security_headers_middleware, SecurityConfig,
+        ValidationConfig,
+    },
     realtime::RealtimeManager,
     routes::{create_router, AppState, MockCollectionService, MockRecordService},
     ServerError, ServerResult,
@@ -50,20 +53,21 @@ impl Server {
 
         // Initialize database connection (already done above)
         let db_pool = database.pool().clone();
-        
+
         // Initialize services
-        let auth_service = Arc::new(
-            AuthService::new(config.auth.clone())
-                .map_err(|e| ServerError::Internal(format!("Auth service initialization failed: {}", e)))?
-        );
+        let auth_service = Arc::new(AuthService::new(config.auth.clone()).map_err(|e| {
+            ServerError::Internal(format!("Auth service initialization failed: {}", e))
+        })?);
         let user_repository: Arc<dyn crate::routes::UserRepository> =
             Arc::new(ferritedb_core::UserRepository::new(db_pool.clone()));
         let collection_service = Arc::new(ferritedb_core::CollectionService::new(
-            ferritedb_core::CollectionRepository::new(db_pool.clone())
+            ferritedb_core::CollectionRepository::new(db_pool.clone()),
         ));
         let record_service = Arc::new(ferritedb_core::RecordService::new(
             db_pool.clone(),
-            ferritedb_core::CollectionService::new(ferritedb_core::CollectionRepository::new(db_pool.clone()))
+            ferritedb_core::CollectionService::new(ferritedb_core::CollectionRepository::new(
+                db_pool.clone(),
+            )),
         ));
         let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
 
@@ -76,15 +80,13 @@ impl Server {
                     }
                 }
                 #[cfg(feature = "s3-storage")]
-                ferritedb_core::config::StorageBackend::S3 => {
-                    ferritedb_storage::StorageType::S3 {
-                        bucket: config.storage.s3.bucket.clone(),
-                        region: config.storage.s3.region.clone(),
-                        access_key_id: config.storage.s3.access_key_id.clone(),
-                        secret_access_key: config.storage.s3.secret_access_key.clone(),
-                        endpoint: config.storage.s3.endpoint.clone(),
-                    }
-                }
+                ferritedb_core::config::StorageBackend::S3 => ferritedb_storage::StorageType::S3 {
+                    bucket: config.storage.s3.bucket.clone(),
+                    region: config.storage.s3.region.clone(),
+                    access_key_id: config.storage.s3.access_key_id.clone(),
+                    secret_access_key: config.storage.s3.secret_access_key.clone(),
+                    endpoint: config.storage.s3.endpoint.clone(),
+                },
             },
             max_file_size: config.storage.local.max_file_size,
             allowed_extensions: vec![],
@@ -143,7 +145,10 @@ impl Server {
 
         info!("Server listening on http://{}", self.addr);
         info!("Health check available at http://{}/api/health", self.addr);
-        info!("WebSocket endpoint available at ws://{}/realtime", self.addr);
+        info!(
+            "WebSocket endpoint available at ws://{}/realtime",
+            self.addr
+        );
 
         // Start the server with graceful shutdown
         axum::serve(listener, self.router)
@@ -209,9 +214,7 @@ fn create_app_router(state: AppState, config: &ServerConfig) -> ServerResult<Rou
         .on_response(DefaultOnResponse::new().level(Level::INFO));
 
     // Create compression layer
-    let compression_layer = CompressionLayer::new()
-        .br(true)
-        .gzip(true);
+    let compression_layer = CompressionLayer::new().br(true).gzip(true);
 
     // Create timeout layer
     let timeout_layer = TimeoutLayer::new(Duration::from_secs(30));
@@ -224,15 +227,24 @@ fn create_app_router(state: AppState, config: &ServerConfig) -> ServerResult<Rou
     // Build the middleware stack
     let middleware_stack = ServiceBuilder::new()
         .layer(middleware::from_fn(request_id_middleware))
-        .layer(middleware::from_fn_with_state(security_config.clone(), security_headers_middleware))
-        .layer(middleware::from_fn_with_state(validation_config, input_validation_middleware))
-        .layer(middleware::from_fn_with_state(max_request_size, request_size_limit_middleware))
+        .layer(middleware::from_fn_with_state(
+            security_config.clone(),
+            security_headers_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            validation_config,
+            input_validation_middleware,
+        ))
+        .layer(middleware::from_fn_with_state(
+            max_request_size,
+            request_size_limit_middleware,
+        ))
         .layer(trace_layer)
         .layer(cors_layer)
         .layer(compression_layer)
         .layer(timeout_layer)
         .layer(middleware::from_fn(rate_limit_middleware));
-    
+
     // Add metrics middleware if feature is enabled
     #[cfg(feature = "metrics")]
     let middleware_stack = {
@@ -241,8 +253,7 @@ fn create_app_router(state: AppState, config: &ServerConfig) -> ServerResult<Rou
     };
 
     // Create the main router
-    let app_router = create_router(state)
-        .layer(middleware_stack);
+    let app_router = create_router(state).layer(middleware_stack);
 
     Ok(app_router)
 }
@@ -274,7 +285,7 @@ async fn shutdown_signal() {
             info!("Received SIGTERM, starting graceful shutdown...");
         },
     }
-    
+
     // Give some time for in-flight requests to complete
     info!("Waiting for in-flight requests to complete...");
     tokio::time::sleep(Duration::from_secs(1)).await;
