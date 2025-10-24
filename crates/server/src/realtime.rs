@@ -15,6 +15,7 @@ use std::{
     collections::HashMap,
     sync::{Arc, RwLock},
 };
+use tokio::sync::RwLock as AsyncRwLock;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
@@ -119,7 +120,7 @@ pub struct Connection {
 /// Realtime manager for handling WebSocket connections and event broadcasting
 #[derive(Clone)]
 pub struct RealtimeManager {
-    connections: Arc<RwLock<HashMap<Uuid, Connection>>>,
+    connections: Arc<AsyncRwLock<HashMap<Uuid, Connection>>>,
     event_sender: broadcast::Sender<RealtimeEvent>,
     rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
 }
@@ -130,7 +131,7 @@ impl RealtimeManager {
         let (event_sender, _) = broadcast::channel::<RealtimeEvent>(1000);
 
         Self {
-            connections: Arc::new(RwLock::new(HashMap::new())),
+            connections: Arc::new(AsyncRwLock::new(HashMap::new())),
             event_sender,
             rule_engine,
         }
@@ -150,11 +151,11 @@ impl RealtimeManager {
     }
 
     /// Add a new connection
-    pub fn add_connection(&self, connection: Connection) {
+    pub async fn add_connection(&self, connection: Connection) {
         let connection_id = connection.id;
         debug!("Adding connection: {}", connection_id);
 
-        let mut connections = self.connections.write().unwrap();
+        let mut connections = self.connections.write().await;
         connections.insert(connection_id, connection);
 
         info!(
@@ -165,10 +166,10 @@ impl RealtimeManager {
     }
 
     /// Remove a connection
-    pub fn remove_connection(&self, connection_id: Uuid) {
+    pub async fn remove_connection(&self, connection_id: Uuid) {
         debug!("Removing connection: {}", connection_id);
 
-        let mut connections = self.connections.write().unwrap();
+        let mut connections = self.connections.write().await;
         if connections.remove(&connection_id).is_some() {
             info!(
                 "Connection {} removed. Total connections: {}",
@@ -179,12 +180,12 @@ impl RealtimeManager {
     }
 
     /// Add a subscription to a connection
-    pub fn add_subscription(
+    pub async fn add_subscription(
         &self,
         connection_id: Uuid,
         subscription: Subscription,
     ) -> Result<(), String> {
-        let mut connections = self.connections.write().unwrap();
+        let mut connections = self.connections.write().await;
 
         if let Some(connection) = connections.get_mut(&connection_id) {
             debug!(
@@ -201,12 +202,12 @@ impl RealtimeManager {
     }
 
     /// Remove a subscription from a connection
-    pub fn remove_subscription(
+    pub async fn remove_subscription(
         &self,
         connection_id: Uuid,
         subscription_id: &str,
     ) -> Result<(), String> {
-        let mut connections = self.connections.write().unwrap();
+        let mut connections = self.connections.write().await;
 
         if let Some(connection) = connections.get_mut(&connection_id) {
             debug!(
@@ -332,7 +333,7 @@ impl RealtimeManager {
             mpsc::UnboundedSender<ServerMessage>,
             Vec<Subscription>,
         )> = {
-            let connections = self.connections.read().unwrap();
+            let connections = self.connections.read().await;
             connections
                 .values()
                 .map(|connection| {
@@ -378,13 +379,13 @@ impl RealtimeManager {
     }
 
     /// Broadcast an event immediately to all connections (used by CRUD operations)
-    pub fn broadcast_event_sync(&self, event: RealtimeEvent) {
+    pub async fn broadcast_event_sync(&self, event: RealtimeEvent) {
         debug!(
             "Broadcasting event synchronously for collection: {}",
             event.collection
         );
 
-        let connections = self.connections.read().unwrap();
+        let connections = self.connections.read().await;
         let mut sent_count = 0;
 
         for connection in connections.values() {
@@ -462,7 +463,7 @@ async fn handle_websocket(
     };
 
     // Add connection to manager
-    realtime_manager.add_connection(connection);
+    realtime_manager.add_connection(connection).await;
 
     // Subscribe to global events
     let mut event_receiver = realtime_manager.subscribe_to_events();
@@ -583,7 +584,7 @@ async fn handle_websocket(
 
     // Cleanup
     outgoing_task.abort();
-    realtime_manager.remove_connection(connection_id);
+    realtime_manager.remove_connection(connection_id).await;
     info!("WebSocket connection {} closed", connection_id);
 }
 
@@ -635,7 +636,7 @@ async fn handle_client_message(
             };
 
             // Add subscription to connection
-            realtime_manager.add_subscription(connection_id, subscription)?;
+            realtime_manager.add_subscription(connection_id, subscription).await?;
 
             // Send confirmation
             let response = ServerMessage::Subscribed { id, collection };
@@ -653,14 +654,14 @@ async fn handle_client_message(
             }
         }
         ClientMessage::Unsubscribe { id } => {
-            realtime_manager.remove_subscription(connection_id, &id)?;
+            realtime_manager.remove_subscription(connection_id, &id).await?;
 
             let response = ServerMessage::Unsubscribed { id };
 
             if let Some(connection) = realtime_manager
                 .connections
                 .read()
-                .unwrap()
+                .await
                 .get(&connection_id)
             {
                 connection

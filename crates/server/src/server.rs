@@ -10,7 +10,7 @@ use ferritedb_core::{
 use ferritedb_rules::RuleEngine;
 
 use std::{net::SocketAddr, sync::Arc, time::Duration};
-use tokio::signal;
+use tokio::{signal, sync::Mutex};
 use tower::ServiceBuilder;
 use tower_http::{
     compression::CompressionLayer,
@@ -69,7 +69,7 @@ impl Server {
                 db_pool.clone(),
             )),
         ));
-        let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
+        let rule_engine = Arc::new(Mutex::new(RuleEngine::new()));
 
         // Convert core storage config to storage crate config
         let storage_config = ferritedb_storage::StorageConfig {

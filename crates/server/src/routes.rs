@@ -19,6 +19,7 @@ use ferritedb_rules::{
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, error::Error};
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 /// Query parameters for listing records
@@ -442,7 +443,7 @@ pub struct AppState {
     pub user_repository: Arc<dyn UserRepository>,
     pub collection_service: Arc<dyn CollectionServiceTrait>,
     pub record_service: Arc<dyn RecordServiceTrait>,
-    pub rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
+    pub rule_engine: Arc<Mutex<RuleEngine>>,
     pub storage_backend: Arc<dyn ferritedb_storage::StorageBackend>,
     pub storage_config: ferritedb_storage::StorageConfig,
     pub realtime_manager: RealtimeManager,
@@ -546,17 +547,28 @@ async fn readiness_check(State(state): State<AppState>) -> ServerResult<Json<Val
 }
 
 /// Check database health
-async fn check_database_health(_state: &AppState) -> bool {
-    // TODO: Implement actual database health check
-    // For now, just return true since we're using mock services
-    true
+async fn check_database_health(state: &AppState) -> bool {
+    // Check if we can access the database by checking if sqlite_master table exists
+    match state.record_service.table_exists("sqlite_master").await {
+        Ok(true) => true,
+        _ => false,
+    }
 }
 
 /// Check storage backend health
-async fn check_storage_health(_state: &AppState) -> bool {
-    // TODO: Implement actual storage health check
-    // For now, just return true
-    true
+async fn check_storage_health(state: &AppState) -> bool {
+    match &state.storage_config.storage_type {
+        ferritedb_storage::StorageType::Local { path } => {
+            // Check if the base path exists and is accessible
+            tokio::fs::metadata(path).await.is_ok()
+        }
+        #[cfg(feature = "s3")]
+        ferritedb_storage::StorageType::S3 { bucket, .. } => {
+            // For S3, try to list objects or check bucket exists
+            // For now, assume healthy if bucket is not empty
+            !bucket.is_empty()
+        }
+    }
 }
 
 /// Metrics endpoint for Prometheus (behind feature flag)
@@ -759,7 +771,7 @@ async fn list_records(
 
     // Check access using rule engine
     let has_access = {
-        let mut rule_engine = state.rule_engine.lock().unwrap();
+        let mut rule_engine = state.rule_engine.lock().await;
         rule_engine
             .evaluate_collection_rule(&rules, RuleOperation::List, &context)
             .map_err(rule_error_to_server_error)?
@@ -861,7 +873,7 @@ async fn create_record(
 
     // Check access using rule engine
     let has_access = {
-        let mut rule_engine = state.rule_engine.lock().unwrap();
+        let mut rule_engine = state.rule_engine.lock().await;
         rule_engine
             .evaluate_collection_rule(&rules, RuleOperation::Create, &context)
             .map_err(rule_error_to_server_error)?
@@ -886,289 +898,13 @@ async fn create_record(
 
     // Publish realtime event
     let event = crate::realtime::RealtimeEvent {
-        event_type: crate::realtime::EventType::Created,
-        collection: collection_name,
-        record_id: record.id,
-        data: serde_json::to_value(&record.data).unwrap_or_default(),
-        timestamp: chrono::Utc::now(),
-    };
-    state.realtime_manager.broadcast_event_sync(event);
-
-    Ok(Json(record))
-}
-
-/// Get a single record by ID
-async fn get_record(
-    State(state): State<AppState>,
-    Path((collection_name, record_id)): Path<(String, String)>,
-    auth_user: AuthUser,
-) -> ServerResult<Json<Record>> {
-    // Parse record ID
-    let record_id = Uuid::parse_str(&record_id)
-        .map_err(|_| ServerError::BadRequest("Invalid record ID format".to_string()))?;
-
-    // Get collection to validate it exists and get rules
-    let collection = state
-        .collection_service
-        .get_collection(&collection_name)
-        .await
-        .map_err(ServerError::Core)?
-        .ok_or_else(|| {
-            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
-        })?;
-
-    // Get the record first
-    let record = state
-        .record_service
-        .get_record(&collection_name, record_id)
-        .await
-        .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound("Record not found".to_string()))?;
-
-    // Check view rule access with record context
-    let rules = CollectionRules {
-        list_rule: collection.list_rule.clone(),
-        view_rule: collection.view_rule.clone(),
-        create_rule: collection.create_rule.clone(),
-        update_rule: collection.update_rule.clone(),
-        delete_rule: collection.delete_rule.clone(),
-    };
-
-    // Create evaluation context with record data
-    let user = ferritedb_rules::evaluator::User {
-        id: auth_user.id,
-        email: auth_user.email.clone(),
-        role: match auth_user.role {
-            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
-            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
-            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
-        },
-        verified: auth_user.verified,
-        created_at: auth_user.created_at,
-        updated_at: auth_user.updated_at,
-    };
-
-    let record_data = serde_json::to_value(&record.data)
-        .map_err(|e| ServerError::Internal(format!("Failed to serialize record: {}", e)))?;
-
-    let context = EvaluationContext::new()
-        .with_user(user.clone())
-        .with_record(record_data)
-        .with_request(RequestContext::default());
-
-    // Check access using rule engine
-    let has_access = {
-        let mut rule_engine = state.rule_engine.lock().unwrap();
-        rule_engine
-            .evaluate_collection_rule(&rules, RuleOperation::View, &context)
-            .map_err(rule_error_to_server_error)?
-    };
-
-    if !has_access {
-        return Err(ServerError::Forbidden(
-            "Access denied to view this record".to_string(),
-        ));
-    }
-
-    // Apply field-level filtering
-    // For now, just return the record as-is - proper field filtering will be implemented later
-    Ok(Json(record))
-}
-
-/// Update a record by ID
-async fn update_record(
-    State(state): State<AppState>,
-    Path((collection_name, record_id)): Path<(String, String)>,
-    auth_user: AuthUser,
-    Json(request): Json<UpdateRecordRequest>,
-) -> ServerResult<Json<Record>> {
-    // Parse record ID
-    let record_id = Uuid::parse_str(&record_id)
-        .map_err(|_| ServerError::BadRequest("Invalid record ID format".to_string()))?;
-
-    // Get collection to validate it exists and get rules
-    let collection = state
-        .collection_service
-        .get_collection(&collection_name)
-        .await
-        .map_err(ServerError::Core)?
-        .ok_or_else(|| {
-            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
-        })?;
-
-    // Get the existing record first for rule evaluation
-    let existing_record = state
-        .record_service
-        .get_record(&collection_name, record_id)
-        .await
-        .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound("Record not found".to_string()))?;
-
-    // Check update rule access with existing record context
-    let rules = CollectionRules {
-        list_rule: collection.list_rule.clone(),
-        view_rule: collection.view_rule.clone(),
-        create_rule: collection.create_rule.clone(),
-        update_rule: collection.update_rule.clone(),
-        delete_rule: collection.delete_rule.clone(),
-    };
-
-    // Create evaluation context with existing record data
-    let user = ferritedb_rules::evaluator::User {
-        id: auth_user.id,
-        email: auth_user.email.clone(),
-        role: match auth_user.role {
-            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
-            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
-            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
-        },
-        verified: auth_user.verified,
-        created_at: auth_user.created_at,
-        updated_at: auth_user.updated_at,
-    };
-
-    let record_data = serde_json::to_value(&existing_record.data)
-        .map_err(|e| ServerError::Internal(format!("Failed to serialize record: {}", e)))?;
-
-    let context = EvaluationContext::new()
-        .with_user(user)
-        .with_record(record_data)
-        .with_request(RequestContext::default());
-
-    // Check access using rule engine
-    let has_access = {
-        let mut rule_engine = state.rule_engine.lock().unwrap();
-        rule_engine
-            .evaluate_collection_rule(&rules, RuleOperation::Update, &context)
-            .map_err(rule_error_to_server_error)?
-    };
-
-    if !has_access {
-        return Err(ServerError::Forbidden(
-            "Access denied to update this record".to_string(),
-        ));
-    }
-
-    // Convert request data to JSON Value
-    let update_data = serde_json::to_value(request.data)
-        .map_err(|e| ServerError::BadRequest(format!("Invalid update data: {}", e)))?;
-
-    // Update the record
-    let updated_record = state
-        .record_service
-        .update_record(&collection_name, record_id, update_data)
-        .await
-        .map_err(ServerError::Core)?;
-
-    // Publish realtime event
-    let event = crate::realtime::RealtimeEvent {
-        event_type: crate::realtime::EventType::Updated,
-        collection: collection_name,
-        record_id: updated_record.id,
-        data: serde_json::to_value(&updated_record.data).unwrap_or_default(),
-        timestamp: chrono::Utc::now(),
-    };
-    state.realtime_manager.broadcast_event_sync(event);
-
-    Ok(Json(updated_record))
-}
-
-/// Delete a record by ID
-async fn delete_record(
-    State(state): State<AppState>,
-    Path((collection_name, record_id)): Path<(String, String)>,
-    auth_user: AuthUser,
-) -> ServerResult<Json<serde_json::Value>> {
-    // Parse record ID
-    let record_id = Uuid::parse_str(&record_id)
-        .map_err(|_| ServerError::BadRequest("Invalid record ID format".to_string()))?;
-
-    // Get collection to validate it exists and get rules
-    let collection = state
-        .collection_service
-        .get_collection(&collection_name)
-        .await
-        .map_err(ServerError::Core)?
-        .ok_or_else(|| {
-            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
-        })?;
-
-    // Get the existing record first for rule evaluation
-    let existing_record = state
-        .record_service
-        .get_record(&collection_name, record_id)
-        .await
-        .map_err(ServerError::Core)?
-        .ok_or_else(|| ServerError::NotFound("Record not found".to_string()))?;
-
-    // Check delete rule access with existing record context
-    let rules = CollectionRules {
-        list_rule: collection.list_rule.clone(),
-        view_rule: collection.view_rule.clone(),
-        create_rule: collection.create_rule.clone(),
-        update_rule: collection.update_rule.clone(),
-        delete_rule: collection.delete_rule.clone(),
-    };
-
-    // Create evaluation context with existing record data
-    let user = ferritedb_rules::evaluator::User {
-        id: auth_user.id,
-        email: auth_user.email.clone(),
-        role: match auth_user.role {
-            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
-            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
-            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
-        },
-        verified: auth_user.verified,
-        created_at: auth_user.created_at,
-        updated_at: auth_user.updated_at,
-    };
-
-    let record_data = serde_json::to_value(&existing_record.data)
-        .map_err(|e| ServerError::Internal(format!("Failed to serialize record: {}", e)))?;
-
-    let context = EvaluationContext::new()
-        .with_user(user)
-        .with_record(record_data)
-        .with_request(RequestContext::default());
-
-    // Check access using rule engine
-    let has_access = {
-        let mut rule_engine = state.rule_engine.lock().unwrap();
-        rule_engine
-            .evaluate_collection_rule(&rules, RuleOperation::Delete, &context)
-            .map_err(rule_error_to_server_error)?
-    };
-
-    if !has_access {
-        return Err(ServerError::Forbidden(
-            "Access denied to delete this record".to_string(),
-        ));
-    }
-
-    // Clean up any files associated with this record before deletion
-    cleanup_record_files(&state, &collection, &existing_record).await?;
-
-    // Delete the record
-    let deleted = state
-        .record_service
-        .delete_record(&collection_name, record_id)
-        .await
-        .map_err(ServerError::Core)?;
-
-    if !deleted {
-        return Err(ServerError::NotFound("Record not found".to_string()));
-    }
-
-    // Publish realtime event (use existing record data before deletion)
-    let event = crate::realtime::RealtimeEvent {
         event_type: crate::realtime::EventType::Deleted,
         collection: collection_name,
         record_id,
         data: serde_json::to_value(&existing_record.data).unwrap_or_default(),
         timestamp: chrono::Utc::now(),
     };
-    state.realtime_manager.broadcast_event_sync(event);
+    state.realtime_manager.broadcast_event_sync(event).await;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -1319,7 +1055,7 @@ mod tests {
         // Create mock services for testing
         let collection_service = Arc::new(MockCollectionService);
         let record_service = Arc::new(MockRecordService);
-        let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
+        let rule_engine = Arc::new(Mutex::new(RuleEngine::new()));
 
         // Create mock storage for testing
         let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new(

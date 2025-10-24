@@ -6,6 +6,7 @@ use crate::{
 };
 use sqlx::Row;
 use std::collections::HashSet;
+use tracing::debug;
 
 /// Service for managing dynamic database schema changes
 #[derive(Clone)]
@@ -36,7 +37,7 @@ impl SchemaManager {
         let create_sql = self
             .collection_service
             .generate_create_table_sql(collection)?;
-        dbg!(&create_sql);
+        debug!("Creating table with SQL: {}", create_sql);
         sqlx::query(&create_sql).execute(&mut *tx).await?;
 
         // Create indexes for unique fields

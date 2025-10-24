@@ -522,7 +522,9 @@ impl CollectionService {
         });
 
         {
-            let properties = json_schema["properties"].as_object_mut().unwrap();
+            let properties = json_schema["properties"].as_object_mut().ok_or_else(|| {
+                CoreError::ValidationError("Expected JSON object for properties".to_string())
+            })?;
             for field in &schema.fields {
                 let field_schema = self.field_to_json_schema(field)?;
                 properties.insert(field.name.clone(), field_schema);
@@ -530,7 +532,9 @@ impl CollectionService {
         }
 
         {
-            let required = json_schema["required"].as_array_mut().unwrap();
+            let required = json_schema["required"].as_array_mut().ok_or_else(|| {
+                CoreError::ValidationError("Expected JSON array for required fields".to_string())
+            })?;
             for field in &schema.fields {
                 if field.required {
                     required.push(json!(field.name));

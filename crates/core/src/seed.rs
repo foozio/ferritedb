@@ -474,7 +474,9 @@ impl SeedService {
 
         let post_count = example_posts.len();
         for (owner, post_data) in example_posts {
-            let mut post_with_owner = post_data.as_object().unwrap().clone();
+            let mut post_with_owner = post_data.as_object().ok_or_else(|| {
+                CoreError::ValidationError("Post data must be a JSON object".to_string())
+            })?.clone();
             post_with_owner.insert("owner_id".to_string(), json!(owner.id.to_string()));
 
             self.record_service

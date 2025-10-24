@@ -43,7 +43,13 @@ impl FilterValue {
 #[derive(Clone)]
 enum FilterCondition {
     Equals { column: String, value: FilterValue },
+    NotEquals { column: String, value: FilterValue },
+    GreaterThan { column: String, value: FilterValue },
+    LessThan { column: String, value: FilterValue },
+    GreaterThanOrEqual { column: String, value: FilterValue },
+    LessThanOrEqual { column: String, value: FilterValue },
     IsNotNull { column: String },
+    IsNull { column: String },
 }
 
 impl RecordService {
@@ -581,8 +587,45 @@ impl RecordService {
             ));
         }
 
-        if let Some((field_name, raw_value)) = filter.split_once('=') {
-            let field_name = field_name.trim();
+        // Define operators in order of precedence (longest first to avoid partial matches)
+        let operators = [
+            ("!=", "NotEquals"),
+            (">=", "GreaterThanOrEqual"),
+            ("<=", "LessThanOrEqual"),
+            ("=", "Equals"),
+            (">", "GreaterThan"),
+            ("<", "LessThan"),
+        ];
+
+        for (op_str, op_name) in &operators {
+            if let Some((field_name, raw_value)) = filter.split_once(op_str) {
+                let field_name = field_name.trim();
+                let raw_value = raw_value.trim();
+                let column = self
+                    .resolve_filter_column(field_name, collection)
+                    .ok_or_else(|| {
+                        CoreError::ValidationError(format!(
+                            "Field '{}' not found in collection",
+                            field_name
+                        ))
+                    })?;
+
+                let value = self.parse_filter_value(field_name, raw_value, collection)?;
+                return match *op_name {
+                    "Equals" => Ok(FilterCondition::Equals { column, value }),
+                    "NotEquals" => Ok(FilterCondition::NotEquals { column, value }),
+                    "GreaterThan" => Ok(FilterCondition::GreaterThan { column, value }),
+                    "LessThan" => Ok(FilterCondition::LessThan { column, value }),
+                    "GreaterThanOrEqual" => Ok(FilterCondition::GreaterThanOrEqual { column, value }),
+                    "LessThanOrEqual" => Ok(FilterCondition::LessThanOrEqual { column, value }),
+                    _ => unreachable!(),
+                };
+            }
+        }
+
+        // Check for IS NULL / IS NOT NULL
+        if filter.ends_with(" IS NOT NULL") {
+            let field_name = filter.trim_end_matches(" IS NOT NULL").trim();
             let column = self
                 .resolve_filter_column(field_name, collection)
                 .ok_or_else(|| {
@@ -591,18 +634,30 @@ impl RecordService {
                         field_name
                     ))
                 })?;
-
-            let value = self.parse_filter_value(field_name, raw_value, collection)?;
-            Ok(FilterCondition::Equals { column, value })
-        } else {
-            let column = self
-                .resolve_filter_column(filter, collection)
-                .ok_or_else(|| {
-                    CoreError::ValidationError("Invalid filter expression".to_string())
-                })?;
-
-            Ok(FilterCondition::IsNotNull { column })
+            return Ok(FilterCondition::IsNotNull { column });
         }
+
+        if filter.ends_with(" IS NULL") {
+            let field_name = filter.trim_end_matches(" IS NULL").trim();
+            let column = self
+                .resolve_filter_column(field_name, collection)
+                .ok_or_else(|| {
+                    CoreError::ValidationError(format!(
+                        "Field '{}' not found in collection",
+                        field_name
+                    ))
+                })?;
+            return Ok(FilterCondition::IsNull { column });
+        }
+
+        // Default to IS NOT NULL if no operator
+        let column = self
+            .resolve_filter_column(filter, collection)
+            .ok_or_else(|| {
+                CoreError::ValidationError("Invalid filter expression".to_string())
+            })?;
+
+        Ok(FilterCondition::IsNotNull { column })
     }
 
     fn apply_filter_condition(
@@ -612,13 +667,42 @@ impl RecordService {
     ) {
         match condition {
             FilterCondition::Equals { column, value } => {
-                builder.push(column.as_str());
+                builder.push("\"").push(column).push("\"");
                 builder.push(" = ");
                 value.bind(builder);
             }
+            FilterCondition::NotEquals { column, value } => {
+                builder.push("\"").push(column).push("\"");
+                builder.push(" != ");
+                value.bind(builder);
+            }
+            FilterCondition::GreaterThan { column, value } => {
+                builder.push("\"").push(column).push("\"");
+                builder.push(" > ");
+                value.bind(builder);
+            }
+            FilterCondition::LessThan { column, value } => {
+                builder.push("\"").push(column).push("\"");
+                builder.push(" < ");
+                value.bind(builder);
+            }
+            FilterCondition::GreaterThanOrEqual { column, value } => {
+                builder.push("\"").push(column).push("\"");
+                builder.push(" >= ");
+                value.bind(builder);
+            }
+            FilterCondition::LessThanOrEqual { column, value } => {
+                builder.push("\"").push(column).push("\"");
+                builder.push(" <= ");
+                value.bind(builder);
+            }
             FilterCondition::IsNotNull { column } => {
-                builder.push(column.as_str());
+                builder.push("\"").push(column).push("\"");
                 builder.push(" IS NOT NULL");
+            }
+            FilterCondition::IsNull { column } => {
+                builder.push("\"").push(column).push("\"");
+                builder.push(" IS NULL");
             }
         }
     }
