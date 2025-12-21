@@ -270,18 +270,6 @@ impl RecordService {
             None => None,
         };
 
-        let filter_condition = match filter_expression.as_ref() {
-            Some(expression) => {
-                if !expression.operators.is_empty() {
-                    return Err(CoreError::ValidationError(
-                        "Invalid filter expression".to_string(),
-                    ));
-                }
-                Some(expression.conditions[0].clone())
-            }
-            None => None,
-        };
-
         let order_clause = if let Some(sort_expr) = sort {
             self.parse_sort_expression(sort_expr, &collection)?
         } else {
@@ -291,9 +279,19 @@ impl RecordService {
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new(format!("SELECT {} FROM {}", select_clause, table_name));
 
-        if let Some(condition) = filter_condition.as_ref() {
+        if let Some(expression) = filter_expression.as_ref() {
             query_builder.push(" WHERE ");
-            self.apply_filter_condition(&mut query_builder, condition);
+            for (index, condition) in expression.conditions.iter().enumerate() {
+                if index > 0 {
+                    match expression.operators[index - 1] {
+                        LogicalOp::And => query_builder.push(" AND "),
+                        LogicalOp::Or => query_builder.push(" OR "),
+                    };
+                }
+                query_builder.push("(");
+                self.apply_filter_condition(&mut query_builder, condition);
+                query_builder.push(")");
+            }
         }
 
         query_builder.push(" ORDER BY ");
@@ -332,24 +330,22 @@ impl RecordService {
             None => None,
         };
 
-        let filter_condition = match filter_expression.as_ref() {
-            Some(expression) => {
-                if !expression.operators.is_empty() {
-                    return Err(CoreError::ValidationError(
-                        "Invalid filter expression".to_string(),
-                    ));
-                }
-                Some(expression.conditions[0].clone())
-            }
-            None => None,
-        };
-
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new(format!("SELECT COUNT(*) as count FROM {}", table_name));
 
-        if let Some(condition) = filter_condition.as_ref() {
+        if let Some(expression) = filter_expression.as_ref() {
             query_builder.push(" WHERE ");
-            self.apply_filter_condition(&mut query_builder, condition);
+            for (index, condition) in expression.conditions.iter().enumerate() {
+                if index > 0 {
+                    match expression.operators[index - 1] {
+                        LogicalOp::And => query_builder.push(" AND "),
+                        LogicalOp::Or => query_builder.push(" OR "),
+                    };
+                }
+                query_builder.push("(");
+                self.apply_filter_condition(&mut query_builder, condition);
+                query_builder.push(")");
+            }
         }
 
         let row = query_builder.build().fetch_one(&self.pool).await?;
