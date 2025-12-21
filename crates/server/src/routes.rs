@@ -562,7 +562,7 @@ async fn check_storage_health(state: &AppState) -> bool {
             // Check if the base path exists and is accessible
             tokio::fs::metadata(path).await.is_ok()
         }
-        #[cfg(feature = "s3")]
+        #[cfg(feature = "s3-storage")]
         ferritedb_storage::StorageType::S3 { bucket, .. } => {
             // For S3, try to list objects or check bucket exists
             // For now, assume healthy if bucket is not empty
@@ -898,6 +898,242 @@ async fn create_record(
 
     // Publish realtime event
     let event = crate::realtime::RealtimeEvent {
+        event_type: crate::realtime::EventType::Created,
+        collection: collection_name.clone(),
+        record_id: record.id,
+        data: serde_json::to_value(&record.data).unwrap_or_default(),
+        timestamp: chrono::Utc::now(),
+    };
+    state.realtime_manager.broadcast_event_sync(event).await;
+
+    Ok(Json(record))
+}
+
+/// Get a record by ID
+async fn get_record(
+    State(state): State<AppState>,
+    Path((collection_name, record_id)): Path<(String, String)>,
+    auth_user: AuthUser,
+) -> ServerResult<Json<Record>> {
+    let record_id = Uuid::parse_str(&record_id)
+        .map_err(|_| ServerError::BadRequest("Invalid record ID".to_string()))?;
+
+    let collection = state
+        .collection_service
+        .get_collection(&collection_name)
+        .await
+        .map_err(ServerError::Core)?
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
+
+    let rules = CollectionRules {
+        list_rule: collection.list_rule.clone(),
+        view_rule: collection.view_rule.clone(),
+        create_rule: collection.create_rule.clone(),
+        update_rule: collection.update_rule.clone(),
+        delete_rule: collection.delete_rule.clone(),
+    };
+
+    let user = ferritedb_rules::evaluator::User {
+        id: auth_user.id,
+        email: auth_user.email.clone(),
+        role: match auth_user.role {
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
+        },
+        verified: auth_user.verified,
+        created_at: auth_user.created_at,
+        updated_at: auth_user.updated_at,
+    };
+
+    let context = EvaluationContext::new()
+        .with_user(user)
+        .with_request(RequestContext::default());
+
+    let has_access = {
+        let mut rule_engine = state.rule_engine.lock().await;
+        rule_engine
+            .evaluate_collection_rule(&rules, RuleOperation::View, &context)
+            .map_err(rule_error_to_server_error)?
+    };
+
+    if !has_access {
+        return Err(ServerError::Forbidden(
+            "Access denied to view records".to_string(),
+        ));
+    }
+
+    let record = state
+        .record_service
+        .get_record(&collection_name, record_id)
+        .await
+        .map_err(ServerError::Core)?
+        .ok_or_else(|| ServerError::NotFound("Record not found".to_string()))?;
+
+    Ok(Json(record))
+}
+
+/// Update a record by ID
+async fn update_record(
+    State(state): State<AppState>,
+    Path((collection_name, record_id)): Path<(String, String)>,
+    auth_user: AuthUser,
+    Json(request): Json<UpdateRecordRequest>,
+) -> ServerResult<Json<Record>> {
+    let record_id = Uuid::parse_str(&record_id)
+        .map_err(|_| ServerError::BadRequest("Invalid record ID".to_string()))?;
+
+    let collection = state
+        .collection_service
+        .get_collection(&collection_name)
+        .await
+        .map_err(ServerError::Core)?
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
+
+    let rules = CollectionRules {
+        list_rule: collection.list_rule.clone(),
+        view_rule: collection.view_rule.clone(),
+        create_rule: collection.create_rule.clone(),
+        update_rule: collection.update_rule.clone(),
+        delete_rule: collection.delete_rule.clone(),
+    };
+
+    let user = ferritedb_rules::evaluator::User {
+        id: auth_user.id,
+        email: auth_user.email.clone(),
+        role: match auth_user.role {
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
+        },
+        verified: auth_user.verified,
+        created_at: auth_user.created_at,
+        updated_at: auth_user.updated_at,
+    };
+
+    let context = EvaluationContext::new()
+        .with_user(user)
+        .with_request(RequestContext::default());
+
+    let has_access = {
+        let mut rule_engine = state.rule_engine.lock().await;
+        rule_engine
+            .evaluate_collection_rule(&rules, RuleOperation::Update, &context)
+            .map_err(rule_error_to_server_error)?
+    };
+
+    if !has_access {
+        return Err(ServerError::Forbidden(
+            "Access denied to update records".to_string(),
+        ));
+    }
+
+    let record_data = serde_json::to_value(request.data)
+        .map_err(|e| ServerError::BadRequest(format!("Invalid record data: {}", e)))?;
+
+    let record = state
+        .record_service
+        .update_record(&collection_name, record_id, record_data)
+        .await
+        .map_err(|err| match err {
+            ferritedb_core::CoreError::RecordNotFound(_) => {
+                ServerError::NotFound("Record not found".to_string())
+            }
+            _ => ServerError::Core(err),
+        })?;
+
+    let event = crate::realtime::RealtimeEvent {
+        event_type: crate::realtime::EventType::Updated,
+        collection: collection_name.clone(),
+        record_id: record.id,
+        data: serde_json::to_value(&record.data).unwrap_or_default(),
+        timestamp: chrono::Utc::now(),
+    };
+    state.realtime_manager.broadcast_event_sync(event).await;
+
+    Ok(Json(record))
+}
+
+/// Delete a record by ID
+async fn delete_record(
+    State(state): State<AppState>,
+    Path((collection_name, record_id)): Path<(String, String)>,
+    auth_user: AuthUser,
+) -> ServerResult<StatusCode> {
+    let record_id = Uuid::parse_str(&record_id)
+        .map_err(|_| ServerError::BadRequest("Invalid record ID".to_string()))?;
+
+    let collection = state
+        .collection_service
+        .get_collection(&collection_name)
+        .await
+        .map_err(ServerError::Core)?
+        .ok_or_else(|| {
+            ServerError::NotFound(format!("Collection '{}' not found", collection_name))
+        })?;
+
+    let rules = CollectionRules {
+        list_rule: collection.list_rule.clone(),
+        view_rule: collection.view_rule.clone(),
+        create_rule: collection.create_rule.clone(),
+        update_rule: collection.update_rule.clone(),
+        delete_rule: collection.delete_rule.clone(),
+    };
+
+    let user = ferritedb_rules::evaluator::User {
+        id: auth_user.id,
+        email: auth_user.email.clone(),
+        role: match auth_user.role {
+            UserRole::Admin => ferritedb_rules::evaluator::UserRole::Admin,
+            UserRole::User => ferritedb_rules::evaluator::UserRole::User,
+            UserRole::Service => ferritedb_rules::evaluator::UserRole::Service,
+        },
+        verified: auth_user.verified,
+        created_at: auth_user.created_at,
+        updated_at: auth_user.updated_at,
+    };
+
+    let context = EvaluationContext::new()
+        .with_user(user)
+        .with_request(RequestContext::default());
+
+    let has_access = {
+        let mut rule_engine = state.rule_engine.lock().await;
+        rule_engine
+            .evaluate_collection_rule(&rules, RuleOperation::Delete, &context)
+            .map_err(rule_error_to_server_error)?
+    };
+
+    if !has_access {
+        return Err(ServerError::Forbidden(
+            "Access denied to delete records".to_string(),
+        ));
+    }
+
+    let existing_record = state
+        .record_service
+        .get_record(&collection_name, record_id)
+        .await
+        .map_err(ServerError::Core)?
+        .ok_or_else(|| ServerError::NotFound("Record not found".to_string()))?;
+
+    cleanup_record_files(&state, &collection, &existing_record).await?;
+
+    let deleted = state
+        .record_service
+        .delete_record(&collection_name, record_id)
+        .await
+        .map_err(ServerError::Core)?;
+
+    if !deleted {
+        return Err(ServerError::NotFound("Record not found".to_string()));
+    }
+
+    let event = crate::realtime::RealtimeEvent {
         event_type: crate::realtime::EventType::Deleted,
         collection: collection_name,
         record_id,
@@ -906,10 +1142,7 @@ async fn create_record(
     };
     state.realtime_manager.broadcast_event_sync(event).await;
 
-    Ok(Json(serde_json::json!({
-        "success": true,
-        "message": "Record deleted successfully"
-    })))
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// File upload endpoint wrapper

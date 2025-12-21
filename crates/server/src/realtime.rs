@@ -13,7 +13,7 @@ use ferritedb_rules::{
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
-    sync::{Arc, RwLock},
+    sync::Arc,
 };
 use tokio::sync::RwLock as AsyncRwLock;
 use tokio::sync::{broadcast, mpsc};
@@ -22,7 +22,7 @@ use uuid::Uuid;
 
 use crate::{
     middleware::AuthUser,
-    routes::{AppState, CollectionServiceTrait},
+    routes::AppState,
 };
 
 /// WebSocket connection query parameters for authentication
@@ -122,12 +122,12 @@ pub struct Connection {
 pub struct RealtimeManager {
     connections: Arc<AsyncRwLock<HashMap<Uuid, Connection>>>,
     event_sender: broadcast::Sender<RealtimeEvent>,
-    rule_engine: Arc<std::sync::Mutex<RuleEngine>>,
+    rule_engine: Arc<tokio::sync::Mutex<RuleEngine>>,
 }
 
 impl RealtimeManager {
     /// Create a new realtime manager
-    pub fn new(rule_engine: Arc<std::sync::Mutex<RuleEngine>>) -> Self {
+    pub fn new(rule_engine: Arc<tokio::sync::Mutex<RuleEngine>>) -> Self {
         let (event_sender, _) = broadcast::channel::<RealtimeEvent>(1000);
 
         Self {
@@ -265,7 +265,7 @@ impl RealtimeManager {
             .with_request(RequestContext::default());
 
         // Check list access (for subscriptions, we use list rule)
-        let mut rule_engine = self.rule_engine.lock().unwrap();
+        let mut rule_engine = self.rule_engine.lock().await;
         rule_engine
             .evaluate_collection_rule(&rules, RuleOperation::List, &context)
             .map_err(|e| format!("Rule evaluation failed: {}", e))
@@ -553,7 +553,7 @@ async fn handle_websocket(
                     if let Some(connection) = realtime_manager
                         .connections
                         .read()
-                        .unwrap()
+                        .await
                         .get(&connection_id)
                     {
                         if let Err(send_err) = connection.sender.send(error_msg) {
@@ -644,7 +644,7 @@ async fn handle_client_message(
             if let Some(connection) = realtime_manager
                 .connections
                 .read()
-                .unwrap()
+                .await
                 .get(&connection_id)
             {
                 connection
@@ -676,7 +676,7 @@ async fn handle_client_message(
             if let Some(connection) = realtime_manager
                 .connections
                 .read()
-                .unwrap()
+                .await
                 .get(&connection_id)
             {
                 connection
@@ -721,12 +721,12 @@ mod tests {
     #[test]
     fn test_realtime_manager_creation() {
         let auth_service = Arc::new(MockAuthService::new());
-        let rule_engine = Arc::new(std::sync::Mutex::new(MockRuleEngine::new()));
+        let rule_engine = Arc::new(tokio::sync::Mutex::new(MockRuleEngine::new()));
 
         // Create a simple manager for testing
         let (event_sender, _) = broadcast::channel::<RealtimeEvent>(1000);
-        let connections: Arc<RwLock<HashMap<Uuid, Connection>>> =
-            Arc::new(RwLock::new(HashMap::new()));
+        let connections: Arc<std::sync::RwLock<HashMap<Uuid, Connection>>> =
+            Arc::new(std::sync::RwLock::new(HashMap::new()));
 
         // Test that we can create the basic structure
         assert!(connections.read().unwrap().is_empty());

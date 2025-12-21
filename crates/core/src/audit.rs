@@ -183,9 +183,9 @@ impl AuditLogger {
         // Use dynamic query to handle both old and new schema
         let query = r#"
             INSERT INTO audit_log (
-                id, user_id, action, resource_type, resource_id, 
-                details_json, ip_address, user_agent, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                id, user_id, action, resource_type, resource_id,
+                details_json, ip_address, user_agent, request_id, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#;
 
         sqlx::query(query)
@@ -197,6 +197,7 @@ impl AuditLogger {
             .bind(details_json)
             .bind(&entry.ip_address)
             .bind(&entry.user_agent)
+            .bind(&entry.request_id)
             .bind(entry.created_at)
             .execute(&self.pool)
             .await?;
@@ -216,7 +217,7 @@ impl AuditLogger {
         offset: i64,
     ) -> CoreResult<Vec<AuditLogEntry>> {
         let mut builder = QueryBuilder::<Sqlite>::new(
-            "SELECT id, user_id, action, resource_type, resource_id, details_json, ip_address, user_agent, created_at FROM audit_log WHERE 1=1",
+            "SELECT id, user_id, action, resource_type, resource_id, details_json, ip_address, user_agent, request_id, created_at FROM audit_log WHERE 1=1",
         );
 
         if let Some(user_id) = user_id {
@@ -240,13 +241,13 @@ impl AuditLogger {
         if let Some(start_date) = start_date {
             builder
                 .push(" AND created_at >= ")
-                .push_bind(start_date.to_rfc3339());
+                .push_bind(start_date);
         }
 
         if let Some(end_date) = end_date {
             builder
                 .push(" AND created_at <= ")
-                .push_bind(end_date.to_rfc3339());
+                .push_bind(end_date);
         }
 
         builder
@@ -266,6 +267,7 @@ impl AuditLogger {
             let details_json: Option<String> = row.get("details_json");
             let ip_address: Option<String> = row.get("ip_address");
             let user_agent: Option<String> = row.get("user_agent");
+            let request_id: Option<String> = row.get("request_id");
             let created_at: chrono::NaiveDateTime = row.get("created_at");
 
             let entry = self.create_audit_entry_from_values(
@@ -277,7 +279,7 @@ impl AuditLogger {
                 details_json,
                 ip_address,
                 user_agent,
-                None,
+                request_id,
                 created_at,
             )?;
             entries.push(entry);
