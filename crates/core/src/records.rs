@@ -52,18 +52,6 @@ enum FilterCondition {
     IsNull { column: String },
 }
 
-#[derive(Clone)]
-enum LogicalOp {
-    And,
-    Or,
-}
-
-#[derive(Clone)]
-struct FilterExpression {
-    conditions: Vec<FilterCondition>,
-    operators: Vec<LogicalOp>,
-}
-
 impl RecordService {
     pub fn new(pool: DatabasePool, collection_service: CollectionService) -> Self {
         Self {
@@ -265,8 +253,8 @@ impl RecordService {
             "*".to_string()
         };
 
-        let filter_expression = match filter {
-            Some(filter_expr) => Some(self.parse_filter_expression(filter_expr, &collection)?),
+        let filter_condition = match filter {
+            Some(filter_expr) => Some(self.parse_filter_condition(filter_expr, &collection)?),
             None => None,
         };
 
@@ -279,19 +267,9 @@ impl RecordService {
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new(format!("SELECT {} FROM {}", select_clause, table_name));
 
-        if let Some(expression) = filter_expression.as_ref() {
+        if let Some(condition) = filter_condition.as_ref() {
             query_builder.push(" WHERE ");
-            for (index, condition) in expression.conditions.iter().enumerate() {
-                if index > 0 {
-                    match expression.operators[index - 1] {
-                        LogicalOp::And => query_builder.push(" AND "),
-                        LogicalOp::Or => query_builder.push(" OR "),
-                    };
-                }
-                query_builder.push("(");
-                self.apply_filter_condition(&mut query_builder, condition);
-                query_builder.push(")");
-            }
+            self.apply_filter_condition(&mut query_builder, condition);
         }
 
         query_builder.push(" ORDER BY ");
@@ -325,27 +303,17 @@ impl RecordService {
             .ok_or_else(|| CoreError::CollectionNotFound(collection_name.to_string()))?;
 
         let table_name = self.collection_service.get_table_name(collection_name);
-        let filter_expression = match filter {
-            Some(filter_expr) => Some(self.parse_filter_expression(filter_expr, &collection)?),
+        let filter_condition = match filter {
+            Some(filter_expr) => Some(self.parse_filter_condition(filter_expr, &collection)?),
             None => None,
         };
 
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new(format!("SELECT COUNT(*) as count FROM {}", table_name));
 
-        if let Some(expression) = filter_expression.as_ref() {
+        if let Some(condition) = filter_condition.as_ref() {
             query_builder.push(" WHERE ");
-            for (index, condition) in expression.conditions.iter().enumerate() {
-                if index > 0 {
-                    match expression.operators[index - 1] {
-                        LogicalOp::And => query_builder.push(" AND "),
-                        LogicalOp::Or => query_builder.push(" OR "),
-                    };
-                }
-                query_builder.push("(");
-                self.apply_filter_condition(&mut query_builder, condition);
-                query_builder.push(")");
-            }
+            self.apply_filter_condition(&mut query_builder, condition);
         }
 
         let row = query_builder.build().fetch_one(&self.pool).await?;
@@ -606,142 +574,7 @@ impl RecordService {
         })
     }
 
-    /// Parse filter expression into a structured expression
-    fn parse_filter_expression(
-        &self,
-        filter: &str,
-        collection: &Collection,
-    ) -> CoreResult<FilterExpression> {
-        let filter = filter.trim();
-        if filter.is_empty() {
-            return Err(CoreError::ValidationError(
-                "Filter expression cannot be empty".to_string(),
-            ));
-        }
-
-        let tokens = self.tokenize_filter_expression(filter)?;
-        if tokens.is_empty() {
-            return Err(CoreError::ValidationError(
-                "Invalid filter expression".to_string(),
-            ));
-        }
-
-        let mut conditions = Vec::new();
-        let mut operators = Vec::new();
-        let mut expect_condition = true;
-
-        for token in tokens {
-            if expect_condition {
-                if token.is_empty()
-                    || token.eq_ignore_ascii_case("AND")
-                    || token.eq_ignore_ascii_case("OR")
-                {
-                    return Err(CoreError::ValidationError(
-                        "Invalid filter expression".to_string(),
-                    ));
-                }
-                conditions.push(self.parse_filter_condition(&token, collection)?);
-                expect_condition = false;
-            } else {
-                match token.to_uppercase().as_str() {
-                    "AND" => operators.push(LogicalOp::And),
-                    "OR" => operators.push(LogicalOp::Or),
-                    _ => {
-                        return Err(CoreError::ValidationError(
-                            "Invalid filter expression".to_string(),
-                        ));
-                    }
-                }
-                expect_condition = true;
-            }
-        }
-
-        if expect_condition || conditions.len() != operators.len() + 1 {
-            return Err(CoreError::ValidationError(
-                "Invalid filter expression".to_string(),
-            ));
-        }
-
-        Ok(FilterExpression {
-            conditions,
-            operators,
-        })
-    }
-
-    fn tokenize_filter_expression(&self, filter: &str) -> CoreResult<Vec<String>> {
-        let bytes = filter.as_bytes();
-        let mut tokens = Vec::new();
-        let mut current = String::new();
-        let mut in_single = false;
-        let mut in_double = false;
-        let mut i = 0;
-
-        while i < bytes.len() {
-            let byte = bytes[i];
-            match byte {
-                b'\'' if !in_double => {
-                    in_single = !in_single;
-                    current.push('\'');
-                    i += 1;
-                    continue;
-                }
-                b'"' if !in_single => {
-                    in_double = !in_double;
-                    current.push('"');
-                    i += 1;
-                    continue;
-                }
-                _ => {}
-            }
-
-            if !in_single && !in_double {
-                if i + 3 <= bytes.len() {
-                    let slice = &bytes[i..i + 3];
-                    let prev_boundary = i == 0 || bytes[i - 1].is_ascii_whitespace();
-                    let next_boundary =
-                        i + 3 == bytes.len() || bytes[i + 3].is_ascii_whitespace();
-                    if slice.eq_ignore_ascii_case(b"AND") && prev_boundary && next_boundary {
-                        tokens.push(current.trim().to_string());
-                        tokens.push("AND".to_string());
-                        current.clear();
-                        i += 3;
-                        continue;
-                    }
-                }
-
-                if i + 2 <= bytes.len() {
-                    let slice = &bytes[i..i + 2];
-                    let prev_boundary = i == 0 || bytes[i - 1].is_ascii_whitespace();
-                    let next_boundary =
-                        i + 2 == bytes.len() || bytes[i + 2].is_ascii_whitespace();
-                    if slice.eq_ignore_ascii_case(b"OR") && prev_boundary && next_boundary {
-                        tokens.push(current.trim().to_string());
-                        tokens.push("OR".to_string());
-                        current.clear();
-                        i += 2;
-                        continue;
-                    }
-                }
-            }
-
-            current.push(byte as char);
-            i += 1;
-        }
-
-        if in_single || in_double {
-            return Err(CoreError::ValidationError(
-                "Invalid filter expression".to_string(),
-            ));
-        }
-
-        if !current.trim().is_empty() {
-            tokens.push(current.trim().to_string());
-        }
-
-        Ok(tokens)
-    }
-
-    /// Parse a single filter condition into a structured condition
+    /// Parse filter expression into a structured condition
     fn parse_filter_condition(
         &self,
         filter: &str,
@@ -1653,7 +1486,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_filter_expression_rejects_invalid_operator_sequence() {
+    async fn test_filter_expression_with_and_or_conditions() {
         let (_dir, db, collection_service, record_service) = setup_test_services().await;
         let collection = create_test_collection(&collection_service).await;
 
@@ -1662,15 +1495,57 @@ mod tests {
             .await
             .unwrap();
 
-        let result = record_service
-            .list_records_with_query("test_posts", 10, 0, Some("title = 'Hello' AND"), None, None)
-            .await;
+        let record_a = json!({
+            "title": "Hello",
+            "content": "First",
+            "score": 10.0,
+            "published": true
+        });
+        let record_b = json!({
+            "title": "Hello",
+            "content": "Second",
+            "score": 20.0,
+            "published": false
+        });
+        let record_c = json!({
+            "title": "Goodbye",
+            "content": "Third",
+            "score": 30.0,
+            "published": true
+        });
 
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Invalid filter expression"));
+        record_service
+            .create_record("test_posts", record_a)
+            .await
+            .unwrap();
+        record_service
+            .create_record("test_posts", record_b)
+            .await
+            .unwrap();
+        record_service
+            .create_record("test_posts", record_c)
+            .await
+            .unwrap();
+
+        let results = record_service
+            .list_records_with_query(
+                "test_posts",
+                10,
+                0,
+                Some("title = 'Hello' AND published = true OR score >= 30"),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+        let titles: Vec<&str> = results
+            .iter()
+            .map(|record| record.data.get("title").and_then(|v| v.as_str()).unwrap())
+            .collect();
+        assert!(titles.contains(&"Hello"));
+        assert!(titles.contains(&"Goodbye"));
 
         db.close().await;
     }
