@@ -52,6 +52,18 @@ enum FilterCondition {
     IsNull { column: String },
 }
 
+#[derive(Clone)]
+enum LogicalOp {
+    And,
+    Or,
+}
+
+#[derive(Clone)]
+struct FilterExpression {
+    conditions: Vec<FilterCondition>,
+    operators: Vec<LogicalOp>,
+}
+
 impl RecordService {
     pub fn new(pool: DatabasePool, collection_service: CollectionService) -> Self {
         Self {
@@ -253,8 +265,20 @@ impl RecordService {
             "*".to_string()
         };
 
-        let filter_condition = match filter {
-            Some(filter_expr) => Some(self.parse_filter_condition(filter_expr, &collection)?),
+        let filter_expression = match filter {
+            Some(filter_expr) => Some(self.parse_filter_expression(filter_expr, &collection)?),
+            None => None,
+        };
+
+        let filter_condition = match filter_expression.as_ref() {
+            Some(expression) => {
+                if !expression.operators.is_empty() {
+                    return Err(CoreError::ValidationError(
+                        "Invalid filter expression".to_string(),
+                    ));
+                }
+                Some(expression.conditions[0].clone())
+            }
             None => None,
         };
 
@@ -303,8 +327,20 @@ impl RecordService {
             .ok_or_else(|| CoreError::CollectionNotFound(collection_name.to_string()))?;
 
         let table_name = self.collection_service.get_table_name(collection_name);
-        let filter_condition = match filter {
-            Some(filter_expr) => Some(self.parse_filter_condition(filter_expr, &collection)?),
+        let filter_expression = match filter {
+            Some(filter_expr) => Some(self.parse_filter_expression(filter_expr, &collection)?),
+            None => None,
+        };
+
+        let filter_condition = match filter_expression.as_ref() {
+            Some(expression) => {
+                if !expression.operators.is_empty() {
+                    return Err(CoreError::ValidationError(
+                        "Invalid filter expression".to_string(),
+                    ));
+                }
+                Some(expression.conditions[0].clone())
+            }
             None => None,
         };
 
@@ -574,7 +610,142 @@ impl RecordService {
         })
     }
 
-    /// Parse filter expression into a structured condition
+    /// Parse filter expression into a structured expression
+    fn parse_filter_expression(
+        &self,
+        filter: &str,
+        collection: &Collection,
+    ) -> CoreResult<FilterExpression> {
+        let filter = filter.trim();
+        if filter.is_empty() {
+            return Err(CoreError::ValidationError(
+                "Filter expression cannot be empty".to_string(),
+            ));
+        }
+
+        let tokens = self.tokenize_filter_expression(filter)?;
+        if tokens.is_empty() {
+            return Err(CoreError::ValidationError(
+                "Invalid filter expression".to_string(),
+            ));
+        }
+
+        let mut conditions = Vec::new();
+        let mut operators = Vec::new();
+        let mut expect_condition = true;
+
+        for token in tokens {
+            if expect_condition {
+                if token.is_empty()
+                    || token.eq_ignore_ascii_case("AND")
+                    || token.eq_ignore_ascii_case("OR")
+                {
+                    return Err(CoreError::ValidationError(
+                        "Invalid filter expression".to_string(),
+                    ));
+                }
+                conditions.push(self.parse_filter_condition(&token, collection)?);
+                expect_condition = false;
+            } else {
+                match token.to_uppercase().as_str() {
+                    "AND" => operators.push(LogicalOp::And),
+                    "OR" => operators.push(LogicalOp::Or),
+                    _ => {
+                        return Err(CoreError::ValidationError(
+                            "Invalid filter expression".to_string(),
+                        ));
+                    }
+                }
+                expect_condition = true;
+            }
+        }
+
+        if expect_condition || conditions.len() != operators.len() + 1 {
+            return Err(CoreError::ValidationError(
+                "Invalid filter expression".to_string(),
+            ));
+        }
+
+        Ok(FilterExpression {
+            conditions,
+            operators,
+        })
+    }
+
+    fn tokenize_filter_expression(&self, filter: &str) -> CoreResult<Vec<String>> {
+        let bytes = filter.as_bytes();
+        let mut tokens = Vec::new();
+        let mut current = String::new();
+        let mut in_single = false;
+        let mut in_double = false;
+        let mut i = 0;
+
+        while i < bytes.len() {
+            let byte = bytes[i];
+            match byte {
+                b'\'' if !in_double => {
+                    in_single = !in_single;
+                    current.push('\'');
+                    i += 1;
+                    continue;
+                }
+                b'"' if !in_single => {
+                    in_double = !in_double;
+                    current.push('"');
+                    i += 1;
+                    continue;
+                }
+                _ => {}
+            }
+
+            if !in_single && !in_double {
+                if i + 3 <= bytes.len() {
+                    let slice = &bytes[i..i + 3];
+                    let prev_boundary = i == 0 || bytes[i - 1].is_ascii_whitespace();
+                    let next_boundary =
+                        i + 3 == bytes.len() || bytes[i + 3].is_ascii_whitespace();
+                    if slice.eq_ignore_ascii_case(b"AND") && prev_boundary && next_boundary {
+                        tokens.push(current.trim().to_string());
+                        tokens.push("AND".to_string());
+                        current.clear();
+                        i += 3;
+                        continue;
+                    }
+                }
+
+                if i + 2 <= bytes.len() {
+                    let slice = &bytes[i..i + 2];
+                    let prev_boundary = i == 0 || bytes[i - 1].is_ascii_whitespace();
+                    let next_boundary =
+                        i + 2 == bytes.len() || bytes[i + 2].is_ascii_whitespace();
+                    if slice.eq_ignore_ascii_case(b"OR") && prev_boundary && next_boundary {
+                        tokens.push(current.trim().to_string());
+                        tokens.push("OR".to_string());
+                        current.clear();
+                        i += 2;
+                        continue;
+                    }
+                }
+            }
+
+            current.push(byte as char);
+            i += 1;
+        }
+
+        if in_single || in_double {
+            return Err(CoreError::ValidationError(
+                "Invalid filter expression".to_string(),
+            ));
+        }
+
+        if !current.trim().is_empty() {
+            tokens.push(current.trim().to_string());
+        }
+
+        Ok(tokens)
+    }
+
+    /// Parse a single filter condition into a structured condition
     fn parse_filter_condition(
         &self,
         filter: &str,
@@ -1481,6 +1652,29 @@ mod tests {
             .collect();
         assert!(titles.contains(&"Hello"));
         assert!(titles.contains(&"Goodbye"));
+
+        db.close().await;
+    }
+
+    #[tokio::test]
+    async fn test_filter_expression_rejects_invalid_operator_sequence() {
+        let (_dir, db, collection_service, record_service) = setup_test_services().await;
+        let collection = create_test_collection(&collection_service).await;
+
+        record_service
+            .create_collection_table(&collection)
+            .await
+            .unwrap();
+
+        let result = record_service
+            .list_records_with_query("test_posts", 10, 0, Some("title = 'Hello' AND"), None, None)
+            .await;
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid filter expression"));
 
         db.close().await;
     }
