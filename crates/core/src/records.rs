@@ -1419,4 +1419,69 @@ mod tests {
 
         db.close().await;
     }
+
+    #[tokio::test]
+    async fn test_filter_expression_with_and_or_conditions() {
+        let (_dir, db, collection_service, record_service) = setup_test_services().await;
+        let collection = create_test_collection(&collection_service).await;
+
+        record_service
+            .create_collection_table(&collection)
+            .await
+            .unwrap();
+
+        let record_a = json!({
+            "title": "Hello",
+            "content": "First",
+            "score": 10.0,
+            "published": true
+        });
+        let record_b = json!({
+            "title": "Hello",
+            "content": "Second",
+            "score": 20.0,
+            "published": false
+        });
+        let record_c = json!({
+            "title": "Goodbye",
+            "content": "Third",
+            "score": 30.0,
+            "published": true
+        });
+
+        record_service
+            .create_record("test_posts", record_a)
+            .await
+            .unwrap();
+        record_service
+            .create_record("test_posts", record_b)
+            .await
+            .unwrap();
+        record_service
+            .create_record("test_posts", record_c)
+            .await
+            .unwrap();
+
+        let results = record_service
+            .list_records_with_query(
+                "test_posts",
+                10,
+                0,
+                Some("title = 'Hello' AND published = true OR score >= 30"),
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(results.len(), 2);
+        let titles: Vec<&str> = results
+            .iter()
+            .map(|record| record.data.get("title").and_then(|v| v.as_str()).unwrap())
+            .collect();
+        assert!(titles.contains(&"Hello"));
+        assert!(titles.contains(&"Goodbye"));
+
+        db.close().await;
+    }
 }
