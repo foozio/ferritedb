@@ -9,7 +9,7 @@
 
 ## Phase 2: Metrics Infrastructure
 - [x] Task: Add `metrics` and `metrics-exporter-prometheus` dependencies to `ferritedb-server` and `ferritedb-core`. 717f8e6
-- [ ] Task: Initialize the Prometheus recorder in `ferritedb-server` startup logic.
+- [x] Task: Initialize the Prometheus recorder in `ferritedb-server` startup logic. aaeddba
 - [ ] Task: Create a `/metrics` endpoint in `ferritedb-server` that returns the rendered Prometheus text format.
 - [ ] Task: Conductor - User Manual Verification 'Metrics Infrastructure' (Protocol in workflow.md)
 
