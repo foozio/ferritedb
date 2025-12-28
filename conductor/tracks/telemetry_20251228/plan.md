@@ -3,7 +3,7 @@
 ## Phase 1: Foundation & Logging
 - [x] Task: Set up `tracing-subscriber` in `ferritedb-server` main entry point with JSON formatting support. bbd32d7
 - [x] Task: Create a `TelemetryConfig` struct in `ferritedb-core` to manage log levels and formats. b978bcb
-- [ ] Task: Replace all `println!` and `eprintln!` calls in `ferritedb-server` with `tracing` macros (info!, error!, etc.).
+- [x] Task: Replace all `println!` and `eprintln!` calls in `ferritedb-server` with `tracing` macros (info!, error!, etc.). 4a8534a
 - [ ] Task: Implement request ID middleware in `ferritedb-server` to attach a unique ID to every request span.
 - [ ] Task: Conductor - User Manual Verification 'Foundation & Logging' (Protocol in workflow.md)
 
