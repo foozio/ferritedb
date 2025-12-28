@@ -19,7 +19,7 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 use tower::ServiceExt;
 use uuid::Uuid;
 

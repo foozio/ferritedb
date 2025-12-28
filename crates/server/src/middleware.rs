@@ -134,9 +134,13 @@ pub async fn admin_middleware(request: Request, next: Next) -> Result<Response, 
 /// Request ID middleware that adds correlation IDs to requests
 pub async fn request_id_middleware(mut request: Request, next: Next) -> Response {
     use axum::http::HeaderName;
+    use tracing::Span;
 
     // Generate a unique request ID
     let request_id = Uuid::new_v4().to_string();
+
+    // Attach request ID to the current tracing span
+    Span::current().record("request_id", &request_id);
 
     // Add request ID to request extensions for use in handlers
     request
@@ -195,4 +199,37 @@ pub async fn metrics_middleware(request: Request, next: Next) -> Response {
     );
 
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+        middleware::from_fn,
+        routing::get,
+        Router,
+    };
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn test_request_id_middleware() {
+        let app = Router::new()
+            .route("/", get(|| async { "hello" }))
+            .layer(from_fn(request_id_middleware));
+
+        let response = app
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::OK);
+        
+        let header_value = response.headers().get("x-request-id").unwrap();
+        let request_id_str = header_value.to_str().unwrap();
+        
+        // Should be a valid UUID
+        assert!(Uuid::parse_str(request_id_str).is_ok());
+    }
 }

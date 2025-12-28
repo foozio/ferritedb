@@ -313,9 +313,9 @@ impl UserRepository for MockUserRepository {
     }
 }
 
-// Mock CollectionService implementation
-impl MockCollectionService {
-    pub async fn get_collection(
+#[axum::async_trait]
+impl CollectionServiceTrait for MockCollectionService {
+    async fn get_collection(
         &self,
         _name: &str,
     ) -> ferritedb_core::CoreResult<Option<ferritedb_core::models::Collection>> {
@@ -324,8 +324,9 @@ impl MockCollectionService {
 }
 
 // Mock RecordService implementation
-impl MockRecordService {
-    pub async fn list_records(
+#[axum::async_trait]
+impl RecordServiceTrait for MockRecordService {
+    async fn list_records(
         &self,
         _collection_name: &str,
         _limit: i64,
@@ -334,7 +335,7 @@ impl MockRecordService {
         Ok(Vec::new())
     }
 
-    pub async fn list_records_with_query(
+    async fn list_records_with_query(
         &self,
         _collection_name: &str,
         _limit: i64,
@@ -346,7 +347,7 @@ impl MockRecordService {
         Ok(Vec::new())
     }
 
-    pub async fn create_record(
+    async fn create_record(
         &self,
         _collection_name: &str,
         _data: serde_json::Value,
@@ -361,7 +362,7 @@ impl MockRecordService {
         })
     }
 
-    pub async fn get_record(
+    async fn get_record(
         &self,
         _collection_name: &str,
         _record_id: Uuid,
@@ -369,7 +370,7 @@ impl MockRecordService {
         Ok(None)
     }
 
-    pub async fn update_record(
+    async fn update_record(
         &self,
         _collection_name: &str,
         _record_id: Uuid,
@@ -385,7 +386,7 @@ impl MockRecordService {
         })
     }
 
-    pub async fn delete_record(
+    async fn delete_record(
         &self,
         _collection_name: &str,
         _record_id: Uuid,
@@ -393,16 +394,20 @@ impl MockRecordService {
         Ok(true)
     }
 
-    pub async fn count_records(&self, _collection_name: &str) -> ferritedb_core::CoreResult<i64> {
+    async fn count_records(&self, _collection_name: &str) -> ferritedb_core::CoreResult<i64> {
         Ok(0)
     }
 
-    pub async fn count_records_with_filter(
+    async fn count_records_with_filter(
         &self,
         _collection_name: &str,
         _filter: Option<&str>,
     ) -> ferritedb_core::CoreResult<i64> {
         Ok(0)
+    }
+
+    async fn table_exists(&self, _collection_name: &str) -> ferritedb_core::CoreResult<bool> {
+        Ok(true)
     }
 }
 use serde_json::json;

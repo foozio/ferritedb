@@ -209,7 +209,15 @@ fn create_app_router(state: AppState, config: &ServerConfig) -> ServerResult<Rou
 
     // Create tracing layer for request logging
     let trace_layer = TraceLayer::new_for_http()
-        .make_span_with(DefaultMakeSpan::new().level(Level::INFO))
+        .make_span_with(|request: &axum::http::Request<_>| {
+            tracing::info_span!(
+                "http_request",
+                method = %request.method(),
+                uri = %request.uri(),
+                version = ?request.version(),
+                request_id = tracing::field::Empty,
+            )
+        })
         .on_request(DefaultOnRequest::new().level(Level::INFO))
         .on_response(DefaultOnResponse::new().level(Level::INFO));
 
