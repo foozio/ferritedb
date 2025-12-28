@@ -45,12 +45,16 @@ impl Server {
         info!("Initializing FerriteDB server...");
 
         // Initialize metrics recorder
-        if config.features.metrics {
-            PrometheusBuilder::new()
-                .install()
+        #[cfg(feature = "metrics")]
+        let prometheus_handle = if config.features.metrics {
+            let handle = PrometheusBuilder::new()
+                .install_recorder()
                 .map_err(|e| ServerError::Internal(format!("Failed to install metrics recorder: {}", e)))?;
             info!("Prometheus metrics recorder initialized");
-        }
+            Some(handle)
+        } else {
+            None
+        };
 
         // Initialize database connection
         let database = Database::new(
@@ -132,6 +136,10 @@ impl Server {
             storage_backend,
             storage_config: storage_config.clone(),
             realtime_manager,
+            #[cfg(feature = "metrics")]
+            prometheus_handle: prometheus_handle.ok_or_else(|| {
+                ServerError::Internal("Metrics feature enabled but recorder not initialized".to_string())
+            })?,
         };
 
         // Create the main router with middleware stack

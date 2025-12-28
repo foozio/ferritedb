@@ -34,7 +34,7 @@ fn create_test_app_state() -> AppState {
         Arc::new(MockUserRepository) as Arc<dyn ferritedb_server::routes::UserRepository>;
     let collection_service = Arc::new(MockCollectionService);
     let record_service = Arc::new(MockRecordService);
-    let rule_engine = Arc::new(std::sync::Mutex::new(RuleEngine::new()));
+    let rule_engine = Arc::new(tokio::sync::Mutex::new(RuleEngine::new()));
 
     let storage_config = ferritedb_storage::StorageConfig {
         storage_type: ferritedb_storage::StorageType::Local {
@@ -60,6 +60,10 @@ fn create_test_app_state() -> AppState {
         storage_backend,
         storage_config,
         realtime_manager,
+        #[cfg(feature = "metrics")]
+        prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
+            .install_recorder()
+            .unwrap(),
     }
 }
 

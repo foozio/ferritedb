@@ -452,6 +452,8 @@ pub struct AppState {
     pub storage_backend: Arc<dyn ferritedb_storage::StorageBackend>,
     pub storage_config: ferritedb_storage::StorageConfig,
     pub realtime_manager: RealtimeManager,
+    #[cfg(feature = "metrics")]
+    pub prometheus_handle: metrics_exporter_prometheus::PrometheusHandle,
 }
 
 /// Create the main application router
@@ -491,7 +493,7 @@ pub fn create_router(state: AppState) -> Router {
 
     #[cfg(feature = "metrics")]
     {
-        public_routes = public_routes.route("/metrics", get(metrics));
+        public_routes = public_routes.route("/metrics", get(metrics).with_state(state.clone()));
     }
 
     // WebSocket route (separate from API routes)
@@ -577,10 +579,15 @@ async fn check_storage_health(state: &AppState) -> bool {
 }
 
 /// Metrics endpoint for Prometheus (behind feature flag)
-#[cfg(feature = "metrics")]
-async fn metrics() -> ServerResult<String> {
-    // TODO: Implement Prometheus metrics collection
-    Ok("# HELP ferritedb_requests_total Total number of requests\n# TYPE ferritedb_requests_total counter\nferritedb_requests_total 0\n".to_string())
+async fn metrics(State(state): State<AppState>) -> ServerResult<String> {
+    #[cfg(feature = "metrics")]
+    {
+        Ok(state.prometheus_handle.render())
+    }
+    #[cfg(not(feature = "metrics"))]
+    {
+        Ok("# Metrics feature is disabled\n".to_string())
+    }
 }
 
 /// User login endpoint
@@ -1312,6 +1319,10 @@ mod tests {
             storage_backend,
             storage_config,
             realtime_manager,
+            #[cfg(feature = "metrics")]
+            prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
+                .install_recorder()
+                .unwrap(),
         }
     }
 
