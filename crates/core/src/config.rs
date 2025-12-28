@@ -3,11 +3,17 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct CoreConfig {
+    #[serde(default)]
     pub server: ServerConfig,
+    #[serde(default)]
     pub database: DatabaseConfig,
+    #[serde(default)]
     pub auth: AuthConfig,
+    #[serde(default)]
     pub storage: StorageConfig,
+    #[serde(default)]
     pub features: FeatureFlags,
+    #[serde(default)]
     pub telemetry: TelemetryConfig,
 }
 
