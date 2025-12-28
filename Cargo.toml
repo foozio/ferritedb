@@ -105,6 +105,10 @@ figment = { version = "0.10", features = ["env", "toml", "json"] }
 # Date and time
 chrono = { version = "0.4", features = ["serde"] }
 
+# Metrics
+metrics = "0.22"
+metrics-exporter-prometheus = "0.13"
+
 # Logging and tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
