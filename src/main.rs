@@ -18,6 +18,16 @@ struct Cli {
     /// Enable debug logging
     #[arg(short, long, global = true)]
     debug: bool,
+
+    /// Log format (plain, json)
+    #[arg(long, global = true, default_value = "plain")]
+    log_format: LogFormat,
+}
+
+#[derive(Clone, Debug, clap::ValueEnum)]
+enum LogFormat {
+    Plain,
+    Json,
 }
 
 #[derive(Subcommand)]
@@ -110,7 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     // Initialize tracing
-    init_tracing(cli.debug);
+    init_tracing(cli.debug, cli.log_format);
 
     // Load configuration
     let config = load_config(cli.config.as_deref()).await?;
@@ -148,7 +158,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn init_tracing(debug: bool) {
+fn init_tracing(debug: bool, format: LogFormat) {
     use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
     let filter = if debug {
@@ -157,10 +167,18 @@ fn init_tracing(debug: bool) {
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"))
     };
 
-    tracing_subscriber::registry()
-        .with(filter)
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let registry = tracing_subscriber::registry().with(filter);
+
+    match format {
+        LogFormat::Json => {
+            registry
+                .with(tracing_subscriber::fmt::layer().json())
+                .init();
+        }
+        LogFormat::Plain => {
+            registry.with(tracing_subscriber::fmt::layer()).init();
+        }
+    }
 }
 
 async fn load_config(config_path: Option<&std::path::Path>) -> Result<CoreConfig, ConfigError> {
