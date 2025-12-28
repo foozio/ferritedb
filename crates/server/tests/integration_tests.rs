@@ -7,9 +7,12 @@ use ferritedb_server::Server;
 use std::time::Duration;
 use tokio::time::timeout;
 
+use tower::ServiceExt;
+
 /// Helper function to create a test server
 async fn create_test_server() -> Server {
     let mut config = CoreConfig::default();
+    config.features.metrics = true;
     // Use in-memory database for tests
     config.database.url = "sqlite::memory:".to_string();
     Server::new(config)
@@ -19,17 +22,26 @@ async fn create_test_server() -> Server {
 
 /// Helper function to make a request to the server
 async fn make_request(
-    _server: &Server,
-    _method: Method,
-    _uri: &str,
-    _body: Option<&str>,
+    server: &Server,
+    method: Method,
+    uri: &str,
+    body: Option<&str>,
 ) -> (StatusCode, String) {
-    // Note: This is a simplified test setup. In a real implementation,
-    // we would need to extract the router from the server and test it directly
-    // since Server::serve() starts a full server which is harder to test.
+    let request = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.unwrap_or("").to_string()))
+        .unwrap();
 
-    // For now, we'll test the basic server creation and configuration
-    (StatusCode::OK, "{}".to_string())
+    let response = server.get_router().clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let body_bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024)
+        .await
+        .unwrap();
+    let body_str = String::from_utf8_lossy(&body_bytes).to_string();
+
+    (status, body_str)
 }
 
 #[tokio::test]

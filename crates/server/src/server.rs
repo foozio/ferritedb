@@ -16,9 +16,11 @@ use tower_http::{
     compression::CompressionLayer,
     cors::CorsLayer,
     timeout::TimeoutLayer,
-    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
+    trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::{info, Level};
+
+use metrics_exporter_prometheus::PrometheusBuilder;
 
 use crate::{
     middleware::{
@@ -41,6 +43,14 @@ impl Server {
     /// Create a new server instance with the provided configuration
     pub async fn new(config: CoreConfig) -> ServerResult<Self> {
         info!("Initializing FerriteDB server...");
+
+        // Initialize metrics recorder
+        if config.features.metrics {
+            PrometheusBuilder::new()
+                .install()
+                .map_err(|e| ServerError::Internal(format!("Failed to install metrics recorder: {}", e)))?;
+            info!("Prometheus metrics recorder initialized");
+        }
 
         // Initialize database connection
         let database = Database::new(
@@ -158,6 +168,11 @@ impl Server {
 
         info!("Server shutdown complete");
         Ok(())
+    }
+
+    /// Get the router instance (primarily for testing)
+    pub fn get_router(&self) -> &Router {
+        &self.router
     }
 }
 
