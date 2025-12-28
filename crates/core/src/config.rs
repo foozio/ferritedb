@@ -8,6 +8,7 @@ pub struct CoreConfig {
     pub auth: AuthConfig,
     pub storage: StorageConfig,
     pub features: FeatureFlags,
+    pub telemetry: TelemetryConfig,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -167,4 +168,87 @@ pub struct FeatureFlags {
     pub multi_tenant: bool,
     pub full_text_search: bool,
     pub metrics: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TelemetryConfig {
+    pub log_level: String,
+    pub log_format: String,
+    pub metrics_enabled: bool,
+}
+
+impl Default for TelemetryConfig {
+    fn default() -> Self {
+        Self {
+            log_level: "info".to_string(),
+            log_format: "plain".to_string(),
+            metrics_enabled: true,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_telemetry_config_default() {
+        let config = TelemetryConfig::default();
+        assert_eq!(config.log_level, "info");
+        assert_eq!(config.log_format, "plain");
+        assert!(config.metrics_enabled);
+    }
+
+    #[test]
+    fn test_core_config_with_telemetry() {
+        let toml_str = r#"
+            [server]
+            host = "127.0.0.1"
+            port = 8080
+            cors_origins = ["*"]
+            request_timeout = 30
+            max_request_size = 1048576
+
+            [server.rate_limit]
+            requests_per_minute = 60
+            burst_size = 10
+
+            [database]
+            url = "sqlite:test.db"
+            max_connections = 5
+            connection_timeout = 30
+            auto_migrate = true
+
+            [auth]
+            jwt_secret = "secret"
+            token_ttl = 900
+            refresh_ttl = 86400
+            password_min_length = 8
+            argon2_memory = 4096
+            argon2_iterations = 1
+            argon2_parallelism = 1
+
+            [storage]
+            backend = "Local"
+
+            [storage.local]
+            base_path = "data"
+            max_file_size = 1024
+
+            [features]
+            metrics = true
+            multi_tenant = false
+            full_text_search = false
+
+            [telemetry]
+            log_level = "debug"
+            log_format = "json"
+            metrics_enabled = false
+        "#;
+
+        let config: CoreConfig = toml::from_str(toml_str).unwrap();
+        assert_eq!(config.telemetry.log_level, "debug");
+        assert_eq!(config.telemetry.log_format, "json");
+        assert!(!config.telemetry.metrics_enabled);
+    }
 }
