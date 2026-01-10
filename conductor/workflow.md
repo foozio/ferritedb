@@ -66,6 +66,18 @@ All tasks follow a strict lifecycle:
     - **Action:** Stage the modified `plan.md` file.
     - **Action:** Commit this change with a descriptive message (e.g., `conductor(plan): Mark task 'Create user model' as complete`).
 
+### Syncing with Beads
+
+To enable graph-aware triage, sync Conductor plans with Beads:
+
+1.  **Ensure Beads is configured:** `.beads/issues.jsonl` exists.
+2.  **Run Synchronization:**
+    ```bash
+    python3 scripts/integrate_conductor_beads.py
+    ```
+    This will import tasks from active Conductor tracks into Beads as issues with dependency links.
+3.  **Triage in Beads:** Use `bv --robot-triage` or interactive mode to visualize and prioritize work.
+
 ### Phase Completion Verification and Checkpointing Protocol
 
 **Trigger:** This protocol is executed immediately after a task is completed that also concludes a phase in `plan.md`.
@@ -243,21 +255,21 @@ Before requesting review:
 [optional footer]
 ```
 
-### Types
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation only
-- `style`: Formatting, missing semicolons, etc.
-- `refactor`: Code change that neither fixes a bug nor adds a feature
-- `test`: Adding missing tests
-- `chore`: Maintenance tasks
+### Types & SemVer Impact
+- `feat`: New feature (**MINOR** bump)
+- `fix`: Bug fix (**PATCH** bump)
+- `docs`: Documentation only (No bump)
+- `style`: Formatting, missing semicolons, etc. (No bump)
+- `refactor`: Code change that neither fixes a bug nor adds a feature (No bump)
+- `test`: Adding missing tests (No bump)
+- `chore`: Maintenance tasks (No bump)
+- **BREAKING CHANGE:** Footer entry triggers a **MAJOR** bump.
 
 ### Examples
 ```bash
 git commit -m "feat(auth): Add remember me functionality"
-git commit -m "fix(posts): Correct excerpt generation for short posts"
-git commit -m "test(comments): Add tests for emoji reaction limits"
-git commit -m "style(mobile): Improve button touch targets"
+git commit -m "fix(api): Handle null values in user response"
+git commit -m "feat(db)!: Remove support for SQLite" # '!' indicates breaking change
 ```
 
 ## Definition of Done

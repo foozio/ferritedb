@@ -19,6 +19,11 @@ use tower_http::{
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::{info, Level};
+#[cfg(feature = "metrics")]
+use tracing::warn;
+
+#[cfg(feature = "metrics")]
+use metrics_exporter_prometheus::PrometheusBuilder;
 
 use crate::{
     middleware::{

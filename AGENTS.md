@@ -18,6 +18,33 @@ Commits should be focused and written in the imperative mood (e.g., `Mask passwo
 ## Security & Configuration Notes
 Do not commit secrets; keep overrides in `.env` or `ferritedb.dev.toml`. Run `just audit` and `just security-scan` after dependency upgrades or auth changes. For new endpoints, document required scopes in `docs/` and ensure corresponding migrations are reversible before opening a pull request.
 
+## Versioning & Release Protocol
+
+We strictly adhere to **Semantic Versioning (SemVer)** and use **Conventional Commits** to automate version bumping.
+
+### Core Principles
+1.  **Single Source of Truth:** `Cargo.toml` is the master version.
+2.  **Conventional Commits:** All commits must follow the `type(scope): description` format.
+    *   `feat:` -> Minor version bump.
+    *   `fix:` -> Patch version bump.
+    *   `BREAKING CHANGE:` footer -> Major version bump.
+3.  **Keep a Changelog:** Maintain `CHANGELOG.md` with an `## [Unreleased]` section at the top.
+
+### Release Workflow
+When ready to cut a release (e.g., `v0.2.0`):
+
+1.  **Preparation:**
+    *   Ensure the `[Unreleased]` section in `CHANGELOG.md` is up-to-date.
+    *   Run full test suite: `cargo test --workspace`.
+2.  **Versioning:**
+    *   Determine the bump type (Major/Minor/Patch) based on unreleased changes.
+    *   Update version in `Cargo.toml`.
+    *   Move `[Unreleased]` content to `## [vX.Y.Z] - YYYY-MM-DD`.
+3.  **Tagging & Publishing:**
+    *   Commit changes: `chore(release): Prepare vX.Y.Z`.
+    *   Tag the commit: `git tag vX.Y.Z`.
+    *   Push: `git push origin main --tags`.
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
@@ -133,3 +160,66 @@ bv --robot-label-health | jq '.results.labels[] | select(.health_level == "criti
 **Performance:** Phase 1 instant, Phase 2 async (500ms timeout). Prefer `--robot-plan` over `--robot-insights` when speed matters. Results cached by data hash.
 
 Use bv instead of parsing beads.jsonl—it computes PageRank, critical paths, cycles, and parallel tracks deterministically.
+
+<!-- bv-agent-instructions-v1 -->
+
+---
+
+## Beads Workflow Integration
+
+This project uses [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) for issue tracking. Issues are stored in `.beads/` and tracked in git.
+
+### Essential Commands
+
+```bash
+# View issues (launches TUI - avoid in automated sessions)
+bv
+
+# CLI commands for agents (use these instead)
+bd ready              # Show issues ready to work (no blockers)
+bd list --status=open # All open issues
+bd show <id>          # Full issue details with dependencies
+bd create --title="..." --type=task --priority=2
+bd update <id> --status=in_progress
+bd close <id> --reason="Completed"
+bd close <id1> <id2>  # Close multiple issues at once
+bd sync               # Commit and push changes
+```
+
+### Workflow Pattern
+
+1. **Start**: Run `bd ready` to find actionable work
+2. **Claim**: Use `bd update <id> --status=in_progress`
+3. **Work**: Implement the task
+4. **Complete**: Use `bd close <id>`
+5. **Sync**: Always run `bd sync` at session end
+
+### Key Concepts
+
+- **Dependencies**: Issues can block other issues. `bd ready` shows only unblocked work.
+- **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers, not words)
+- **Types**: task, bug, feature, epic, question, docs
+- **Blocking**: `bd dep add <issue> <depends-on>` to add dependencies
+
+### Session Protocol
+
+**Before ending any session, run this checklist:**
+
+```bash
+git status              # Check what changed
+git add <files>         # Stage code changes
+bd sync                 # Commit beads changes
+git commit -m "..."     # Commit code
+bd sync                 # Commit any new beads changes
+git push                # Push to remote
+```
+
+### Best Practices
+
+- Check `bd ready` at session start to find available work
+- Update status as you work (in_progress → closed)
+- Create new issues with `bd create` when you discover tasks
+- Use descriptive titles and set appropriate priority/type
+- Always `bd sync` before ending session
+
+<!-- end-bv-agent-instructions -->
