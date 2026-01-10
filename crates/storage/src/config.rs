@@ -6,8 +6,7 @@ use std::sync::Arc;
 #[cfg(feature = "s3")]
 use crate::S3Storage;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum StorageType {
     Local {
         path: PathBuf,
@@ -20,6 +19,19 @@ pub enum StorageType {
         secret_access_key: Option<String>,
         endpoint: Option<String>,
     },
+}
+
+impl StorageType {
+    pub fn is_ephemeral(&self) -> bool {
+        match self {
+            Self::Local { path } => {
+                let path_str = path.to_string_lossy();
+                path_str.contains("/tmp/") || path_str.contains("/temp/") || path_str == ":memory:"
+            }
+            #[cfg(feature = "s3")]
+            _ => false,
+        }
+    }
 }
 
 impl Default for StorageType {

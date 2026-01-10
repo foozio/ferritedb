@@ -30,9 +30,8 @@ fn create_test_app_state() -> AppState {
     };
 
     let auth_service = Arc::new(AuthService::new(auth_config).unwrap());
-    let user_repository =
+    let user_repository: Arc<dyn ferritedb_server::routes::UserRepository> =
         Arc::new(MockUserRepository) as Arc<dyn ferritedb_server::routes::UserRepository>;
-    let collection_service = Arc::new(MockCollectionService);
     let record_service = Arc::new(MockRecordService);
     let rule_engine = Arc::new(tokio::sync::Mutex::new(RuleEngine::new()));
 
@@ -44,6 +43,10 @@ fn create_test_app_state() -> AppState {
         allowed_extensions: vec![],
         blocked_extensions: vec![],
     };
+
+    let collection_service = Arc::new(MockCollectionService);
+    let record_service = Arc::new(MockRecordService);
+    let rule_engine = Arc::new(tokio::sync::Mutex::new(RuleEngine::new()));
 
     let storage_backend = Arc::new(ferritedb_storage::LocalStorage::new(
         "/tmp/ferritedb_admin_test".into(),
@@ -61,9 +64,14 @@ fn create_test_app_state() -> AppState {
         storage_config,
         realtime_manager,
         #[cfg(feature = "metrics")]
-        prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
-            .install_recorder()
-            .unwrap(),
+        prometheus_handle: Some(
+            match metrics_exporter_prometheus::PrometheusBuilder::new().install_recorder() {
+                Ok(handle) => handle,
+                Err(_) => metrics_exporter_prometheus::PrometheusBuilder::new()
+                    .build_recorder()
+                    .handle(),
+            },
+        ),
     }
 }
 

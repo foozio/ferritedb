@@ -66,10 +66,11 @@ impl IntoResponse for ServerError {
                     "Authentication error".to_string(),
                 ),
             },
-            _ => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            ),
+            ServerError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            ServerError::Http(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            ServerError::WebSocket(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            ServerError::Middleware(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            ServerError::Core(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
         };
 
         let body = Json(json!({

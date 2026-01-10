@@ -11,19 +11,13 @@ use ferritedb_rules::{
     CollectionRules, EvaluationContext, RequestContext, RuleEngine, RuleOperation,
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock as AsyncRwLock;
 use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
-use crate::{
-    middleware::AuthUser,
-    routes::AppState,
-};
+use crate::{middleware::AuthUser, routes::AppState};
 
 /// WebSocket connection query parameters for authentication
 #[derive(Debug, Deserialize)]
@@ -636,7 +630,9 @@ async fn handle_client_message(
             };
 
             // Add subscription to connection
-            realtime_manager.add_subscription(connection_id, subscription).await?;
+            realtime_manager
+                .add_subscription(connection_id, subscription)
+                .await?;
 
             // Send confirmation
             let response = ServerMessage::Subscribed { id, collection };
@@ -654,7 +650,9 @@ async fn handle_client_message(
             }
         }
         ClientMessage::Unsubscribe { id } => {
-            realtime_manager.remove_subscription(connection_id, &id).await?;
+            realtime_manager
+                .remove_subscription(connection_id, &id)
+                .await?;
 
             let response = ServerMessage::Unsubscribed { id };
 

@@ -841,7 +841,7 @@ impl OpenApiGenerator {
         schemas
     }
 
-    fn field_to_json_schema(&self, field: &Field) -> Value {
+    pub fn field_to_json_schema(&self, field: &Field) -> Value {
         let mut schema = match &field.field_type {
             FieldType::Text => json!({
                 "type": "string"
@@ -910,7 +910,7 @@ impl OpenApiGenerator {
         schema
     }
 
-    fn generate_tags(&self, collections: &[Collection]) -> Value {
+    pub fn generate_tags(&self, collections: &[Collection]) -> Value {
         let mut tags = vec![
             json!({
                 "name": "Authentication",

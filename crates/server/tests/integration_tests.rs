@@ -10,14 +10,24 @@ use tokio::time::timeout;
 use tower::ServiceExt;
 
 /// Helper function to create a test server
-async fn create_test_server() -> Server {
+async fn create_test_server() -> (Server, tempfile::TempDir) {
     let mut config = CoreConfig::default();
     config.features.metrics = true;
     // Use in-memory database for tests
     config.database.url = "sqlite::memory:".to_string();
-    Server::new(config)
+
+    // Create temp directory for storage
+    let temp_dir = tempfile::tempdir().unwrap();
+    config.storage.local.base_path = temp_dir.path().to_path_buf();
+
+    // Ensure the directory exists
+    std::fs::create_dir_all(&config.storage.local.base_path).unwrap();
+
+    let server = Server::new(config)
         .await
-        .expect("Failed to create test server")
+        .expect("Failed to create test server");
+
+    (server, temp_dir)
 }
 
 /// Helper function to make a request to the server
@@ -46,31 +56,31 @@ async fn make_request(
 
 #[tokio::test]
 async fn test_server_creation() {
-    let _server = create_test_server().await;
+    let (_server, _dir) = create_test_server().await;
     // If we get here, the server was created successfully
     assert!(true);
 }
 
 #[tokio::test]
 async fn test_health_endpoints() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test /health endpoint
-    let (status, _body) = make_request(&server, Method::GET, "/api/health", None).await;
-    assert_eq!(status, StatusCode::OK);
+    let (status, body) = make_request(&server, Method::GET, "/api/health", None).await;
+    assert_eq!(status, StatusCode::OK, "Body: {}", body);
 
     // Test /healthz endpoint
-    let (status, _body) = make_request(&server, Method::GET, "/api/healthz", None).await;
-    assert_eq!(status, StatusCode::OK);
+    let (status, body) = make_request(&server, Method::GET, "/api/healthz", None).await;
+    assert_eq!(status, StatusCode::OK, "Body: {}", body);
 
     // Test /readyz endpoint
-    let (status, _body) = make_request(&server, Method::GET, "/api/readyz", None).await;
-    assert_eq!(status, StatusCode::OK);
+    let (status, body) = make_request(&server, Method::GET, "/api/readyz", None).await;
+    assert_eq!(status, StatusCode::OK, "Body: {}", body);
 }
 
 #[tokio::test]
 async fn test_cors_headers() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test CORS preflight request
     let (status, _) = make_request(&server, Method::OPTIONS, "/api/health", None).await;
@@ -80,7 +90,7 @@ async fn test_cors_headers() {
 
 #[tokio::test]
 async fn test_request_timeout() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test that requests complete within reasonable time
     let result = timeout(
@@ -94,7 +104,7 @@ async fn test_request_timeout() {
 
 #[tokio::test]
 async fn test_invalid_routes() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test non-existent endpoint
     let (status, _) = make_request(&server, Method::GET, "/api/nonexistent", None).await;
@@ -105,7 +115,7 @@ async fn test_invalid_routes() {
 
 #[tokio::test]
 async fn test_middleware_stack() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test that middleware is applied (request ID, tracing, etc.)
     let (status, _) = make_request(&server, Method::GET, "/api/health", None).await;
@@ -127,7 +137,7 @@ async fn test_middleware_stack() {
 
 #[tokio::test]
 async fn test_json_request_handling() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test with valid JSON
     let json_body = r#"{"test": "data"}"#;
@@ -147,7 +157,7 @@ async fn test_json_request_handling() {
 
 #[tokio::test]
 async fn test_large_request_handling() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test with large request body (within limits)
     let large_body = "x".repeat(1024); // 1KB
@@ -162,7 +172,7 @@ async fn test_large_request_handling() {
 
 #[tokio::test]
 async fn test_concurrent_requests() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test multiple concurrent requests
     // Note: In our simplified test, we can't easily test concurrent requests
@@ -173,7 +183,7 @@ async fn test_concurrent_requests() {
 
     for _ in 0..5 {
         let handle = tokio::spawn(async move {
-            let test_server = create_test_server().await;
+            let (test_server, _dir) = create_test_server().await;
             make_request(&test_server, Method::GET, "/api/health", None).await
         });
         handles.push(handle);
@@ -189,14 +199,12 @@ async fn test_concurrent_requests() {
 #[cfg(feature = "metrics")]
 #[tokio::test]
 async fn test_metrics_endpoint() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test metrics endpoint when feature is enabled
-    let (status, body) = make_request(&server, Method::GET, "/api/metrics", None).await;
-    assert_eq!(status, StatusCode::OK);
-
-    // Should return Prometheus-format metrics
-    assert!(body.contains("ferritedb") || body.is_empty());
+    // Now it should return UNAUTHORIZED because it's in protected_routes
+    let (status, _body) = make_request(&server, Method::GET, "/api/metrics", None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -204,6 +212,11 @@ async fn test_graceful_shutdown_preparation() {
     // Test that server can be created and configured for graceful shutdown
     let mut config = CoreConfig::default();
     config.database.url = "sqlite::memory:".to_string();
+
+    // Setup temp storage manually since we're not using create_test_server
+    let temp_dir = tempfile::tempdir().unwrap();
+    config.storage.local.base_path = temp_dir.path().to_path_buf();
+
     let _server = Server::new(config).await.expect("Failed to create server");
 
     // Server should be ready to handle graceful shutdown
@@ -215,7 +228,7 @@ async fn test_graceful_shutdown_preparation() {
 // Integration test for authentication middleware
 #[tokio::test]
 async fn test_authentication_middleware() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Test protected endpoint without authentication
     let (status, _) = make_request(&server, Method::GET, "/api/auth/me", None).await;
@@ -230,7 +243,7 @@ async fn test_authentication_middleware() {
 // Test rate limiting (basic test)
 #[tokio::test]
 async fn test_rate_limiting_basic() {
-    let server = create_test_server().await;
+    let (server, _dir) = create_test_server().await;
 
     // Make multiple rapid requests
     for _ in 0..5 {

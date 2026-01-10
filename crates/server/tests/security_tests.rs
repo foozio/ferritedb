@@ -359,7 +359,7 @@ async fn test_audit_logging() {
     let pool = sqlx::SqlitePool::connect(&database_url).await.unwrap();
 
     // Create audit_log table
-    sqlx::query!(
+    sqlx::query(
         r#"
         CREATE TABLE audit_log (
             id TEXT PRIMARY KEY,
@@ -373,7 +373,7 @@ async fn test_audit_logging() {
             request_id TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
-        "#
+        "#,
     )
     .execute(&pool)
     .await

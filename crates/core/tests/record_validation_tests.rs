@@ -1,6 +1,8 @@
 use ferritedb_core::{
     collections::CollectionService,
-    models::{AccessRules, CollectionSchema, CollectionType, CreateCollectionRequest, Field, FieldType},
+    models::{
+        AccessRules, CollectionSchema, CollectionType, CreateCollectionRequest, Field, FieldType,
+    },
     repository::CollectionRepository,
     Database, RecordService,
 };
@@ -13,9 +15,7 @@ async fn setup_services() -> (TempDir, Database, CollectionService, RecordServic
     let db_path = temp_dir.path().join("test.db");
     let database_url = format!("sqlite:{}", db_path.display());
 
-    let db = Database::new(&database_url, 5, 30)
-        .await
-        .expect("db");
+    let db = Database::new(&database_url, 5, 30).await.expect("db");
     db.migrate().await.expect("migrate");
 
     let repository = CollectionRepository::new(db.pool().clone());
@@ -27,8 +27,7 @@ async fn setup_services() -> (TempDir, Database, CollectionService, RecordServic
 
 async fn create_test_collection(collection_service: &CollectionService) {
     let mut schema = CollectionSchema::new();
-    schema
-        .add_field(Field::new(Uuid::new_v4(), "title".to_string(), FieldType::Text).required());
+    schema.add_field(Field::new(Uuid::new_v4(), "title".to_string(), FieldType::Text).required());
 
     let request = CreateCollectionRequest {
         name: "validation_posts".to_string(),

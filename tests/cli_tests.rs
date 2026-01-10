@@ -37,8 +37,7 @@ fn cli_tests_enabled(test_name: &str) -> bool {
     if env::var(CLI_TEST_ENV).is_err() {
         println!(
             "Skipping {}. Set {}=1 to execute CLI integration tests.",
-            test_name,
-            CLI_TEST_ENV
+            test_name, CLI_TEST_ENV
         );
         return false;
     }
@@ -646,27 +645,38 @@ fn test_json_logging_format() {
     std::fs::write(&config_path, create_temp_config(&db_path.to_string_lossy())).unwrap();
 
     let output = Command::new(ferritedb_binary())
-        .args(["--config", config_path.to_str().unwrap(), "--log-format", "json", "migrate", "status"])
+        .args([
+            "--config",
+            config_path.to_str().unwrap(),
+            "--log-format",
+            "json",
+            "migrate",
+            "status",
+        ])
         .env("RUST_LOG", "info")
         .output()
         .expect("Failed to execute ferritedb");
 
     if !output.status.success() {
-         panic!(
-             "Command failed, likely due to missing --log-format arg. Stdout: {}, Stderr: {}", 
-             String::from_utf8_lossy(&output.stdout),
-             String::from_utf8_lossy(&output.stderr)
-         );
+        panic!(
+            "Command failed, likely due to missing --log-format arg. Stdout: {}, Stderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let combined = format!("{}{}", stdout, stderr);
-    
-    // Check if output contains JSON structure
-    let has_json = combined.lines().any(|line| {
-        line.trim().starts_with("{") && line.trim().ends_with("}")
-    });
 
-    assert!(has_json, "Output should contain JSON logs. Combined output: {}", combined);
+    // Check if output contains JSON structure
+    let has_json = combined
+        .lines()
+        .any(|line| line.trim().starts_with("{") && line.trim().ends_with("}"));
+
+    assert!(
+        has_json,
+        "Output should contain JSON logs. Combined output: {}",
+        combined
+    );
 }

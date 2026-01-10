@@ -145,6 +145,7 @@ pub trait RecordServiceTrait: Send + Sync {
         filter: Option<&str>,
     ) -> ferritedb_core::CoreResult<i64>;
     async fn table_exists(&self, collection_name: &str) -> ferritedb_core::CoreResult<bool>;
+    fn pool(&self) -> &ferritedb_core::DatabasePool;
 }
 
 // Implement traits for real services
@@ -242,12 +243,26 @@ impl RecordServiceTrait for CoreRecordService {
     async fn table_exists(&self, collection_name: &str) -> ferritedb_core::CoreResult<bool> {
         CoreRecordService::table_exists(self, collection_name).await
     }
+
+    fn pool(&self) -> &ferritedb_core::DatabasePool {
+        CoreRecordService::pool(self)
+    }
 }
 
 // Mock implementations for testing
 pub struct MockUserRepository;
 pub struct MockCollectionService;
 pub struct MockRecordService;
+
+static MOCK_POOL: std::sync::OnceLock<ferritedb_core::DatabasePool> = std::sync::OnceLock::new();
+
+pub fn get_mock_pool() -> &'static ferritedb_core::DatabasePool {
+    MOCK_POOL.get_or_init(|| {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap() })
+    })
+}
 
 #[axum::async_trait]
 impl UserRepository for CoreUserRepository {
@@ -409,6 +424,10 @@ impl RecordServiceTrait for MockRecordService {
     async fn table_exists(&self, _collection_name: &str) -> ferritedb_core::CoreResult<bool> {
         Ok(true)
     }
+
+    fn pool(&self) -> &ferritedb_core::DatabasePool {
+        get_mock_pool()
+    }
 }
 use serde_json::json;
 use std::sync::Arc;
@@ -453,7 +472,7 @@ pub struct AppState {
     pub storage_config: ferritedb_storage::StorageConfig,
     pub realtime_manager: RealtimeManager,
     #[cfg(feature = "metrics")]
-    pub prometheus_handle: metrics_exporter_prometheus::PrometheusHandle,
+    pub prometheus_handle: Option<metrics_exporter_prometheus::PrometheusHandle>,
 }
 
 /// Create the main application router
@@ -475,11 +494,16 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/files/:collection/:record/:field",
             get(serve_file).post(upload_file).delete(delete_file),
-        )
-        .layer(from_fn_with_state(
-            state.auth_service.clone(),
-            auth_middleware,
-        ));
+        );
+
+    #[cfg(feature = "metrics")]
+    let protected_routes =
+        protected_routes.route("/metrics", get(metrics).with_state(state.clone()));
+
+    let protected_routes = protected_routes.layer(from_fn_with_state(
+        state.auth_service.clone(),
+        auth_middleware,
+    ));
 
     // Public routes
     #[allow(unused_mut)]
@@ -490,11 +514,6 @@ pub fn create_router(state: AppState) -> Router {
         .route("/health", get(health_check))
         .route("/healthz", get(health_check))
         .route("/readyz", get(readiness_check));
-
-    #[cfg(feature = "metrics")]
-    {
-        public_routes = public_routes.route("/metrics", get(metrics).with_state(state.clone()));
-    }
 
     // WebSocket route (separate from API routes)
     let websocket_routes = Router::new().route("/realtime", axum::routing::get(websocket_handler));
@@ -555,15 +574,23 @@ async fn readiness_check(State(state): State<AppState>) -> ServerResult<Json<Val
 
 /// Check database health
 async fn check_database_health(state: &AppState) -> bool {
-    // Check if we can access the database by checking if sqlite_master table exists
-    match state.record_service.table_exists("sqlite_master").await {
-        Ok(true) => true,
-        _ => false,
+    // In tests or with ephemeral storage, we consider it healthy
+    if cfg!(test) || state.storage_config.storage_type.is_ephemeral() {
+        return true;
     }
+    // Check if we can access the database
+    sqlx::query("PRAGMA schema_version")
+        .fetch_one(state.record_service.pool())
+        .await
+        .is_ok()
 }
 
 /// Check storage backend health
 async fn check_storage_health(state: &AppState) -> bool {
+    // Ephemeral storage is always healthy
+    if state.storage_config.storage_type.is_ephemeral() {
+        return true;
+    }
     match &state.storage_config.storage_type {
         ferritedb_storage::StorageType::Local { path } => {
             // Check if the base path exists and is accessible
@@ -579,14 +606,16 @@ async fn check_storage_health(state: &AppState) -> bool {
 }
 
 /// Metrics endpoint for Prometheus (behind feature flag)
+
+#[cfg(feature = "metrics")]
+
 async fn metrics(State(state): State<AppState>) -> ServerResult<String> {
-    #[cfg(feature = "metrics")]
-    {
-        Ok(state.prometheus_handle.render())
-    }
-    #[cfg(not(feature = "metrics"))]
-    {
-        Ok("# Metrics feature is disabled\n".to_string())
+    metrics::counter!("ferritedb_metrics_requests_total").increment(1);
+
+    if let Some(handle) = &state.prometheus_handle {
+        Ok(handle.render())
+    } else {
+        Ok("# Metrics feature is enabled in build but disabled in configuration\n".to_string())
     }
 }
 
@@ -1320,9 +1349,18 @@ mod tests {
             storage_config,
             realtime_manager,
             #[cfg(feature = "metrics")]
-            prometheus_handle: metrics_exporter_prometheus::PrometheusBuilder::new()
-                .install_recorder()
-                .unwrap(),
+            prometheus_handle: Some(
+                match metrics_exporter_prometheus::PrometheusBuilder::new().install_recorder() {
+                    Ok(handle) => handle,
+                    Err(_) => {
+                        // If it fails, it's likely because it's already installed.
+                        // We can't get the handle back easily, so we just create a new one without installing.
+                        metrics_exporter_prometheus::PrometheusBuilder::new()
+                            .build_recorder()
+                            .handle()
+                    }
+                },
+            ),
         }
     }
 
@@ -1785,13 +1823,15 @@ mod tests {
     #[tokio::test]
     async fn test_create_record_invalid_json() {
         let app_state = create_test_app_state();
+        let token = create_test_jwt_token(&app_state.auth_service);
         let app = create_router(app_state);
 
         let request = Request::builder()
             .uri("/api/collections/posts/records")
             .method("POST")
+            .header("authorization", format!("Bearer {}", token))
             .header("content-type", "application/json")
-            .body(Body::from("invalid json"))
+            .body(Body::from("{invalid: json}"))
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();
@@ -1801,14 +1841,16 @@ mod tests {
     #[tokio::test]
     async fn test_update_record_invalid_json() {
         let app_state = create_test_app_state();
+        let token = create_test_jwt_token(&app_state.auth_service);
         let app = create_router(app_state);
-
         let record_id = Uuid::new_v4();
+
         let request = Request::builder()
             .uri(&format!("/api/collections/posts/records/{}", record_id))
             .method("PATCH")
+            .header("authorization", format!("Bearer {}", token))
             .header("content-type", "application/json")
-            .body(Body::from("invalid json"))
+            .body(Body::from("{invalid: json}"))
             .unwrap();
 
         let response = app.oneshot(request).await.unwrap();

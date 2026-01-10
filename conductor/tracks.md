@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-## [ ] Track: Implement a centralized telemetry and metrics system
+## [~] Track: Implement a centralized telemetry and metrics system
 *Link: [./conductor/tracks/telemetry_20251228/](./conductor/tracks/telemetry_20251228/)*

@@ -225,10 +225,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(response.status(), StatusCode::OK);
-        
+
         let header_value = response.headers().get("x-request-id").unwrap();
         let request_id_str = header_value.to_str().unwrap();
-        
+
         // Should be a valid UUID
         assert!(Uuid::parse_str(request_id_str).is_ok());
     }

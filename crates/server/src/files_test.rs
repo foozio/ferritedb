@@ -53,6 +53,16 @@ struct MockRecordService {
     records: std::sync::Mutex<HashMap<(String, Uuid), Record>>,
 }
 
+static MOCK_POOL: std::sync::OnceLock<ferritedb_core::DatabasePool> = std::sync::OnceLock::new();
+
+fn get_mock_pool() -> &'static ferritedb_core::DatabasePool {
+    MOCK_POOL.get_or_init(|| {
+        tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(async { sqlx::SqlitePool::connect("sqlite::memory:").await.unwrap() })
+    })
+}
+
 impl MockRecordService {
     fn new() -> Self {
         Self {
@@ -111,6 +121,10 @@ impl FileRecordService for MockRecordService {
             .remove(&(collection_name.to_string(), record_id))
             .is_some())
     }
+
+    fn pool(&self) -> &ferritedb_core::DatabasePool {
+        get_mock_pool()
+    }
 }
 
 fn create_test_file_app_state() -> (TempDir, FileAppState) {
@@ -122,7 +136,12 @@ fn create_test_file_app_state() -> (TempDir, FileAppState) {
             path: temp_dir.path().to_path_buf(),
         },
         max_file_size: 1024 * 1024, // 1MB
-        allowed_extensions: vec!["jpg".to_string(), "png".to_string(), "txt".to_string()],
+        allowed_extensions: vec![
+            "jpg".to_string(),
+            "png".to_string(),
+            "txt".to_string(),
+            "pdf".to_string(),
+        ],
         blocked_extensions: vec!["exe".to_string()],
     };
 

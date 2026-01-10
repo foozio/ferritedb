@@ -239,15 +239,11 @@ impl AuditLogger {
         }
 
         if let Some(start_date) = start_date {
-            builder
-                .push(" AND created_at >= ")
-                .push_bind(start_date);
+            builder.push(" AND created_at >= ").push_bind(start_date);
         }
 
         if let Some(end_date) = end_date {
-            builder
-                .push(" AND created_at <= ")
-                .push_bind(end_date);
+            builder.push(" AND created_at <= ").push_bind(end_date);
         }
 
         builder

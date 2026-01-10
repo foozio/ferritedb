@@ -40,6 +40,7 @@ pub trait FileRecordService: Send + Sync {
         collection_name: &str,
         record_id: Uuid,
     ) -> ferritedb_core::CoreResult<bool>;
+    fn pool(&self) -> &ferritedb_core::DatabasePool;
 }
 
 /// File upload response
@@ -495,6 +496,10 @@ impl FileRecordService for crate::routes::MockRecordService {
         record_id: Uuid,
     ) -> ferritedb_core::CoreResult<bool> {
         crate::routes::MockRecordService::delete_record(self, collection_name, record_id).await
+    }
+
+    fn pool(&self) -> &ferritedb_core::DatabasePool {
+        crate::routes::get_mock_pool()
     }
 }
 

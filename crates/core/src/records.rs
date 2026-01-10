@@ -17,7 +17,7 @@ pub struct RecordService {
     collection_service: CollectionService,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 enum FilterValue {
     Text(String),
     Number(f64),
@@ -40,7 +40,19 @@ impl FilterValue {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
+enum LogicalOp {
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone)]
+struct FilterExpression {
+    conditions: Vec<FilterCondition>,
+    operators: Vec<LogicalOp>,
+}
+
+#[derive(Debug, Clone)]
 enum FilterCondition {
     Equals { column: String, value: FilterValue },
     NotEquals { column: String, value: FilterValue },
@@ -58,6 +70,10 @@ impl RecordService {
             pool,
             collection_service,
         }
+    }
+
+    pub fn pool(&self) -> &DatabasePool {
+        &self.pool
     }
 
     /// Create the dynamic table for a collection
@@ -253,8 +269,8 @@ impl RecordService {
             "*".to_string()
         };
 
-        let filter_condition = match filter {
-            Some(filter_expr) => Some(self.parse_filter_condition(filter_expr, &collection)?),
+        let filter_expression = match filter {
+            Some(filter_expr) => Some(self.parse_filter_expression(filter_expr, &collection)?),
             None => None,
         };
 
@@ -267,9 +283,9 @@ impl RecordService {
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new(format!("SELECT {} FROM {}", select_clause, table_name));
 
-        if let Some(condition) = filter_condition.as_ref() {
+        if let Some(expression) = filter_expression.as_ref() {
             query_builder.push(" WHERE ");
-            self.apply_filter_condition(&mut query_builder, condition);
+            self.apply_filter_expression(&mut query_builder, expression);
         }
 
         query_builder.push(" ORDER BY ");
@@ -303,17 +319,17 @@ impl RecordService {
             .ok_or_else(|| CoreError::CollectionNotFound(collection_name.to_string()))?;
 
         let table_name = self.collection_service.get_table_name(collection_name);
-        let filter_condition = match filter {
-            Some(filter_expr) => Some(self.parse_filter_condition(filter_expr, &collection)?),
+        let filter_expression = match filter {
+            Some(filter_expr) => Some(self.parse_filter_expression(filter_expr, &collection)?),
             None => None,
         };
 
         let mut query_builder: QueryBuilder<Sqlite> =
             QueryBuilder::new(format!("SELECT COUNT(*) as count FROM {}", table_name));
 
-        if let Some(condition) = filter_condition.as_ref() {
+        if let Some(expression) = filter_expression.as_ref() {
             query_builder.push(" WHERE ");
-            self.apply_filter_condition(&mut query_builder, condition);
+            self.apply_filter_expression(&mut query_builder, expression);
         }
 
         let row = query_builder.build().fetch_one(&self.pool).await?;
@@ -575,6 +591,124 @@ impl RecordService {
     }
 
     /// Parse filter expression into a structured condition
+    fn tokenize_filter_expression(&self, filter: &str) -> CoreResult<Vec<String>> {
+        let mut tokens = Vec::new();
+        let mut current_token = String::new();
+        let mut in_quotes = false;
+        let mut quote_char = ' ';
+
+        let chars: Vec<char> = filter.chars().collect();
+        let mut i = 0;
+        while i < chars.len() {
+            let c = chars[i];
+            if in_quotes {
+                current_token.push(c);
+                if c == quote_char {
+                    in_quotes = false;
+                }
+            } else if c == '\'' || c == '"' {
+                in_quotes = true;
+                quote_char = c;
+                current_token.push(c);
+            } else {
+                // Look ahead for AND/OR
+                let remaining = &filter[i..];
+                if remaining.to_uppercase().starts_with(" AND ") {
+                    if !current_token.trim().is_empty() {
+                        tokens.push(current_token.trim().to_string());
+                    }
+                    tokens.push("AND".to_string());
+                    current_token = String::new();
+                    i += 4; // skip " AND"
+                    continue;
+                } else if remaining.to_uppercase().starts_with(" OR ") {
+                    if !current_token.trim().is_empty() {
+                        tokens.push(current_token.trim().to_string());
+                    }
+                    tokens.push("OR".to_string());
+                    current_token = String::new();
+                    i += 3; // skip " OR"
+                    continue;
+                } else {
+                    current_token.push(c);
+                }
+            }
+            i += 1;
+        }
+
+        if in_quotes {
+            return Err(CoreError::ValidationError(
+                "Unterminated string literal in filter".to_string(),
+            ));
+        }
+
+        if !current_token.trim().is_empty() {
+            tokens.push(current_token.trim().to_string());
+        }
+
+        Ok(tokens)
+    }
+
+    fn parse_filter_expression(
+        &self,
+        filter: &str,
+        collection: &Collection,
+    ) -> CoreResult<FilterExpression> {
+        let tokens = self.tokenize_filter_expression(filter)?;
+        if tokens.is_empty() {
+            return Err(CoreError::ValidationError(
+                "Filter expression cannot be empty".to_string(),
+            ));
+        }
+
+        let mut conditions = Vec::new();
+        let mut operators = Vec::new();
+
+        for token in tokens {
+            match token.as_str() {
+                "AND" => operators.push(LogicalOp::And),
+                "OR" => operators.push(LogicalOp::Or),
+                _ => {
+                    let condition = self.parse_filter_condition(&token, collection)?;
+                    conditions.push(condition);
+                }
+            }
+        }
+
+        if conditions.len() != operators.len() + 1 {
+            return Err(CoreError::ValidationError(
+                "Invalid filter expression: mismatched operators".to_string(),
+            ));
+        }
+
+        Ok(FilterExpression {
+            conditions,
+            operators,
+        })
+    }
+
+    fn apply_filter_expression(
+        &self,
+        builder: &mut QueryBuilder<'_, Sqlite>,
+        expression: &FilterExpression,
+    ) {
+        for (i, condition) in expression.conditions.iter().enumerate() {
+            if i > 0 {
+                match expression.operators[i - 1] {
+                    LogicalOp::And => {
+                        builder.push(" AND ");
+                    }
+                    LogicalOp::Or => {
+                        builder.push(" OR ");
+                    }
+                };
+            }
+            builder.push("(");
+            self.apply_filter_condition(builder, condition);
+            builder.push(")");
+        }
+    }
+
     fn parse_filter_condition(
         &self,
         filter: &str,
@@ -616,7 +750,9 @@ impl RecordService {
                     "NotEquals" => Ok(FilterCondition::NotEquals { column, value }),
                     "GreaterThan" => Ok(FilterCondition::GreaterThan { column, value }),
                     "LessThan" => Ok(FilterCondition::LessThan { column, value }),
-                    "GreaterThanOrEqual" => Ok(FilterCondition::GreaterThanOrEqual { column, value }),
+                    "GreaterThanOrEqual" => {
+                        Ok(FilterCondition::GreaterThanOrEqual { column, value })
+                    }
                     "LessThanOrEqual" => Ok(FilterCondition::LessThanOrEqual { column, value }),
                     _ => unreachable!(),
                 };
@@ -653,9 +789,7 @@ impl RecordService {
         // Default to IS NOT NULL if no operator
         let column = self
             .resolve_filter_column(filter, collection)
-            .ok_or_else(|| {
-                CoreError::ValidationError("Invalid filter expression".to_string())
-            })?;
+            .ok_or_else(|| CoreError::ValidationError("Invalid filter expression".to_string()))?;
 
         Ok(FilterCondition::IsNotNull { column })
     }
